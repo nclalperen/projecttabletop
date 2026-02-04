@@ -1,0 +1,24 @@
+# Godot 4+
+.godot/
+.import/
+.mono/
+
+# Export/build outputs
+/android/
+/build/
+/bin/
+/obj/
+/export/
+/exports/
+
+# IDE/editor
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+# OS junk
+.DS_Store
+Thumbs.db
