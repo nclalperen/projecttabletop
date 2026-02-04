@@ -1,4 +1,4 @@
-﻿extends ItemList
+extends ItemList
 class_name MeldPreviewList
 
 signal reorder_requested(from_index: int, to_index: int)
@@ -13,7 +13,7 @@ func _get_drag_data(at_position: Vector2):
 	set_drag_preview(preview)
 	return {"from": idx}
 
-func _can_drop_data(at_position: Vector2, data) -> bool:
+func _can_drop_data(_at_position: Vector2, data) -> bool:
 	return typeof(data) == TYPE_DICTIONARY and data.has("from")
 
 func _drop_data(at_position: Vector2, data) -> void:
@@ -30,4 +30,3 @@ func _gui_input(event) -> void:
 		var idx := get_item_at_position(event.position, true)
 		if idx != -1:
 			emit_signal("remove_requested", idx)
-

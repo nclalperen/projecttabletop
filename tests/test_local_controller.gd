@@ -1,7 +1,5 @@
 ﻿extends RefCounted
 
-const LocalGameController = preload("res://core/controller/LocalGameController.gd")
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
 
 func run() -> bool:
 	return _test_basic_turns()

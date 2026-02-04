@@ -33,6 +33,7 @@ This document defines the canonical rules for Okey 101 used by this project. The
 ## Taking From Discard
 - If a player takes the last discard, they **must use it**.
 - If the player has **not opened**, taking from discard **requires opening** and the taken tile **must be included** in the opening melds that turn.
+- A player may **peek** at the last discard and return it, then draw from the deck without penalty.
 
 ## Finish
 - A player finishes the hand by playing all tiles and discarding the last tile.

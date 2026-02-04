@@ -15,6 +15,9 @@ func apply_action(state: GameState, player_index: int, action: Action) -> GameSt
 		Action.ActionType.TAKE_DISCARD:
 			_apply_take_discard(next, player_index)
 			next.phase = GameState.Phase.TURN_PLAY
+		Action.ActionType.PEEK_DISCARD:
+			# Peek does not change state; player remains in TURN_DRAW.
+			pass
 		Action.ActionType.OPEN_MELDS:
 			_apply_open_melds(next, player_index, action)
 		Action.ActionType.ADD_TO_MELD:

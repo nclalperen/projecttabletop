@@ -1,9 +1,6 @@
 ﻿extends RefCounted
 class_name MeldValidator
 
-const Tile = preload("res://core/model/Tile.gd")
-const OkeyContext = preload("res://core/model/OkeyContext.gd")
-
 func validate_run(tiles: Array, okey_context: OkeyContext) -> Dictionary:
 	if tiles.size() < 3:
 		return _fail("run_too_short")

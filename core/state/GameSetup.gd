@@ -1,12 +1,5 @@
-﻿extends RefCounted
+extends RefCounted
 class_name GameSetup
-
-const DeckBuilder = preload("res://core/model/DeckBuilder.gd")
-const Tile = preload("res://core/model/Tile.gd")
-const OkeyContext = preload("res://core/model/OkeyContext.gd")
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
-const GameState = preload("res://core/state/GameState.gd")
-const PlayerState = preload("res://core/state/PlayerState.gd")
 
 func new_round(rule_config: RuleConfig, rng_seed: int, player_count: int = 4) -> GameState:
 	var rng = RandomNumberGenerator.new()
@@ -59,5 +52,3 @@ func _draw_indicator(deck: Array, rule_config: RuleConfig) -> Tile:
 			deck.insert(0, indicator)
 			indicator = deck.pop_back()
 	return indicator
-
-

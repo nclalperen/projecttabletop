@@ -1,4 +1,4 @@
-﻿extends RefCounted
+extends RefCounted
 class_name Scoring
 
 func apply_round_scores(state, winner_index: int) -> void:
@@ -81,13 +81,13 @@ func _sum_hand_for_scoring(state, player) -> int:
 			sum += tile.number
 	return sum
 
-func _winner_discarded_joker(state, winner_index: int) -> bool:
+func _winner_discarded_joker(state, _winner_index: int) -> bool:
 	if state.discard_pile.is_empty():
 		return false
 	var tile = state.discard_pile[state.discard_pile.size() - 1]
 	return tile.kind == Tile.Kind.FAKE_OKEY or state.okey_context.is_real_okey(tile)
 
-func _winner_finished_all_in_one_turn(state, winner_index: int) -> bool:
+func _winner_finished_all_in_one_turn(state, _winner_index: int) -> bool:
 	return bool(state.last_finish_all_in_one_turn)
 
 func _get_multiplier_matrix(winner_opened_by_pairs: bool, winner_discarded_joker: bool):
@@ -133,5 +133,3 @@ func apply_no_winner_penalties(state) -> void:
 		if penalty > 0:
 			player.score_round += penalty
 			player.score_total += penalty
-
-

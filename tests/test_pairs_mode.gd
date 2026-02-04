@@ -1,11 +1,5 @@
 ﻿extends RefCounted
 
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
-const GameSetup = preload("res://core/state/GameSetup.gd")
-const Validator = preload("res://core/actions/Validator.gd")
-const Action = preload("res://core/actions/Action.gd")
-const Meld = preload("res://core/model/Meld.gd")
-const Tile = preload("res://core/model/Tile.gd")
 
 func run() -> bool:
 	return _test_pairs_lock() and _test_pairs_additional_meld()

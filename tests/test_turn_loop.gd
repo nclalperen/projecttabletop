@@ -1,10 +1,5 @@
 ﻿extends RefCounted
 
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
-const GameSetup = preload("res://core/state/GameSetup.gd")
-const Validator = preload("res://core/actions/Validator.gd")
-const Reducer = preload("res://core/actions/Reducer.gd")
-const Action = preload("res://core/actions/Action.gd")
 
 func run() -> bool:
 	return _test_turn_loop() and _test_illegal_phase()

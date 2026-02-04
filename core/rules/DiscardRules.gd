@@ -1,7 +1,5 @@
-﻿extends RefCounted
+extends RefCounted
 class_name DiscardRules
-
-const MeldValidator = preload("res://core/rules/MeldValidator.gd")
 
 func is_tile_extendable_on_table(state, tile) -> bool:
 	var validator = MeldValidator.new()
@@ -23,5 +21,3 @@ func is_tile_extendable_on_table(state, tile) -> bool:
 			if res2.ok:
 				return true
 	return false
-
-

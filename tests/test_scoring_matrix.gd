@@ -1,11 +1,5 @@
 ﻿extends RefCounted
 
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
-const GameState = preload("res://core/state/GameState.gd")
-const PlayerState = preload("res://core/state/PlayerState.gd")
-const OkeyContext = preload("res://core/model/OkeyContext.gd")
-const Tile = preload("res://core/model/Tile.gd")
-const Scoring = preload("res://core/rules/Scoring.gd")
 
 func run() -> bool:
 	return _test_scoring_matrix() and _test_all_in_one()
@@ -99,6 +93,16 @@ func _test_all_in_one() -> bool:
 		return false
 	if scores[1] != 404 or scores[2] != 404:
 		push_error("All-in-one others should be 404")
+		return false
+
+	# All-in-one with joker discard
+	state.discard_pile = [Tile.new(Tile.TileColor.RED, 6, Tile.Kind.NORMAL, 78)] # real okey for indicator 5
+	var scores_joker = scoring.compute_round_scores(state, 0)
+	if scores_joker[0] != -404:
+		push_error("All-in-one joker winner should be -404")
+		return false
+	if scores_joker[1] != 808 or scores_joker[2] != 808:
+		push_error("All-in-one joker others should be 808")
 		return false
 
 	return true

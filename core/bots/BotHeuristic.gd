@@ -1,53 +1,86 @@
 ﻿extends RefCounted
 class_name BotHeuristic
 
-const Action = preload("res://core/actions/Action.gd")
-const Validator = preload("res://core/actions/Validator.gd")
-const Meld = preload("res://core/model/Meld.gd")
-const DiscardRules = preload("res://core/rules/DiscardRules.gd")
-
 func choose_action(state, player_index: int):
 	var validator = Validator.new()
 	var player = state.players[player_index]
 
 	match state.phase:
 		state.Phase.STARTER_DISCARD:
-			return _choose_discard(player)
+			return _choose_discard(state, player)
 		state.Phase.TURN_DRAW:
 			if not state.discard_pile.is_empty():
 				var discard_tile = state.discard_pile[state.discard_pile.size() - 1]
 				if _can_use_discard_tile(state, player, discard_tile):
-					return Action.new(Action.ActionType.TAKE_DISCARD, {})
+					if _prefer_take_discard(state, player, discard_tile):
+						return Action.new(Action.ActionType.TAKE_DISCARD, {})
 			return Action.new(Action.ActionType.DRAW_FROM_DECK, {})
 		state.Phase.TURN_PLAY:
 			if not player.has_opened:
-				var open_action = _try_open(player)
+				var open_action = _try_open(player, state)
 				if open_action != null:
 					var res = validator.validate_action(state, player_index, open_action)
 					if res.ok:
 						return open_action
 			return Action.new(Action.ActionType.END_PLAY, {})
 		state.Phase.TURN_DISCARD:
-			return _choose_discard(player)
+			return _choose_discard(state, player)
 		_:
 			return null
 
-func _choose_discard(player):
+func _choose_discard(state, player):
 	# Discard highest tile by number (simple heuristic)
 	var best = null
+	var best_penalty = true
+	var best_usefulness = 9999
+	var discard_rules = DiscardRules.new()
 	for t in player.hand:
-		if best == null or t.number > best.number:
+		var is_joker = t.kind == t.Kind.FAKE_OKEY or state.okey_context.is_real_okey(t)
+		var extendable = discard_rules.is_tile_extendable_on_table(state, t)
+		var penalty = is_joker or extendable
+		var usefulness = _tile_usefulness(state, player, t)
+		if best == null:
 			best = t
+			best_penalty = penalty
+			best_usefulness = usefulness
+			continue
+		if best_penalty and not penalty:
+			best = t
+			best_penalty = penalty
+			best_usefulness = usefulness
+			continue
+		if best_penalty == penalty:
+			if usefulness < best_usefulness:
+				best = t
+				best_usefulness = usefulness
+				continue
+			if usefulness == best_usefulness and t.number > best.number:
+				best = t
+				best_usefulness = usefulness
 	if best == null:
 		return null
 	return Action.new(Action.ActionType.DISCARD, {"tile_id": best.unique_id})
 
-func _try_open(player):
+func _tile_usefulness(state, player, tile) -> int:
+	# Lower is better for discard.
+	if tile.kind == tile.Kind.FAKE_OKEY or state.okey_context.is_real_okey(tile):
+		return 1000
+	var score = 0
+	for t in player.hand:
+		if t.unique_id == tile.unique_id:
+			continue
+		if t.number == tile.number and t.color != tile.color:
+			score += 2
+		if t.color == tile.color and (t.number == tile.number - 1 or t.number == tile.number + 1):
+			score += 2
+	return score
+
+func _try_open(player, state):
 	# Prefer 5 pairs if available
 	var pairs_melds = _find_pairs(player)
 	if pairs_melds.size() >= 5:
-		var melds = pairs_melds.slice(0, 5)
-		return Action.new(Action.ActionType.OPEN_MELDS, {"melds": melds, "open_by_pairs": true})
+		var open_melds = pairs_melds.slice(0, 5)
+		return Action.new(Action.ActionType.OPEN_MELDS, {"melds": open_melds, "open_by_pairs": true})
 
 	# Otherwise try sets/runs to reach 101 using greedy melds
 	var melds = []
@@ -61,7 +94,9 @@ func _try_open(player):
 		for id in m.tile_ids:
 			used_ids[id] = true
 		if points >= 101:
-			return Action.new(Action.ActionType.OPEN_MELDS, {"melds": melds})
+			if _should_open(points, state, player):
+				return Action.new(Action.ActionType.OPEN_MELDS, {"melds": melds})
+			return null
 
 	var runs = _find_runs(player, used_ids)
 	for m in runs:
@@ -70,9 +105,26 @@ func _try_open(player):
 		for id in m.tile_ids:
 			used_ids[id] = true
 		if points >= 101:
-			return Action.new(Action.ActionType.OPEN_MELDS, {"melds": melds})
+			if _should_open(points, state, player):
+				return Action.new(Action.ActionType.OPEN_MELDS, {"melds": melds})
+			return null
 
 	return null
+
+func _should_open(points: int, state, player) -> bool:
+	if points >= 130:
+		return true
+	var penalty = _estimate_hand_penalty(state, player)
+	return penalty >= 60
+
+func _estimate_hand_penalty(state, player) -> int:
+	var sum = 0
+	for t in player.hand:
+		if t.kind == t.Kind.FAKE_OKEY or state.okey_context.is_real_okey(t):
+			sum += 101
+		else:
+			sum += t.number
+	return sum
 
 func _can_use_discard_tile(state, player, discard_tile) -> bool:
 	# Be conservative for unopened hands: avoid taking discards that force invalid opens.
@@ -91,6 +143,27 @@ func _can_use_discard_tile(state, player, discard_tile) -> bool:
 	if _can_form_simple_run_or_set(player, discard_tile):
 		return true
 	return false
+
+func _prefer_take_discard(state, player, discard_tile) -> bool:
+	var deck_remaining = state.deck.size()
+	if deck_remaining <= 6:
+		return true
+	return _discard_value(state, player, discard_tile) >= 4
+
+func _discard_value(state, player, discard_tile) -> int:
+	var value = 0
+	if discard_tile.kind == discard_tile.Kind.FAKE_OKEY or state.okey_context.is_real_okey(discard_tile):
+		value += 3
+	for t in player.hand:
+		if t.unique_id == discard_tile.unique_id:
+			continue
+		if t.number == discard_tile.number and t.color == discard_tile.color:
+			value += 3
+		elif t.number == discard_tile.number and t.color != discard_tile.color:
+			value += 2
+		elif t.color == discard_tile.color and (t.number == discard_tile.number - 1 or t.number == discard_tile.number + 1):
+			value += 1
+	return value
 
 func _can_add_tile_to_table(state, tile) -> bool:
 	var discard_rules = DiscardRules.new()
@@ -224,7 +297,8 @@ func _find_runs(player, used_ids: Dictionary) -> Array:
 					for r in run:
 						tile_ids.append(r.unique_id)
 						sum += r.number
-					melds.append({"kind": Meld.Kind.RUN, "tile_ids": tile_ids, "points": sum})
+					var points = _run_points(tile_ids.size(), run[0].number)
+					melds.append({"kind": Meld.Kind.RUN, "tile_ids": tile_ids, "points": points})
 				run = [t]
 		if run.size() >= 3:
 			var tile_ids2 = []
@@ -232,7 +306,18 @@ func _find_runs(player, used_ids: Dictionary) -> Array:
 			for r in run:
 				tile_ids2.append(r.unique_id)
 				sum2 += r.number
-			melds.append({"kind": Meld.Kind.RUN, "tile_ids": tile_ids2, "points": sum2})
+			var points2 = _run_points(tile_ids2.size(), run[0].number)
+			melds.append({"kind": Meld.Kind.RUN, "tile_ids": tile_ids2, "points": points2})
 	return melds
+
+func _run_points(length: int, start_number: int) -> int:
+	if length <= 0:
+		return 0
+	if length == 1:
+		return start_number
+	if length == 2:
+		return start_number + (start_number + 1)
+	var mid = start_number + int(length / 2)
+	return mid * length
 
 

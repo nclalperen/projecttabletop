@@ -1,13 +1,5 @@
 ﻿extends RefCounted
 
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
-const GameState = preload("res://core/state/GameState.gd")
-const PlayerState = preload("res://core/state/PlayerState.gd")
-const OkeyContext = preload("res://core/model/OkeyContext.gd")
-const Tile = preload("res://core/model/Tile.gd")
-const Meld = preload("res://core/model/Meld.gd")
-const Reducer = preload("res://core/actions/Reducer.gd")
-const Action = preload("res://core/actions/Action.gd")
 
 func run() -> bool:
 	return _test_discard_penalties()

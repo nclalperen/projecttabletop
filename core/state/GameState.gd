@@ -1,8 +1,5 @@
-﻿extends RefCounted
+extends RefCounted
 class_name GameState
-
-const OkeyContext = preload("res://core/model/OkeyContext.gd")
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
 
 enum Phase { SETUP, STARTER_DISCARD, TURN_DRAW, TURN_PLAY, TURN_DISCARD, ROUND_END }
 
@@ -17,5 +14,3 @@ var okey_context: OkeyContext
 var rule_config: RuleConfig
 var last_finish_all_in_one_turn: bool = false
 var round_cancelled: bool = false
-
-

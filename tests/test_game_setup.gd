@@ -1,7 +1,5 @@
 ﻿extends RefCounted
 
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
-const GameSetup = preload("res://core/state/GameSetup.gd")
 
 func run() -> bool:
 	return _test_dealing_counts()

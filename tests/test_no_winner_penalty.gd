@@ -1,9 +1,5 @@
 ﻿extends RefCounted
 
-const LocalGameController = preload("res://core/controller/LocalGameController.gd")
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
-const Tile = preload("res://core/model/Tile.gd")
-const OkeyContext = preload("res://core/model/OkeyContext.gd")
 
 func run() -> bool:
 	return _test_no_winner_penalty()

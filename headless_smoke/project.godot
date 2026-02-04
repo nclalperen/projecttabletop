@@ -1,9 +1,0 @@
-; Engine configuration file.
-config_version=5
-
-[application]
-config/name="HeadlessSmoke"
-run/main_scene=""
-
-[rendering]
-renderer/rendering_method="gl_compatibility"

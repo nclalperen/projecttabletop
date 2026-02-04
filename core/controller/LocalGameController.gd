@@ -7,9 +7,6 @@ signal round_cancelled
 signal action_applied(player_index, action_type)
 signal turn_advanced(current_player_index, phase)
 
-const GameSetup = preload("res://core/state/GameSetup.gd")
-const Validator = preload("res://core/actions/Validator.gd")
-
 var state
 var show_tips: bool = true
 
@@ -110,6 +107,9 @@ func draw_from_deck(player_index: int) -> Dictionary:
 
 func take_discard(player_index: int) -> Dictionary:
 	return apply_action_if_valid(player_index, Action.new(Action.ActionType.TAKE_DISCARD, {}))
+
+func peek_discard(player_index: int) -> Dictionary:
+	return apply_action_if_valid(player_index, Action.new(Action.ActionType.PEEK_DISCARD, {}))
 
 func end_play_turn(player_index: int) -> Dictionary:
 	return apply_action_if_valid(player_index, Action.new(Action.ActionType.END_PLAY, {}))

@@ -1,8 +1,5 @@
 ﻿extends RefCounted
 
-const LocalGameController = preload("res://core/controller/LocalGameController.gd")
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
-const BotRandom = preload("res://core/bots/BotRandom.gd")
 
 func run() -> bool:
 	return _test_bot_random_loop()

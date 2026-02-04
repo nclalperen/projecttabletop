@@ -1,9 +1,5 @@
 ﻿extends RefCounted
 
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
-const GameSetup = preload("res://core/state/GameSetup.gd")
-const LocalGameController = preload("res://core/controller/LocalGameController.gd")
-const Action = preload("res://core/actions/Action.gd")
 
 func run() -> bool:
 	return _test_failed_opening_penalty()

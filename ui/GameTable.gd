@@ -1,11 +1,4 @@
-﻿extends Control
-
-const LocalGameController := preload("res://core/controller/LocalGameController.gd")
-const RuleConfig := preload("res://core/rules/RuleConfig.gd")
-const BotHeuristic := preload("res://core/bots/BotHeuristic.gd")
-const Action := preload("res://core/actions/Action.gd")
-const Meld := preload("res://core/model/Meld.gd")
-const MeldValidator := preload("res://core/rules/MeldValidator.gd")
+extends Control
 
 @onready var _banner: Node = $StatusBanner
 @onready var _hand_list: ItemList = $HandList
@@ -230,7 +223,7 @@ func _on_finish() -> void:
 	var hand = _controller.state.players[_controller.state.current_player_index].hand
 	if hand.is_empty():
 		return
-	var final_discard_tile := hand[hand.size() - 1]
+	var final_discard_tile = hand[hand.size() - 1]
 	var action := Action.new(Action.ActionType.FINISH, {"melds": _grouped_melds, "final_discard_tile_id": final_discard_tile.unique_id, "finish_all_in_one_turn": true})
 	_controller.apply_action_if_valid(_controller.state.current_player_index, action)
 	_clear_groups()
@@ -289,7 +282,7 @@ func _on_discard() -> void:
 	_update_discard_warning()
 
 func _on_bot_turn() -> void:
-	var player := _controller.state.current_player_index
+	var player = _controller.state.current_player_index
 	var action = _bot.choose_action(_controller.state, player)
 	if action != null:
 		_controller.apply_action_if_valid(player, action)
@@ -331,13 +324,6 @@ func _refresh_player_info() -> void:
 		_required_label.text = "Required: %s" % _required_tile_label(_controller.state.turn_required_use_tile_id)
 	else:
 		_required_label.text = "Required: (none)"
-
-func _required_tile_label(tile_id: int) -> String:
-	var hand = _controller.state.players[_controller.state.current_player_index].hand
-	for t in hand:
-		if t.unique_id == tile_id:
-			return _tile_label(t)
-	return str(tile_id)
 
 func _selected_tiles() -> Array:
 	var tiles := []
@@ -551,7 +537,7 @@ func _validate_all_groups() -> Dictionary:
 		if pairs_count < 5:
 			return {"ok": false, "reason": "<5 pairs", "points": total_points, "pairs_points": pairs_points, "meld_points": meld_points}
 		return {"ok": true, "reason": "", "points": total_points, "pairs_points": pairs_points, "meld_points": meld_points}
-	var min_points := _controller.state.rule_config.open_min_points_initial
+	var min_points = _controller.state.rule_config.open_min_points_initial
 	if total_points < min_points:
 		return {"ok": false, "reason": "<%s" % min_points, "points": total_points, "pairs_points": pairs_points, "meld_points": meld_points}
 	return {"ok": true, "reason": "", "points": total_points, "pairs_points": pairs_points, "meld_points": meld_points}
@@ -596,7 +582,7 @@ func _maybe_auto_bot_turn() -> void:
 		call_deferred("_on_bot_turn")
 
 func _apply_required_tile_highlight() -> void:
-	var required_id := _controller.state.turn_required_use_tile_id
+	var required_id = _controller.state.turn_required_use_tile_id
 	var hand = _controller.state.players[_controller.state.current_player_index].hand
 	for i in range(hand.size()):
 		if required_id != -1 and hand[i].unique_id == required_id:
@@ -624,4 +610,3 @@ func _rebuild_grouped_tile_ids() -> void:
 	for meld in _grouped_melds:
 		for id in meld.tile_ids:
 			_grouped_tile_ids[id] = true
-

@@ -1,8 +1,5 @@
 ﻿extends RefCounted
 
-const DeckBuilder = preload("res://core/model/DeckBuilder.gd")
-const Tile = preload("res://core/model/Tile.gd")
-const OkeyContext = preload("res://core/model/OkeyContext.gd")
 
 func run() -> bool:
 	return _test_deck_counts() and _test_okey_wraparound()

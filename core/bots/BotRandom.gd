@@ -1,12 +1,6 @@
 ﻿extends RefCounted
 class_name BotRandom
 
-const BotBase = preload("res://core/bots/BotBase.gd")
-const Action = preload("res://core/actions/Action.gd")
-const Validator = preload("res://core/actions/Validator.gd")
-const Meld = preload("res://core/model/Meld.gd")
-const DiscardRules = preload("res://core/rules/DiscardRules.gd")
-
 var rng = RandomNumberGenerator.new()
 
 func _init(p_seed: int = 1) -> void:
@@ -29,6 +23,19 @@ func choose_action(state, player_index: int):
 		if state.phase == state.Phase.TURN_DRAW:
 			return Action.new(Action.ActionType.DRAW_FROM_DECK, {})
 		return null
+	# Prefer non-penalty discards when possible.
+	if state.phase == state.Phase.TURN_DISCARD:
+		var safe_discards: Array = []
+		for action in valid_actions:
+			if action.type != Action.ActionType.DISCARD:
+				continue
+			var tile_id = int(action.payload.get("tile_id", -1))
+			if tile_id == -1:
+				continue
+			if not _is_penalty_discard(state, player_index, tile_id):
+				safe_discards.append(action)
+		if not safe_discards.is_empty():
+			return safe_discards[rng.randi_range(0, safe_discards.size() - 1)]
 	return valid_actions[rng.randi_range(0, valid_actions.size() - 1)]
 
 func _build_candidates(state, player_index: int) -> Array:
@@ -68,6 +75,9 @@ func _can_use_discard_tile(state, player, discard_tile) -> bool:
 	if player.opened_by_pairs and pairs_locked:
 		if _has_pair_for_tile(player, discard_tile):
 			return true
+		if _can_add_tile_to_table(state, discard_tile):
+			return true
+		return false
 	else:
 		if _has_pair_for_tile(player, discard_tile) and (not pairs_locked):
 			return true
@@ -177,5 +187,15 @@ func _find_tile_by_id(player, tile_id: int):
 		if t.unique_id == tile_id:
 			return t
 	return null
+
+func _is_penalty_discard(state, player_index: int, tile_id: int) -> bool:
+	var player = state.players[player_index]
+	var tile = _find_tile_by_id(player, tile_id)
+	if tile == null:
+		return false
+	var discard_joker = tile.kind == tile.Kind.FAKE_OKEY or state.okey_context.is_real_okey(tile)
+	var discard_rules = DiscardRules.new()
+	var extendable = discard_rules.is_tile_extendable_on_table(state, tile)
+	return discard_joker or extendable
 
 

@@ -1,8 +1,5 @@
 ﻿extends RefCounted
 
-const Tile = preload("res://core/model/Tile.gd")
-const OkeyContext = preload("res://core/model/OkeyContext.gd")
-const MeldValidator = preload("res://core/rules/MeldValidator.gd")
 
 func run() -> bool:
 	return _test_run_set() and _test_wild_substitution() and _test_invalid_set_duplicate_color()

@@ -1,14 +1,5 @@
 ﻿extends RefCounted
 
-const GameState = preload("res://core/state/GameState.gd")
-const PlayerState = preload("res://core/state/PlayerState.gd")
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
-const Tile = preload("res://core/model/Tile.gd")
-const OkeyContext = preload("res://core/model/OkeyContext.gd")
-const Action = preload("res://core/actions/Action.gd")
-const Validator = preload("res://core/actions/Validator.gd")
-const Reducer = preload("res://core/actions/Reducer.gd")
-const Meld = preload("res://core/model/Meld.gd")
 
 func run() -> bool:
 	return _test_finish_and_scoring()

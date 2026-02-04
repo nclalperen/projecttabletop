@@ -1,10 +1,5 @@
 ﻿extends RefCounted
 
-const LocalGameController = preload("res://core/controller/LocalGameController.gd")
-const RuleConfig = preload("res://core/rules/RuleConfig.gd")
-const Action = preload("res://core/actions/Action.gd")
-const Meld = preload("res://core/model/Meld.gd")
-const Tile = preload("res://core/model/Tile.gd")
 
 var _cancelled = false
 
