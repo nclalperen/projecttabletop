@@ -58,7 +58,7 @@ func _test_finish_and_scoring() -> bool:
 		push_error("Expected ROUND_END after finish")
 		return false
 
-	if state.players[0].score_round != -101 or state.players[0].score_total != -101:
+	if state.players[0].score_round != 0 or state.players[0].score_total != 0:
 		push_error("Winner score incorrect")
 		return false
 

@@ -1,7 +1,62 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="PackedScene" path="res://ui/widgets/StatusBanner.tscn" id=1]
 [ext_resource type="Script" path="res://ui/MainMenu.gd" id=2]
+[ext_resource type="Theme" path="res://ui/themes/okey_theme.tres" id=3]
+
+[sub_resource type="Gradient" id=1]
+colors = PackedColorArray(0.96, 0.92, 0.86, 1, 0.91, 0.79, 0.65, 1, 0.58, 0.36, 0.28, 1)
+
+[sub_resource type="GradientTexture2D" id=2]
+width = 4
+height = 4
+gradient = SubResource(1)
+
+[sub_resource type="StyleBoxFlat" id=3]
+bg_color = Color(0.97, 0.94, 0.88, 0.98)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.84, 0.65, 0.36, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+shadow_color = Color(0, 0, 0, 0.2)
+shadow_size = 8
+content_margin_left = 28
+content_margin_top = 24
+content_margin_right = 28
+content_margin_bottom = 24
+
+[sub_resource type="StyleBoxFlat" id=4]
+bg_color = Color(0.98, 0.95, 0.9, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.2, 0.45, 0.55, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 16
+content_margin_top = 8
+content_margin_right = 16
+content_margin_bottom = 8
+
+[sub_resource type="StyleBoxFlat" id=5]
+bg_color = Color(0.9, 0.85, 0.75, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.2, 0.45, 0.6, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [node name="MainMenu" type="Control"]
 anchors_preset = 15
@@ -9,19 +64,136 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 offset_right = 0.0
 offset_bottom = 0.0
+theme = ExtResource(3)
 script = ExtResource(2)
+
+[node name="Background" type="TextureRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+texture = SubResource(2)
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
 
 [node name="StatusBanner" parent="." instance=ExtResource(1)]
 
-[node name="Title" type="Label" parent="."]
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -140.0
-offset_top = -12.0
-offset_right = 140.0
-offset_bottom = 12.0
-text = "Main Menu (Placeholder)"
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 
+[node name="MenuCard" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(560, 560)
+theme_override_styles/panel = SubResource(3)
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/MenuCard"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/MenuCard/MarginContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+alignment = 1
+
+[node name="Title" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
+text = "OKEY 101"
+horizontal_alignment = 1
+custom_minimum_size = Vector2(0, 96)
+theme_override_font_sizes/font_size = 64
+theme_override_colors/font_color = Color(0.12, 0.28, 0.33, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.25)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+
+[node name="Subtitle" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
+text = "Turkish Tile Game"
+horizontal_alignment = 1
+custom_minimum_size = Vector2(0, 40)
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.35, 0.26, 0.2, 1)
+
+[node name="Version" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
+text = "v0.1.0"
+horizontal_alignment = 1
+custom_minimum_size = Vector2(0, 20)
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.45, 0.38, 0.32, 1)
+
+[node name="SettingsSummary" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
+text = "Players: 4  |  Seed: Random"
+horizontal_alignment = 1
+custom_minimum_size = Vector2(0, 26)
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.2, 0.45, 0.55, 1)
+
+[node name="Spacer1" type="Control" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 26)
+
+[node name="Buttons" type="VBoxContainer" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 0)
+separation = 12
+
+[node name="StartButton" type="Button" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons"]
+text = "Start Game"
+custom_minimum_size = Vector2(0, 64)
+
+[node name="SettingsButton" type="Button" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons"]
+text = "Settings"
+custom_minimum_size = Vector2(0, 64)
+
+[node name="QuitButton" type="Button" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons"]
+text = "Quit"
+custom_minimum_size = Vector2(0, 64)
+
+[node name="DecorTopLeft" type="GridContainer" parent="CenterContainer/MenuCard"]
+columns = 2
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 110.0
+offset_bottom = 110.0
+mouse_filter = 2
+
+[node name="Tile1" type="Panel" parent="CenterContainer/MenuCard/DecorTopLeft"]
+theme_override_styles/panel = SubResource(5)
+
+[node name="Tile2" type="Panel" parent="CenterContainer/MenuCard/DecorTopLeft"]
+theme_override_styles/panel = SubResource(5)
+
+[node name="Tile3" type="Panel" parent="CenterContainer/MenuCard/DecorTopLeft"]
+theme_override_styles/panel = SubResource(5)
+
+[node name="Tile4" type="Panel" parent="CenterContainer/MenuCard/DecorTopLeft"]
+theme_override_styles/panel = SubResource(5)
+
+[node name="DecorBottomRight" type="GridContainer" parent="CenterContainer/MenuCard"]
+columns = 2
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -110.0
+offset_top = -110.0
+offset_right = -20.0
+offset_bottom = -20.0
+mouse_filter = 2
+
+[node name="Tile1" type="Panel" parent="CenterContainer/MenuCard/DecorBottomRight"]
+theme_override_styles/panel = SubResource(5)
+
+[node name="Tile2" type="Panel" parent="CenterContainer/MenuCard/DecorBottomRight"]
+theme_override_styles/panel = SubResource(5)
+
+[node name="Tile3" type="Panel" parent="CenterContainer/MenuCard/DecorBottomRight"]
+theme_override_styles/panel = SubResource(5)
+
+[node name="Tile4" type="Panel" parent="CenterContainer/MenuCard/DecorBottomRight"]
+theme_override_styles/panel = SubResource(5)
+
+[node name="AnimPlayer" type="AnimationPlayer" parent="."]

@@ -23,7 +23,7 @@ func choose_action(state, player_index: int):
 		if state.phase == state.Phase.TURN_DRAW:
 			return Action.new(Action.ActionType.DRAW_FROM_DECK, {})
 		return null
-	# Prefer non-penalty discards when possible.
+	# Prefer safer discards when possible.
 	if state.phase == state.Phase.TURN_DISCARD:
 		var safe_discards: Array = []
 		for action in valid_actions:
@@ -32,7 +32,7 @@ func choose_action(state, player_index: int):
 			var tile_id = int(action.payload.get("tile_id", -1))
 			if tile_id == -1:
 				continue
-			if not _is_penalty_discard(state, player_index, tile_id):
+			if not _is_risky_discard(state, player_index, tile_id):
 				safe_discards.append(action)
 		if not safe_discards.is_empty():
 			return safe_discards[rng.randi_range(0, safe_discards.size() - 1)]
@@ -188,7 +188,7 @@ func _find_tile_by_id(player, tile_id: int):
 			return t
 	return null
 
-func _is_penalty_discard(state, player_index: int, tile_id: int) -> bool:
+func _is_risky_discard(state, player_index: int, tile_id: int) -> bool:
 	var player = state.players[player_index]
 	var tile = _find_tile_by_id(player, tile_id)
 	if tile == null:

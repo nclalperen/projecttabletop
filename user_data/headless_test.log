@@ -1,0 +1,12 @@
+Godot Engine v4.6.stable.official.89cea1439 - https://godotengine.org
+
+ERROR: Failed to read the root certificate store.
+   at: get_system_ca_certificates (platform/windows/os_windows.cpp:2570)
+ERROR: Can't free a RefCounted object.
+   at: callp (core/object/object.cpp:884)
+   GDScript backtrace (most recent call first):
+       [0] _initialize (res://tests/run_tests.gd:32)
+SCRIPT ERROR: Attempted to free a RefCounted object.
+   at: _initialize (res://tests/run_tests.gd:32)
+   GDScript backtrace (most recent call first):
+       [0] _initialize (res://tests/run_tests.gd:32)

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Load user-configured executable paths
+# shellcheck disable=SC1091
+source "$ROOT/tools/godot_paths.sh"
+
+want="${1:-}"
+if [[ "$want" == "dotnet" ]]; then
+  shift
+  exe="${GODOT_DOTNET_EXE:-}"
+else
+  exe="${GODOT_EXE:-}"
+fi
+
+if [[ -z "${exe:-}" ]]; then
+  echo "Godot exe path not set." >&2
+  echo "Edit: tools/godot_paths.sh" >&2
+  echo "Set GODOT_EXE and/or GODOT_DOTNET_EXE to MSYS2 paths like /c/..." >&2
+  exit 1
+fi
+
+# Run Godot
+"$exe" "$@"

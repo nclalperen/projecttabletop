@@ -12,8 +12,6 @@ func validate_action(state: GameState, player_index: int, action: Action) -> Dic
 			return _validate_draw_from_deck(state, player_index)
 		Action.ActionType.TAKE_DISCARD:
 			return _validate_take_discard(state, player_index)
-		Action.ActionType.PEEK_DISCARD:
-			return _validate_peek_discard(state, player_index)
 		Action.ActionType.OPEN_MELDS:
 			return _validate_open_melds(state, player_index, action)
 		Action.ActionType.ADD_TO_MELD:
@@ -37,6 +35,14 @@ func _validate_starter_discard(state: GameState, player_index: int, action: Acti
 
 	if not action.payload.has("tile_id"):
 		return _fail("missing_tile_id", "tile_id required for discard")
+	var tile_id = int(action.payload.get("tile_id", -1))
+	var found = false
+	for t in player.hand:
+		if t.unique_id == tile_id:
+			found = true
+			break
+	if not found:
+		return _fail("tile_not_in_hand", "Discard tile not in hand")
 
 	return _ok()
 
@@ -45,8 +51,8 @@ func _validate_draw_from_deck(state: GameState, player_index: int) -> Dictionary
 		return _fail("phase", "Not in TURN_DRAW phase")
 
 	var player = state.players[player_index]
-	if player.hand.size() != state.rule_config.tiles_per_player:
-		return _fail("hand_size", "Player must have tiles_per_player before draw")
+	if player.hand.size() >= state.rule_config.starter_tiles:
+		return _fail("hand_size", "Player cannot draw with starter_tiles or more tiles in hand")
 
 	if state.deck.is_empty():
 		return _fail("deck_empty", "Deck is empty")
@@ -61,8 +67,8 @@ func _validate_take_discard(state: GameState, player_index: int) -> Dictionary:
 		return _fail("discard_empty", "Discard pile is empty")
 
 	var player = state.players[player_index]
-	if player.hand.size() != state.rule_config.tiles_per_player:
-		return _fail("hand_size", "Player must have tiles_per_player before draw")
+	if player.hand.size() >= state.rule_config.starter_tiles:
+		return _fail("hand_size", "Player cannot take discard with starter_tiles or more tiles in hand")
 
 	# If the player has already opened, only allow taking discard if it can be used immediately.
 	if player.has_opened and state.rule_config.require_discard_take_to_be_used:
@@ -76,16 +82,6 @@ func _validate_take_discard(state: GameState, player_index: int) -> Dictionary:
 		if not _can_open_with_discard_unopened(state, player, discard_tile_unopened):
 			return _fail("cannot_use_discard", "Cannot use discard to open")
 
-	return _ok()
-
-func _validate_peek_discard(state: GameState, player_index: int) -> Dictionary:
-	if state.phase != GameState.Phase.TURN_DRAW:
-		return _fail("phase", "Not in TURN_DRAW phase")
-	if state.discard_pile.is_empty():
-		return _fail("discard_empty", "Discard pile is empty")
-	var player = state.players[player_index]
-	if player.hand.size() != state.rule_config.tiles_per_player:
-		return _fail("hand_size", "Player must have tiles_per_player before draw")
 	return _ok()
 
 func _validate_open_melds(state: GameState, player_index: int, action: Action) -> Dictionary:
@@ -102,11 +98,11 @@ func _validate_open_melds(state: GameState, player_index: int, action: Action) -
 	var player = state.players[player_index]
 	var open_by_pairs = bool(action.payload.get("open_by_pairs", false))
 
-	if player.has_opened and state.rule_config.open_by_pairs_locks_to_pairs:
-		if player.opened_by_pairs and not open_by_pairs:
-			return _fail("pairs_only", "Player opened by pairs and must continue with pairs")
-		if (not player.opened_by_pairs) and open_by_pairs:
-			return _fail("melds_only", "Player opened by melds and cannot open by pairs")
+	# SeOkey11 dossier: opening by pairs is a one-time opening lane; after that, no new meld creation.
+	if player.has_opened and player.opened_by_pairs:
+		return _fail("pairs_locked", "Player opened by pairs and cannot create new melds")
+	if player.has_opened and open_by_pairs:
+		return _fail("melds_only", "Player opened by melds and cannot open by pairs")
 	var tile_by_id = {}
 	for tile in player.hand:
 		tile_by_id[tile.unique_id] = tile
@@ -237,10 +233,12 @@ func _validate_end_play(state: GameState, player_index: int) -> Dictionary:
 	if state.phase != GameState.Phase.TURN_PLAY:
 		return _fail("phase", "Not in TURN_PLAY phase")
 	var player = state.players[player_index]
-	if player.hand.size() != state.rule_config.starter_tiles:
-		return _fail("hand_size", "Player must have starter_tiles before ending play")
+	if player.hand.is_empty():
+		return _fail("hand_empty", "Player must have at least one tile to discard")
 	if state.turn_required_use_tile_id != -1 and state.rule_config.discard_take_must_be_used_always:
 		return _fail("must_use_taken_tile", "Must use taken discard before ending play")
+	if state.turn_required_use_tile_id != -1 and (not player.has_opened) and state.rule_config.if_not_opened_discard_take_requires_open_and_includes_tile:
+		return _fail("must_use_taken_tile", "Must open and include taken discard before ending play")
 	return _ok()
 
 func _validate_discard(state: GameState, player_index: int, action: Action) -> Dictionary:
@@ -248,11 +246,23 @@ func _validate_discard(state: GameState, player_index: int, action: Action) -> D
 		return _fail("phase", "Not in TURN_DISCARD phase")
 
 	var player = state.players[player_index]
-	if player.hand.size() != state.rule_config.starter_tiles:
-		return _fail("hand_size", "Player must have starter_tiles before discard")
+	if player.hand.is_empty():
+		return _fail("hand_empty", "Player must have at least one tile to discard")
 
 	if not action.payload.has("tile_id"):
 		return _fail("missing_tile_id", "tile_id required for discard")
+	var tile_id = int(action.payload.get("tile_id", -1))
+	var found = false
+	for t in player.hand:
+		if t.unique_id == tile_id:
+			found = true
+			break
+	if not found:
+		return _fail("tile_not_in_hand", "Discard tile not in hand")
+
+	# Finishing is by discarding the last tile; require the player to have opened.
+	if player.hand.size() == 1 and not player.has_opened:
+		return _fail("not_opened", "Player must have opened before finishing by discard")
 
 	if state.turn_required_use_tile_id != -1:
 		if state.rule_config.discard_take_must_be_used_always:
@@ -265,12 +275,13 @@ func _validate_discard(state: GameState, player_index: int, action: Action) -> D
 func _validate_finish(state: GameState, player_index: int, action: Action) -> Dictionary:
 	if state.phase != GameState.Phase.TURN_PLAY:
 		return _fail("phase", "Not in TURN_PLAY phase")
-	var player = state.players[state.current_player_index]
-	if player.hand.size() != state.rule_config.starter_tiles:
-		return _fail("hand_size", "Player must have starter_tiles before finishing")
-	var finish_all_in_one = bool(action.payload.get("finish_all_in_one_turn", false))
-	if not player.has_opened and not player.opened_by_pairs and not finish_all_in_one:
+	var player = state.players[player_index]
+	# SeOkey11 dossier: finishing requires having opened, and is done by discarding the last tile.
+	if not player.has_opened:
 		return _fail("not_opened", "Player must have opened before finishing")
+	# Players who opened by pairs cannot create new melds; they finish via layoffs + final discard.
+	if player.opened_by_pairs:
+		return _fail("pairs_locked", "Player opened by pairs and cannot finish by creating melds")
 	return _validate_finish_melds(state, player_index, action)
 
 func _ok() -> Dictionary:
@@ -292,21 +303,17 @@ func _validate_pair_meld(tiles: Array, _okey_context) -> bool:
 func _can_use_discard_after_take(state: GameState, player, discard_tile: Tile) -> bool:
 	if _can_add_tile_to_table(state, discard_tile):
 		return true
-	if _can_form_meld_with_tile(player.hand, discard_tile, state.okey_context):
-		return true
-	return false
+	# Players who opened by pairs cannot create new melds; only layoffs are allowed.
+	if player.opened_by_pairs:
+		return false
+	return _can_form_meld_with_tile(player.hand, discard_tile, state.okey_context)
 
 func _can_add_tile_to_table(state: GameState, tile: Tile) -> bool:
 	var discard_rules = DiscardRules.new()
 	return discard_rules.is_tile_extendable_on_table(state, tile)
 
 func _can_form_meld_with_tile(hand: Array, tile: Tile, okey_context) -> bool:
-	# Pairs
-	for t in hand:
-		if t.color == tile.color and t.number == tile.number:
-			return true
-
-	# Check any 3-tile run or set including the discard.
+	# Check any 3-tile run or set including the tile.
 	var validator = MeldValidator.new()
 	for i in range(hand.size()):
 		for j in range(i + 1, hand.size()):
@@ -354,6 +361,13 @@ func _can_open_by_meld_points_with_discard(hand: Array, discard_tile: Tile, okey
 
 	var melds = _collect_melds_for_open(tiles, discard_index, okey_context)
 	if melds.is_empty():
+		return false
+	var has_discard_meld = false
+	for m in melds:
+		if bool(m.includes_discard):
+			has_discard_meld = true
+			break
+	if not has_discard_meld:
 		return false
 	# Sort by points descending to reach thresholds faster.
 	melds.sort_custom(func(a, b): return int(a.points) > int(b.points))

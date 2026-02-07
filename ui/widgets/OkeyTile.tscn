@@ -1,0 +1,74 @@
+[gd_scene format=3 uid="uid://b5kht8qr2xnpm"]
+
+[ext_resource type="Script" path="res://ui/widgets/OkeyTile.gd" id="1"]
+
+[sub_resource type="Gradient" id="1"]
+colors = PackedColorArray(0.98, 0.97, 0.92, 1, 0.93, 0.9, 0.84, 1)
+
+[sub_resource type="GradientTexture2D" id="2"]
+width = 2
+height = 80
+gradient = SubResource(1)
+
+[node name="OkeyTile" type="Control"]
+custom_minimum_size = Vector2(48, 68)
+script = ExtResource("1")
+
+[node name="Shadow" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 3.0
+offset_top = 3.0
+mouse_filter = 2
+
+[node name="TileBody" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="FaceTexture" type="TextureRect" parent="TileBody"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+texture = SubResource(2)
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
+
+[node name="ColorStrip" type="Panel" parent="TileBody"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 5.0
+offset_top = 50.0
+offset_right = -5.0
+offset_bottom = 55.0
+mouse_filter = 2
+
+[node name="Number" type="Label" parent="TileBody"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 6.0
+offset_right = -2.0
+offset_bottom = -2.0
+horizontal_alignment = 1
+vertical_alignment = 1
+mouse_filter = 2
+
+[node name="Highlight" type="Panel" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="AnimPlayer" type="AnimationPlayer" parent="."]

@@ -1,0 +1,80 @@
+[gd_resource type="Theme" load_steps=5 format=3]
+
+[sub_resource type="StyleBoxFlat" id=1]
+bg_color = Color(0.12, 0.32, 0.38, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.84, 0.65, 0.36, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0, 0, 0, 0.25)
+shadow_size = 6
+content_margin_left = 18
+content_margin_top = 10
+content_margin_right = 18
+content_margin_bottom = 10
+
+[sub_resource type="StyleBoxFlat" id=2]
+bg_color = Color(0.15, 0.38, 0.45, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.9, 0.72, 0.42, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0, 0, 0, 0.25)
+shadow_size = 6
+content_margin_left = 18
+content_margin_top = 10
+content_margin_right = 18
+content_margin_bottom = 10
+
+[sub_resource type="StyleBoxFlat" id=3]
+bg_color = Color(0.09, 0.25, 0.3, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.75, 0.58, 0.32, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0, 0, 0, 0.3)
+shadow_size = 4
+content_margin_left = 18
+content_margin_top = 10
+content_margin_right = 18
+content_margin_bottom = 10
+
+[sub_resource type="StyleBoxFlat" id=4]
+bg_color = Color(0.3, 0.3, 0.3, 0.6)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.5, 0.5, 0.5, 0.6)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+content_margin_left = 18
+content_margin_top = 10
+content_margin_right = 18
+content_margin_bottom = 10
+
+[resource]
+default_font_size = 20
+Label/colors/font_color = Color(0.12, 0.24, 0.28, 1)
+Button/colors/font_color = Color(0.98, 0.95, 0.9, 1)
+Button/styles/normal = SubResource(1)
+Button/styles/hover = SubResource(2)
+Button/styles/pressed = SubResource(3)
+Button/styles/disabled = SubResource(4)

@@ -6,18 +6,15 @@ func apply_action(state: GameState, player_index: int, action: Action) -> GameSt
 
 	match action.type:
 		Action.ActionType.STARTER_DISCARD:
-			_apply_discard(next, player_index, action, true)
-			next.phase = GameState.Phase.TURN_DRAW
-			next.current_player_index = _next_player_index(next, player_index)
+			if _apply_discard(next, player_index, action):
+				next.phase = GameState.Phase.TURN_DRAW
+				next.current_player_index = _next_player_index(next, player_index)
 		Action.ActionType.DRAW_FROM_DECK:
 			_apply_draw_from_deck(next, player_index)
 			next.phase = GameState.Phase.TURN_PLAY
 		Action.ActionType.TAKE_DISCARD:
 			_apply_take_discard(next, player_index)
 			next.phase = GameState.Phase.TURN_PLAY
-		Action.ActionType.PEEK_DISCARD:
-			# Peek does not change state; player remains in TURN_DRAW.
-			pass
 		Action.ActionType.OPEN_MELDS:
 			_apply_open_melds(next, player_index, action)
 		Action.ActionType.ADD_TO_MELD:
@@ -25,9 +22,15 @@ func apply_action(state: GameState, player_index: int, action: Action) -> GameSt
 		Action.ActionType.END_PLAY:
 			next.phase = GameState.Phase.TURN_DISCARD
 		Action.ActionType.DISCARD:
-			_apply_discard(next, player_index, action, true)
-			next.phase = GameState.Phase.TURN_DRAW
-			next.current_player_index = _next_player_index(next, player_index)
+			if _apply_discard(next, player_index, action):
+				# SeOkey11 dossier: finishing is by discarding the last tile.
+				if next.players[player_index].hand.is_empty():
+					var scoring = Scoring.new()
+					scoring.apply_round_scores(next, player_index)
+					next.phase = GameState.Phase.ROUND_END
+				else:
+					next.phase = GameState.Phase.TURN_DRAW
+					next.current_player_index = _next_player_index(next, player_index)
 		Action.ActionType.FINISH:
 			_apply_finish(next, player_index, action)
 			next.phase = GameState.Phase.ROUND_END
@@ -43,18 +46,17 @@ func _apply_take_discard(state: GameState, player_index: int) -> void:
 	state.players[player_index].hand.append(tile)
 	state.turn_required_use_tile_id = tile.unique_id
 
-func _apply_discard(state: GameState, player_index: int, action: Action, apply_penalties: bool) -> void:
+func _apply_discard(state: GameState, player_index: int, action: Action) -> bool:
 	var tile_id = int(action.payload.get("tile_id", -1))
 	var hand = state.players[player_index].hand
 	var index = _find_tile_index_by_id(hand, tile_id)
 	if index == -1:
-		return
+		return false
 	var tile = hand[index]
 	hand.remove_at(index)
 	state.discard_pile.append(tile)
 	state.turn_required_use_tile_id = -1
-	if apply_penalties:
-		_apply_discard_penalties(state, player_index, tile)
+	return true
 
 func _apply_open_melds(state: GameState, player_index: int, action: Action) -> void:
 	if not state.players[player_index].has_opened:
@@ -84,25 +86,9 @@ func _apply_open_melds(state: GameState, player_index: int, action: Action) -> v
 			used_ids.append(tile_id)
 
 	_remove_tiles_from_hand(state.players[player_index], used_ids)
-
+	# Validator guarantees that taken discard was included when required.
 	if state.turn_required_use_tile_id != -1:
-		for tile_id in used_ids:
-			if tile_id == state.turn_required_use_tile_id:
-				state.turn_required_use_tile_id = -1
-				break
-
-	if state.rule_config != null and state.rule_config.cancel_round_if_all_pairs_open:
-		var all_opened = true
-		var all_pairs = true
-		for p in state.players:
-			if not p.has_opened:
-				all_opened = false
-				break
-			if not p.opened_by_pairs:
-				all_pairs = false
-		if all_opened and all_pairs:
-			state.round_cancelled = true
-			state.phase = GameState.Phase.ROUND_END
+		state.turn_required_use_tile_id = -1
 
 func _apply_add_to_meld(state: GameState, player_index: int, action: Action) -> void:
 	if not action.payload.has("target_meld_index") or not action.payload.has("tile_ids"):
@@ -155,28 +141,11 @@ func _apply_finish(state: GameState, player_index: int, action: Action) -> void:
 	if action.payload.has("final_discard_tile_id"):
 		var tile_id = int(action.payload["final_discard_tile_id"])
 		var discard_action = Action.new(Action.ActionType.DISCARD, {"tile_id": tile_id})
-		_apply_discard(state, player_index, discard_action, false)
+		if not _apply_discard(state, player_index, discard_action):
+			return
 
 	var scoring = Scoring.new()
 	scoring.apply_round_scores(state, player_index)
-
-func _apply_discard_penalties(state: GameState, player_index: int, tile: Tile) -> void:
-	var cfg = state.rule_config
-	if cfg == null:
-		return
-	if cfg.penalty_discard_joker:
-		if tile.kind == Tile.Kind.FAKE_OKEY or state.okey_context.is_real_okey(tile):
-			_apply_penalty(state, player_index, cfg.penalty_value)
-
-	if cfg.penalty_discard_extendable_tile:
-		var discard_rules = DiscardRules.new()
-		if discard_rules.is_tile_extendable_on_table(state, tile):
-			_apply_penalty(state, player_index, cfg.penalty_value)
-
-func _apply_penalty(state: GameState, player_index: int, amount: int) -> void:
-	var player = state.players[player_index]
-	player.score_round += amount
-	player.score_total += amount
 
 func _remove_tiles_from_hand(player: PlayerState, tile_ids: Array) -> void:
 	for tile_id in tile_ids:
@@ -210,7 +179,10 @@ func _clone_state(state: GameState) -> GameState:
 	next.current_player_index = state.current_player_index
 	next.turn_required_use_tile_id = state.turn_required_use_tile_id
 	next.last_finish_all_in_one_turn = state.last_finish_all_in_one_turn
-	next.round_cancelled = state.round_cancelled
+	next.dealer_index = state.dealer_index
+	next.indicator_stack_index = state.indicator_stack_index
+	next.indicator_tile_index = state.indicator_tile_index
+	next.draw_stack_indices = state.draw_stack_indices.duplicate(true)
 
 	next.deck = state.deck.duplicate(true)
 	next.discard_pile = state.discard_pile.duplicate(true)

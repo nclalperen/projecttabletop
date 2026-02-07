@@ -7,29 +7,63 @@ func choose_action(state, player_index: int):
 
 	match state.phase:
 		state.Phase.STARTER_DISCARD:
-			return _choose_discard(state, player)
+			return _choose_starter_discard(state, player)
 		state.Phase.TURN_DRAW:
-			if not state.discard_pile.is_empty():
+			# Conservative policy to avoid bot stalls with required-use discard constraints.
+			if player.has_opened and not state.discard_pile.is_empty():
 				var discard_tile = state.discard_pile[state.discard_pile.size() - 1]
-				if _can_use_discard_tile(state, player, discard_tile):
-					if _prefer_take_discard(state, player, discard_tile):
-						return Action.new(Action.ActionType.TAKE_DISCARD, {})
+				var can_take = validator.validate_action(state, player_index, Action.new(Action.ActionType.TAKE_DISCARD, {})).ok
+				var can_layoff_now = _can_add_tile_to_table(state, discard_tile)
+				if can_take and can_layoff_now and _prefer_take_discard(state, player, discard_tile):
+					return Action.new(Action.ActionType.TAKE_DISCARD, {})
 			return Action.new(Action.ActionType.DRAW_FROM_DECK, {})
 		state.Phase.TURN_PLAY:
+			if state.turn_required_use_tile_id != -1:
+				var required_action = _build_required_use_action(state, player_index, player)
+				if required_action != null:
+					var req_res = validator.validate_action(state, player_index, required_action)
+					if req_res.ok:
+						return required_action
+				if player.has_opened and not player.opened_by_pairs:
+					var opened_required = _build_opened_meld_action(state, player, int(state.turn_required_use_tile_id))
+					if opened_required != null:
+						var opened_req_res = validator.validate_action(state, player_index, opened_required)
+						if opened_req_res.ok:
+							return opened_required
 			if not player.has_opened:
 				var open_action = _try_open(player, state)
 				if open_action != null:
 					var res = validator.validate_action(state, player_index, open_action)
 					if res.ok:
 						return open_action
+			elif not player.opened_by_pairs:
+				var opened_action = _build_opened_meld_action(state, player, -1)
+				if opened_action != null:
+					var opened_res = validator.validate_action(state, player_index, opened_action)
+					if opened_res.ok:
+						return opened_action
 			return Action.new(Action.ActionType.END_PLAY, {})
 		state.Phase.TURN_DISCARD:
 			return _choose_discard(state, player)
 		_:
 			return null
 
+func _choose_starter_discard(state, player):
+	# For starter discard, use same logic but return STARTER_DISCARD action
+	var tile = _select_best_discard_tile(state, player)
+	if tile == null:
+		return null
+	return Action.new(Action.ActionType.STARTER_DISCARD, {"tile_id": tile.unique_id})
+
 func _choose_discard(state, player):
-	# Discard highest tile by number (simple heuristic)
+	# For regular turn discard
+	var tile = _select_best_discard_tile(state, player)
+	if tile == null:
+		return null
+	return Action.new(Action.ActionType.DISCARD, {"tile_id": tile.unique_id})
+
+func _select_best_discard_tile(state, player):
+	# Discard least useful tile, avoiding penalties
 	var best = null
 	var best_penalty = true
 	var best_usefulness = 9999
@@ -57,9 +91,7 @@ func _choose_discard(state, player):
 			if usefulness == best_usefulness and t.number > best.number:
 				best = t
 				best_usefulness = usefulness
-	if best == null:
-		return null
-	return Action.new(Action.ActionType.DISCARD, {"tile_id": best.unique_id})
+	return best
 
 func _tile_usefulness(state, player, tile) -> int:
 	# Lower is better for discard.
@@ -127,9 +159,9 @@ func _estimate_hand_penalty(state, player) -> int:
 	return sum
 
 func _can_use_discard_tile(state, player, discard_tile) -> bool:
-	# Be conservative for unopened hands: avoid taking discards that force invalid opens.
 	if not player.has_opened:
-		return false
+		# Permit taking discard if immediate open is plausible.
+		return _can_form_simple_run_or_set(player, discard_tile) or _has_pair_for_tile(player, discard_tile)
 
 	var cfg = state.rule_config
 	var pairs_locked = cfg != null and cfg.open_by_pairs_locks_to_pairs
@@ -171,6 +203,97 @@ func _can_add_tile_to_table(state, tile) -> bool:
 
 func _can_form_simple_run_or_set(player, required_tile) -> bool:
 	return _build_open_meld_with_required(player, required_tile) != null
+
+func _build_required_use_action(state, player_index: int, player):
+	var required_id = int(state.turn_required_use_tile_id)
+	var required_tile = _find_tile_by_id(player, required_id)
+	if required_tile == null:
+		return null
+	var add_action = _build_add_to_meld_action(state, player_index, required_tile)
+	if add_action != null:
+		return add_action
+	return _build_open_meld_with_required(player, required_tile)
+
+func _build_opened_meld_action(state, player, required_tile_id: int):
+	var hand: Array = player.hand
+	var n: int = hand.size()
+	if n < 3:
+		return null
+
+	var validator = MeldValidator.new()
+	var best_points: int = -1
+	var best_kind: int = -1
+	var best_ids: Array = []
+
+	for i in range(n):
+		for j in range(i + 1, n):
+			for k in range(j + 1, n):
+				var ids3: Array = [int(hand[i].unique_id), int(hand[j].unique_id), int(hand[k].unique_id)]
+				if required_tile_id != -1 and not ids3.has(required_tile_id):
+					continue
+				var tiles3: Array = [hand[i], hand[j], hand[k]]
+				var run3: Dictionary = validator.validate_run(tiles3, state.okey_context)
+				if bool(run3.get("ok", false)):
+					var pts3: int = int(run3.get("points_value", 0))
+					if pts3 > best_points:
+						best_points = pts3
+						best_kind = Meld.Kind.RUN
+						best_ids = ids3
+				var set3: Dictionary = validator.validate_set(tiles3, state.okey_context)
+				if bool(set3.get("ok", false)):
+					var spts3: int = int(set3.get("points_value", 0))
+					if spts3 > best_points:
+						best_points = spts3
+						best_kind = Meld.Kind.SET
+						best_ids = ids3
+
+	for i in range(n):
+		for j in range(i + 1, n):
+			for k in range(j + 1, n):
+				for l in range(k + 1, n):
+					var ids4: Array = [int(hand[i].unique_id), int(hand[j].unique_id), int(hand[k].unique_id), int(hand[l].unique_id)]
+					if required_tile_id != -1 and not ids4.has(required_tile_id):
+						continue
+					var tiles4: Array = [hand[i], hand[j], hand[k], hand[l]]
+					var run4: Dictionary = validator.validate_run(tiles4, state.okey_context)
+					if bool(run4.get("ok", false)):
+						var pts4: int = int(run4.get("points_value", 0))
+						if pts4 > best_points:
+							best_points = pts4
+							best_kind = Meld.Kind.RUN
+							best_ids = ids4
+					var set4: Dictionary = validator.validate_set(tiles4, state.okey_context)
+					if bool(set4.get("ok", false)):
+						var spts4: int = int(set4.get("points_value", 0))
+						if spts4 > best_points:
+							best_points = spts4
+							best_kind = Meld.Kind.SET
+							best_ids = ids4
+
+	if best_kind == -1 or best_ids.is_empty():
+		return null
+	var melds: Array = [{"kind": best_kind, "tile_ids": best_ids}]
+	return Action.new(Action.ActionType.OPEN_MELDS, {"melds": melds, "open_by_pairs": false})
+
+func _build_add_to_meld_action(state, player_index: int, tile):
+	if state.table_melds.is_empty():
+		return null
+	var validator = Validator.new()
+	for i in range(state.table_melds.size()):
+		var meld = state.table_melds[i]
+		if meld.kind == Meld.Kind.PAIRS:
+			continue
+		var action = Action.new(Action.ActionType.ADD_TO_MELD, {"target_meld_index": i, "tile_ids": [tile.unique_id]})
+		var res = validator.validate_action(state, player_index, action)
+		if bool(res.get("ok", false)):
+			return action
+	return null
+
+func _find_tile_by_id(player, tile_id: int):
+	for t in player.hand:
+		if int(t.unique_id) == tile_id:
+			return t
+	return null
 
 func _has_pair_for_tile(player, required_tile) -> bool:
 	for t in player.hand:
@@ -293,19 +416,15 @@ func _find_runs(player, used_ids: Dictionary) -> Array:
 			elif t.number != last.number:
 				if run.size() >= 3:
 					var tile_ids = []
-					var sum = 0
 					for r in run:
 						tile_ids.append(r.unique_id)
-						sum += r.number
 					var points = _run_points(tile_ids.size(), run[0].number)
 					melds.append({"kind": Meld.Kind.RUN, "tile_ids": tile_ids, "points": points})
 				run = [t]
 		if run.size() >= 3:
 			var tile_ids2 = []
-			var sum2 = 0
 			for r in run:
 				tile_ids2.append(r.unique_id)
-				sum2 += r.number
 			var points2 = _run_points(tile_ids2.size(), run[0].number)
 			melds.append({"kind": Meld.Kind.RUN, "tile_ids": tile_ids2, "points": points2})
 	return melds
@@ -313,11 +432,5 @@ func _find_runs(player, used_ids: Dictionary) -> Array:
 func _run_points(length: int, start_number: int) -> int:
 	if length <= 0:
 		return 0
-	if length == 1:
-		return start_number
-	if length == 2:
-		return start_number + (start_number + 1)
-	var mid = start_number + int(length / 2)
-	return mid * length
-
-
+	var end_number = start_number + length - 1
+	return int((start_number + end_number) * length / 2.0)

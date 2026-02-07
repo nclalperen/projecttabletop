@@ -26,3 +26,8 @@ You can run tests from the editor with the dedicated scene:
 
 - Open `res://tests/TestRunner.tscn`
 - Press Play
+
+## Canonical Rules
+SeOkey11 gameplay rules are defined in:
+
+- `docs/SEOKEY11_CANONICAL.md`

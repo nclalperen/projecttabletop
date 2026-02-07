@@ -1,7 +1,27 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(tmux-cli send:*)",
+      "Bash(tmux -V:*)",
+      "Bash(pacman -Q:*)",
+      "Bash(where:*)",
+      "Bash(./tools/godot:*)",
+      "Bash(tmux list-sessions:*)",
+      "Bash(tmux list-panes:*)",
+      "Bash(echo:*)",
+      "Bash(ls:*)",
+      "Bash(wsl --list:*)",
+      "Bash(wsl tmux:*)",
+      "Bash(export PATH=\"/c/msys64/usr/bin:$PATH\")",
+      "Bash(tmux list-windows:*)",
+      "Bash(uv tool list:*)",
+      "Bash(tmux display-message:*)",
+      "Bash(tmux send-keys:*)",
+      "Bash(tmux capture-pane:*)",
+      "Bash(chmod:*)",
+      "Bash(tmux-cli:*)",
+      "Bash(./tools/export_windows.sh:*)"
     ]
   }
 }

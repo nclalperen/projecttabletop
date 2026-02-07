@@ -1,4 +1,4 @@
-﻿extends Node
+extends Control
 
 @onready var _main_menu_scene: PackedScene = preload("res://ui/MainMenu.tscn")
 
@@ -10,4 +10,3 @@ func _ready() -> void:
 
 	var main_menu: Node = _main_menu_scene.instantiate()
 	add_child(main_menu)
-
