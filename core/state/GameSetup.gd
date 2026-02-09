@@ -51,6 +51,9 @@ func new_round(rule_config: RuleConfig, rng_seed: int, player_count: int = 4, de
 	state.indicator_tile_index = indicator_tile_index
 	state.players = _create_players(player_count)
 	state.discard_pile = []
+	state.player_discard_stacks = []
+	for _i in range(player_count):
+		state.player_discard_stacks.append([])
 	state.table_melds = []
 	state.turn_required_use_tile_id = -1
 

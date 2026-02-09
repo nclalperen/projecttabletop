@@ -9,13 +9,18 @@ func choose_action(state, player_index: int):
 		state.Phase.STARTER_DISCARD:
 			return _choose_starter_discard(state, player)
 		state.Phase.TURN_DRAW:
-			# Conservative policy to avoid bot stalls with required-use discard constraints.
-			if player.has_opened and not state.discard_pile.is_empty():
+			if not state.discard_pile.is_empty():
 				var discard_tile = state.discard_pile[state.discard_pile.size() - 1]
 				var can_take = validator.validate_action(state, player_index, Action.new(Action.ActionType.TAKE_DISCARD, {})).ok
-				var can_layoff_now = _can_add_tile_to_table(state, discard_tile)
-				if can_take and can_layoff_now and _prefer_take_discard(state, player, discard_tile):
-					return Action.new(Action.ActionType.TAKE_DISCARD, {})
+				if can_take:
+					if player.has_opened:
+						var can_layoff_now = _can_add_tile_to_table(state, discard_tile)
+						if can_layoff_now and _prefer_take_discard(state, player, discard_tile):
+							return Action.new(Action.ActionType.TAKE_DISCARD, {})
+					# Unopened discard-take is strategically expensive and can dead-lock weak bot lines.
+					# Keep it only as a fallback when deck is exhausted.
+					elif state.deck.is_empty() and _prefer_take_discard_unopened(state, player, discard_tile):
+						return Action.new(Action.ActionType.TAKE_DISCARD, {})
 			return Action.new(Action.ActionType.DRAW_FROM_DECK, {})
 		state.Phase.TURN_PLAY:
 			if state.turn_required_use_tile_id != -1:
@@ -37,6 +42,12 @@ func choose_action(state, player_index: int):
 					if res.ok:
 						return open_action
 			elif not player.opened_by_pairs:
+				if player.hand.size() <= 10:
+					var finish_action = _build_finish_action(state, player_index, player)
+					if finish_action != null:
+						var finish_res = validator.validate_action(state, player_index, finish_action)
+						if finish_res.ok:
+							return finish_action
 				var opened_action = _build_opened_meld_action(state, player, -1)
 				if opened_action != null:
 					var opened_res = validator.validate_action(state, player_index, opened_action)
@@ -69,7 +80,7 @@ func _select_best_discard_tile(state, player):
 	var best_usefulness = 9999
 	var discard_rules = DiscardRules.new()
 	for t in player.hand:
-		var is_joker = t.kind == t.Kind.FAKE_OKEY or state.okey_context.is_real_okey(t)
+		var is_joker = state.okey_context.is_real_okey(t)
 		var extendable = discard_rules.is_tile_extendable_on_table(state, t)
 		var penalty = is_joker or extendable
 		var usefulness = _tile_usefulness(state, player, t)
@@ -109,7 +120,7 @@ func _tile_usefulness(state, player, tile) -> int:
 
 func _try_open(player, state):
 	# Prefer 5 pairs if available
-	var pairs_melds = _find_pairs(player)
+	var pairs_melds = _find_pairs(player, state.okey_context)
 	if pairs_melds.size() >= 5:
 		var open_melds = pairs_melds.slice(0, 5)
 		return Action.new(Action.ActionType.OPEN_MELDS, {"melds": open_melds, "open_by_pairs": true})
@@ -152,8 +163,10 @@ func _should_open(points: int, state, player) -> bool:
 func _estimate_hand_penalty(state, player) -> int:
 	var sum = 0
 	for t in player.hand:
-		if t.kind == t.Kind.FAKE_OKEY or state.okey_context.is_real_okey(t):
+		if state.okey_context.is_real_okey(t):
 			sum += 101
+		elif t.kind == t.Kind.FAKE_OKEY:
+			sum += int(state.okey_context.okey_number)
 		else:
 			sum += t.number
 	return sum
@@ -161,18 +174,18 @@ func _estimate_hand_penalty(state, player) -> int:
 func _can_use_discard_tile(state, player, discard_tile) -> bool:
 	if not player.has_opened:
 		# Permit taking discard if immediate open is plausible.
-		return _can_form_simple_run_or_set(player, discard_tile) or _has_pair_for_tile(player, discard_tile)
+		return _can_form_simple_run_or_set(player, discard_tile, state.okey_context) or _has_pair_for_tile(player, discard_tile, state.okey_context)
 
 	var cfg = state.rule_config
 	var pairs_locked = cfg != null and cfg.open_by_pairs_locks_to_pairs
 	if player.opened_by_pairs and pairs_locked:
-		return _has_pair_for_tile(player, discard_tile) or _can_add_tile_to_table(state, discard_tile)
+		return _has_pair_for_tile(player, discard_tile, state.okey_context) or _can_add_tile_to_table(state, discard_tile)
 
-	if _has_pair_for_tile(player, discard_tile):
+	if _has_pair_for_tile(player, discard_tile, state.okey_context):
 		return true
 	if _can_add_tile_to_table(state, discard_tile):
 		return true
-	if _can_form_simple_run_or_set(player, discard_tile):
+	if _can_form_simple_run_or_set(player, discard_tile, state.okey_context):
 		return true
 	return false
 
@@ -184,7 +197,7 @@ func _prefer_take_discard(state, player, discard_tile) -> bool:
 
 func _discard_value(state, player, discard_tile) -> int:
 	var value = 0
-	if discard_tile.kind == discard_tile.Kind.FAKE_OKEY or state.okey_context.is_real_okey(discard_tile):
+	if state.okey_context.is_real_okey(discard_tile):
 		value += 3
 	for t in player.hand:
 		if t.unique_id == discard_tile.unique_id:
@@ -197,12 +210,19 @@ func _discard_value(state, player, discard_tile) -> int:
 			value += 1
 	return value
 
+func _prefer_take_discard_unopened(state, player, discard_tile) -> bool:
+	var deck_remaining: int = state.deck.size()
+	if deck_remaining <= 10:
+		return true
+	var value: int = _discard_value(state, player, discard_tile)
+	return value >= 3
+
 func _can_add_tile_to_table(state, tile) -> bool:
 	var discard_rules = DiscardRules.new()
 	return discard_rules.is_tile_extendable_on_table(state, tile)
 
-func _can_form_simple_run_or_set(player, required_tile) -> bool:
-	return _build_open_meld_with_required(player, required_tile) != null
+func _can_form_simple_run_or_set(player, required_tile, okey_context = null) -> bool:
+	return _build_open_meld_with_required(player, required_tile, okey_context) != null
 
 func _build_required_use_action(state, player_index: int, player):
 	var required_id = int(state.turn_required_use_tile_id)
@@ -212,68 +232,86 @@ func _build_required_use_action(state, player_index: int, player):
 	var add_action = _build_add_to_meld_action(state, player_index, required_tile)
 	if add_action != null:
 		return add_action
-	return _build_open_meld_with_required(player, required_tile)
+	return _build_open_meld_with_required(player, required_tile, state.okey_context)
 
 func _build_opened_meld_action(state, player, required_tile_id: int):
 	var hand: Array = player.hand
 	var n: int = hand.size()
 	if n < 3:
 		return null
+	var required_index: int = -1
+	if required_tile_id != -1:
+		for i in range(n):
+			if int(hand[i].unique_id) == required_tile_id:
+				required_index = i
+				break
+		if required_index == -1:
+			return null
 
 	var validator = MeldValidator.new()
 	var best_points: int = -1
 	var best_kind: int = -1
 	var best_ids: Array = []
-
-	for i in range(n):
-		for j in range(i + 1, n):
-			for k in range(j + 1, n):
-				var ids3: Array = [int(hand[i].unique_id), int(hand[j].unique_id), int(hand[k].unique_id)]
-				if required_tile_id != -1 and not ids3.has(required_tile_id):
-					continue
-				var tiles3: Array = [hand[i], hand[j], hand[k]]
-				var run3: Dictionary = validator.validate_run(tiles3, state.okey_context)
-				if bool(run3.get("ok", false)):
-					var pts3: int = int(run3.get("points_value", 0))
-					if pts3 > best_points:
-						best_points = pts3
-						best_kind = Meld.Kind.RUN
-						best_ids = ids3
-				var set3: Dictionary = validator.validate_set(tiles3, state.okey_context)
-				if bool(set3.get("ok", false)):
-					var spts3: int = int(set3.get("points_value", 0))
-					if spts3 > best_points:
-						best_points = spts3
-						best_kind = Meld.Kind.SET
-						best_ids = ids3
-
-	for i in range(n):
-		for j in range(i + 1, n):
-			for k in range(j + 1, n):
-				for l in range(k + 1, n):
-					var ids4: Array = [int(hand[i].unique_id), int(hand[j].unique_id), int(hand[k].unique_id), int(hand[l].unique_id)]
-					if required_tile_id != -1 and not ids4.has(required_tile_id):
-						continue
-					var tiles4: Array = [hand[i], hand[j], hand[k], hand[l]]
-					var run4: Dictionary = validator.validate_run(tiles4, state.okey_context)
-					if bool(run4.get("ok", false)):
-						var pts4: int = int(run4.get("points_value", 0))
-						if pts4 > best_points:
-							best_points = pts4
-							best_kind = Meld.Kind.RUN
-							best_ids = ids4
-					var set4: Dictionary = validator.validate_set(tiles4, state.okey_context)
-					if bool(set4.get("ok", false)):
-						var spts4: int = int(set4.get("points_value", 0))
-						if spts4 > best_points:
-							best_points = spts4
-							best_kind = Meld.Kind.SET
-							best_ids = ids4
+	var max_size: int = min(6, n) if required_index != -1 else min(4, n)
+	for size in range(3, max_size + 1):
+		var combos: Array = []
+		if required_index != -1:
+			_collect_index_combos_with_anchor(n, size, required_index, 0, [], combos)
+		else:
+			_collect_index_combos(n, size, 0, [], combos)
+		for combo in combos:
+			var ids: Array = []
+			var tiles: Array = []
+			for idx in combo:
+				var t = hand[int(idx)]
+				ids.append(int(t.unique_id))
+				tiles.append(t)
+			var run_res: Dictionary = validator.validate_run(tiles, state.okey_context)
+			if bool(run_res.get("ok", false)):
+				var run_points: int = int(run_res.get("points_value", 0))
+				if run_points > best_points:
+					best_points = run_points
+					best_kind = Meld.Kind.RUN
+					best_ids = ids
+			var set_res: Dictionary = validator.validate_set(tiles, state.okey_context)
+			if bool(set_res.get("ok", false)):
+				var set_points: int = int(set_res.get("points_value", 0))
+				if set_points > best_points:
+					best_points = set_points
+					best_kind = Meld.Kind.SET
+					best_ids = ids
 
 	if best_kind == -1 or best_ids.is_empty():
 		return null
 	var melds: Array = [{"kind": best_kind, "tile_ids": best_ids}]
 	return Action.new(Action.ActionType.OPEN_MELDS, {"melds": melds, "open_by_pairs": false})
+
+func _collect_index_combos(n: int, target: int, start: int, current: Array, out: Array) -> void:
+	if current.size() == target:
+		out.append(current.duplicate())
+		return
+	for i in range(start, n):
+		current.append(i)
+		_collect_index_combos(n, target, i + 1, current, out)
+		current.pop_back()
+
+func _collect_index_combos_with_anchor(n: int, target: int, anchor: int, start: int, current: Array, out: Array) -> void:
+	if current.is_empty():
+		current.append(anchor)
+		_collect_index_combos_with_anchor(n, target, anchor, 0, current, out)
+		current.pop_back()
+		return
+	if current.size() == target:
+		out.append(current.duplicate())
+		return
+	for i in range(start, n):
+		if i == anchor:
+			continue
+		if current.has(i):
+			continue
+		current.append(i)
+		_collect_index_combos_with_anchor(n, target, anchor, i + 1, current, out)
+		current.pop_back()
 
 func _build_add_to_meld_action(state, player_index: int, tile):
 	if state.table_melds.is_empty():
@@ -295,19 +333,19 @@ func _find_tile_by_id(player, tile_id: int):
 			return t
 	return null
 
-func _has_pair_for_tile(player, required_tile) -> bool:
+func _has_pair_for_tile(player, required_tile, okey_context = null) -> bool:
 	for t in player.hand:
 		if t.unique_id == required_tile.unique_id:
 			continue
-		if t.color == required_tile.color and t.number == required_tile.number:
+		if _pair_key(t, okey_context) == _pair_key(required_tile, okey_context):
 			return true
 	return false
 
-func _build_open_meld_with_required(player, required_tile):
+func _build_open_meld_with_required(player, required_tile, okey_context = null):
 	for t in player.hand:
 		if t.unique_id == required_tile.unique_id:
 			continue
-		if t.color == required_tile.color and t.number == required_tile.number:
+		if _pair_key(t, okey_context) == _pair_key(required_tile, okey_context):
 			var melds = [{"kind": Meld.Kind.PAIRS, "tile_ids": [required_tile.unique_id, t.unique_id]}]
 			return Action.new(Action.ActionType.OPEN_MELDS, {"melds": melds, "open_by_pairs": true})
 
@@ -353,11 +391,11 @@ func _build_simple_run_ids(player, required_tile) -> Array:
 			return ids
 	return []
 
-func _find_pairs(player) -> Array:
+func _find_pairs(player, okey_context = null) -> Array:
 	var seen = {}
 	var melds = []
 	for t in player.hand:
-		var key = "%s-%s" % [t.color, t.number]
+		var key = _pair_key(t, okey_context)
 		if not seen.has(key):
 			seen[key] = t.unique_id
 		else:
@@ -434,3 +472,85 @@ func _run_points(length: int, start_number: int) -> int:
 		return 0
 	var end_number = start_number + length - 1
 	return int((start_number + end_number) * length / 2.0)
+
+func _build_finish_action(state, _player_index: int, player):
+	if not player.has_opened:
+		return null
+	if player.opened_by_pairs:
+		return null
+	if player.hand.size() < 2:
+		return null
+
+	for discard_tile in player.hand:
+		var remaining: Array = []
+		for t in player.hand:
+			if int(t.unique_id) != int(discard_tile.unique_id):
+				remaining.append(t)
+		var melds: Array = []
+		if _partition_finish_melds(remaining, state.okey_context, melds):
+			return Action.new(Action.ActionType.FINISH, {
+				"melds": melds,
+				"final_discard_tile_id": int(discard_tile.unique_id),
+				"finish_all_in_one_turn": false,
+			})
+	return null
+
+func _partition_finish_melds(tiles: Array, okey_context, out_melds: Array) -> bool:
+	if tiles.is_empty():
+		return true
+	if tiles.size() < 3:
+		return false
+
+	# Anchor on the first tile to reduce permutation branches.
+	var first = tiles[0]
+	var first_id: int = int(first.unique_id)
+	var validator = MeldValidator.new()
+	var n: int = tiles.size()
+
+	for size in range(3, min(6, n) + 1):
+		var combos: Array = []
+		_collect_index_combos_including_first(n, size, 1, [0], combos)
+		for combo in combos:
+			var group_tiles: Array = []
+			var group_ids: Array = []
+			for idx in combo:
+				var t = tiles[int(idx)]
+				group_tiles.append(t)
+				group_ids.append(int(t.unique_id))
+			var run_res: Dictionary = validator.validate_run(group_tiles, okey_context)
+			var set_res: Dictionary = validator.validate_set(group_tiles, okey_context)
+			var kind: int = -1
+			if bool(run_res.get("ok", false)):
+				kind = Meld.Kind.RUN
+			elif bool(set_res.get("ok", false)):
+				kind = Meld.Kind.SET
+			if kind == -1:
+				continue
+
+			var rest: Array = []
+			for t in tiles:
+				if not group_ids.has(int(t.unique_id)):
+					rest.append(t)
+			out_melds.append({"kind": kind, "tile_ids": group_ids})
+			if _partition_finish_melds(rest, okey_context, out_melds):
+				return true
+			out_melds.pop_back()
+
+	# Failsafe: ensure the anchor is referenced so warnings won't fire on some analyzer settings.
+	if first_id == -1:
+		return false
+	return false
+
+func _collect_index_combos_including_first(n: int, size: int, start: int, current: Array, out: Array) -> void:
+	if current.size() == size:
+		out.append(current.duplicate())
+		return
+	for i in range(start, n):
+		current.append(i)
+		_collect_index_combos_including_first(n, size, i + 1, current, out)
+		current.pop_back()
+
+func _pair_key(tile, okey_context) -> String:
+	if tile.kind == Tile.Kind.FAKE_OKEY and okey_context != null:
+		return "%d-%d" % [int(okey_context.okey_color), int(okey_context.okey_number)]
+	return "%d-%d" % [int(tile.color), int(tile.number)]

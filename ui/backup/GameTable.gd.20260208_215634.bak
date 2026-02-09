@@ -8,53 +8,10 @@ const STAGE_ROW_SLOTS: int = 12
 const DISCARD_ZONE_SIZE: Vector2 = Vector2(62, 84)
 const TOP_BAR_HEIGHT: float = 44.0
 const OUTER_MARGIN: float = 14.0
-const RACK_MIN_HEIGHT: float = 122.0
+const RACK_MIN_HEIGHT: float = 168.0
 const RACK_MAX_HEIGHT: float = 248.0
 const TABLE_MIN_HEIGHT: float = 340.0
-const TABLE_MAX_HEIGHT: float = 980.0
-const TABLE_SIZE_RATIO: float = 0.90
-const FELT_INSET_RATIO: float = 0.111
-const BOTTOM_RACK_GAP: float = 14.0
-const BOTTOM_PADDING: float = 10.0
-const SHOW_TABLE_RAILS: bool = false
-const SHOW_WALL_RING: bool = false
-const PERSPECTIVE_FAR_WIDTH_RATIO: float = 0.68
-const PERSPECTIVE_NEAR_WIDTH_RATIO: float = 0.95
-const PERSPECTIVE_TOP_Y_RATIO: float = 0.16
-const PERSPECTIVE_BOTTOM_Y_RATIO: float = 0.92
-
-# Geometry contract: keep these ratios fixed so board composition remains deterministic.
-const FELT_WIDTH_RATIO: float = 0.74
-const FELT_HEIGHT_RATIO: float = 0.74
-const FELT_MIN_WIDTH: float = 700.0
-const FELT_MIN_HEIGHT: float = 360.0
-const FELT_SIDE_INSET_MAX: float = 220.0
-const FELT_BOTTOM_INSET_MAX: float = 120.0
-const FELT_TOP_MARGIN_MIN: float = 16.0
-const FELT_BOTTOM_MARGIN_MIN: float = 18.0
-const FELT_VERTICAL_BIAS: float = 0.64
-const MELD_ISLAND_INSET_X: float = 14.0
-const MELD_ISLAND_INSET_TOP: float = 20.0
-const MELD_ISLAND_INSET_BOTTOM: float = 10.0
-const CENTER_ZONE_WIDTH_RATIO: float = 0.21
-const CENTER_ZONE_HEIGHT_RATIO: float = 0.15
-const CENTER_ZONE_MIN_WIDTH: float = 190.0
-const CENTER_ZONE_MAX_WIDTH: float = 300.0
-const CENTER_ZONE_MIN_HEIGHT: float = 72.0
-const CENTER_ZONE_MAX_HEIGHT: float = 102.0
-const CENTER_ZONE_ANCHOR_X: float = 0.58
-const CENTER_ZONE_ANCHOR_Y: float = 0.34
-const OPP_BADGE_SIDE_WIDTH_RATIO: float = 0.11
-const OPP_BADGE_SIDE_HEIGHT_RATIO: float = 0.09
-const OPP_BADGE_SIDE_MIN_WIDTH: float = 96.0
-const OPP_BADGE_SIDE_MAX_WIDTH: float = 136.0
-const OPP_BADGE_SIDE_MIN_HEIGHT: float = 42.0
-const OPP_BADGE_SIDE_MAX_HEIGHT: float = 58.0
-const OPP_BADGE_TOP_WIDTH_RATIO: float = 0.90
-const OPP_BADGE_TOP_HEIGHT_RATIO: float = 0.82
-const OPP_BADGE_SIDE_ANCHOR_T: float = 0.56
-const OPP_BADGE_TOP_MARGIN: float = 8.0
-const DISCARD_ZONE_MARGIN: float = 18.0
+const TABLE_MAX_HEIGHT: float = 760.0
 
 const OPP_COLORS: Array[Color] = [
 	Color(0.65, 0.22, 0.18),  # P1 - reddish
@@ -63,7 +20,6 @@ const OPP_COLORS: Array[Color] = [
 ]
 
 # ─── Scene node references ───
-@onready var _top_bar: PanelContainer = $TopBar
 @onready var _instructions: Label = $TopBar/TopHBox/Instructions
 @onready var _turn_label: Label = $TopBar/TopHBox/TurnLabel
 @onready var _phase_label: Label = $TopBar/TopHBox/PhaseLabel
@@ -71,17 +27,13 @@ const OPP_COLORS: Array[Color] = [
 @onready var _okey_info_top: Label = $TopBar/TopHBox/OkeyInfo
 
 @onready var _table_area: Control = $TableArea
-@onready var _felt_frame: Panel = $TableArea/FeltFrame
 @onready var _center_zone: HBoxContainer = $TableArea/CenterZone
 @onready var _draw_deck: PanelContainer = $TableArea/CenterZone/DrawDeck
-@onready var _indicator_panel: PanelContainer = $TableArea/CenterZone/IndicatorPanel
-@onready var _deck_title: Label = $TableArea/CenterZone/DrawDeck/DeckVBox/DeckTitle
 @onready var _deck_num: Label = $TableArea/CenterZone/DrawDeck/DeckVBox/DeckNum
-@onready var _ind_title: Label = $TableArea/CenterZone/IndicatorPanel/IndVBox/IndTitle
 @onready var _ind_value: Label = $TableArea/CenterZone/IndicatorPanel/IndVBox/IndValue
 @onready var _okey_value: Label = $TableArea/CenterZone/IndicatorPanel/IndVBox/OkeyValue
 
-@onready var _melds_panel: Control = $TableArea/MeldsPanel
+@onready var _melds_panel: Panel = $TableArea/MeldsPanel
 @onready var _meld_island: Control = $TableArea/MeldsPanel/MeldIsland
 @onready var _open_meter: Label = $TableArea/MeldsPanel/OpenMeter
 @onready var _meld_hint: Label = $TableArea/MeldsPanel/MeldHint
@@ -132,22 +84,6 @@ var _round_new_btn: Button = null
 var _round_menu_btn: Button = null
 var _meld_clusters: Array[Control] = []
 var _last_stage_error: String = ""
-var _rail_top: Panel = null
-var _rail_left: Panel = null
-var _rail_right: Panel = null
-var _rail_bottom: Panel = null
-var _wall_ring_layer: Control = null
-var _wall_stack_nodes: Array[Panel] = []
-var _board_layer: Node2D = null
-var _board_table_poly: Polygon2D = null
-var _board_table_border: Line2D = null
-var _board_shadow_poly: Polygon2D = null
-var _board_outer_poly: Polygon2D = null
-var _board_felt_poly: Polygon2D = null
-var _board_felt_sheen_poly: Polygon2D = null
-var _board_felt_depth_poly: Polygon2D = null
-var _board_felt_border: Line2D = null
-var _board_inner_border: Line2D = null
 
 # ─── Opponent UI (built in code) ───
 var _opp_rack_panels: Array[PanelContainer] = []
@@ -163,13 +99,6 @@ var _my_discard_glow: Panel = null
 # ═══════════════════════════════════════════
 
 func _ready() -> void:
-	if SHOW_TABLE_RAILS:
-		_create_table_rails()
-	_create_board_geometry()
-	_apply_felt_style()
-	_apply_art_direction()
-	if SHOW_WALL_RING:
-		_create_wall_ring()
 	_create_opponent_areas()
 	_create_my_discard_glow()
 	_init_rack_slots()
@@ -188,16 +117,7 @@ func _ready() -> void:
 	_draw_deck.gui_input.connect(_on_deck_input)
 	_my_discard.gui_input.connect(_on_my_discard_input)
 
-	$TopBar.z_index = 20
-	_table_area.z_index = 1
-	_rack_panel.z_index = 12
-	_my_discard.z_index = 13
-	_action_bar.z_index = 14
-
 	_table_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if _felt_frame != null:
-		# Legacy frame is disabled; board/felt are rendered by board geometry only.
-		_felt_frame.visible = false
 	_melds_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_meld_island.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_rack_panel.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -216,321 +136,6 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_apply_responsive_layout)
 	_apply_responsive_layout()
 	_start_round()
-
-func _create_table_rails() -> void:
-	_rail_top = Panel.new()
-	_rail_left = Panel.new()
-	_rail_right = Panel.new()
-	_rail_bottom = Panel.new()
-	_rail_top.name = "RailTop"
-	_rail_left.name = "RailLeft"
-	_rail_right.name = "RailRight"
-	_rail_bottom.name = "RailBottom"
-	_rail_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_rail_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_rail_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_rail_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_apply_rail_style(_rail_top, 0)
-	_apply_rail_style(_rail_left, 1)
-	_apply_rail_style(_rail_right, 1)
-	_apply_rail_style(_rail_bottom, 2)
-	_table_area.add_child(_rail_top)
-	_table_area.add_child(_rail_left)
-	_table_area.add_child(_rail_right)
-	_table_area.add_child(_rail_bottom)
-	# Keep rails behind interactive table content.
-	_table_area.move_child(_rail_top, 0)
-	_table_area.move_child(_rail_left, 0)
-	_table_area.move_child(_rail_right, 0)
-	_table_area.move_child(_rail_bottom, 0)
-
-func _apply_rail_style(rail: Panel, strength: int) -> void:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.41, 0.24, 0.12, 0.64)
-	if strength == 1:
-		s.bg_color = Color(0.37, 0.22, 0.11, 0.52)
-	elif strength == 2:
-		s.bg_color = Color(0.45, 0.27, 0.14, 0.70)
-	s.border_width_left = 1
-	s.border_width_top = 1
-	s.border_width_right = 1
-	s.border_width_bottom = 1
-	s.border_color = Color(0.23, 0.14, 0.08, 0.82)
-	s.shadow_color = Color(0, 0, 0, 0.10)
-	s.shadow_size = 1
-	s.corner_radius_top_left = 8
-	s.corner_radius_top_right = 8
-	s.corner_radius_bottom_left = 8
-	s.corner_radius_bottom_right = 8
-	rail.add_theme_stylebox_override("panel", s)
-
-func _apply_felt_style() -> void:
-	# Felt/table visuals are fully drawn by board polygons.
-	# MeldsPanel is kept as a non-drawing layout container.
-	if _melds_panel is Panel:
-		var fs := StyleBoxEmpty.new()
-		(_melds_panel as Panel).add_theme_stylebox_override("panel", fs)
-
-func _apply_art_direction() -> void:
-	_style_top_bar()
-	_style_center_cards()
-	_style_rack_shell()
-	_open_meter.add_theme_color_override("font_color", Color(0.74, 0.90, 0.82, 0.86))
-	_open_meter.add_theme_font_size_override("font_size", 11)
-	_meld_hint.add_theme_color_override("font_color", Color(0.66, 0.86, 0.78, 0.42))
-	_meld_hint.add_theme_font_size_override("font_size", 12)
-
-func _style_top_bar() -> void:
-	if _top_bar == null:
-		return
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.30, 0.18, 0.10, 0.98)
-	s.border_width_left = 0
-	s.border_width_top = 0
-	s.border_width_right = 0
-	s.border_width_bottom = 2
-	s.border_color = Color(0.56, 0.36, 0.20, 0.85)
-	s.shadow_color = Color(0, 0, 0, 0.30)
-	s.shadow_size = 2
-	_top_bar.add_theme_stylebox_override("panel", s)
-	_instructions.add_theme_color_override("font_color", Color(0.98, 0.93, 0.82, 0.98))
-	_instructions.add_theme_font_size_override("font_size", 17)
-	_turn_label.add_theme_color_override("font_color", Color(0.93, 0.84, 0.66, 0.95))
-	_phase_label.add_theme_color_override("font_color", Color(0.90, 0.82, 0.62, 0.95))
-	_deck_count_top.add_theme_color_override("font_color", Color(0.90, 0.82, 0.62, 0.92))
-	_okey_info_top.add_theme_color_override("font_color", Color(0.98, 0.75, 0.34, 1.0))
-
-func _style_center_cards() -> void:
-	var card_style := StyleBoxFlat.new()
-	card_style.bg_color = Color(0.96, 0.93, 0.86, 0.98)
-	card_style.border_width_left = 1
-	card_style.border_width_top = 1
-	card_style.border_width_right = 1
-	card_style.border_width_bottom = 3
-	card_style.border_color = Color(0.56, 0.44, 0.28, 0.92)
-	card_style.corner_radius_top_left = 10
-	card_style.corner_radius_top_right = 10
-	card_style.corner_radius_bottom_left = 10
-	card_style.corner_radius_bottom_right = 10
-	card_style.content_margin_left = 8.0
-	card_style.content_margin_right = 8.0
-	card_style.content_margin_top = 8.0
-	card_style.content_margin_bottom = 8.0
-	_draw_deck.add_theme_stylebox_override("panel", card_style)
-	_indicator_panel.add_theme_stylebox_override("panel", card_style.duplicate())
-	_deck_title.add_theme_color_override("font_color", Color(0.33, 0.26, 0.19, 0.70))
-	_ind_title.add_theme_color_override("font_color", Color(0.33, 0.26, 0.19, 0.70))
-	_deck_title.add_theme_font_size_override("font_size", 12)
-	_ind_title.add_theme_font_size_override("font_size", 11)
-	_deck_num.add_theme_color_override("font_color", Color(0.21, 0.16, 0.12, 0.95))
-	_ind_value.add_theme_color_override("font_color", Color(0.21, 0.16, 0.12, 0.95))
-	_okey_value.add_theme_color_override("font_color", Color(0.78, 0.31, 0.12, 0.95))
-	_deck_num.add_theme_font_size_override("font_size", 40)
-	_ind_value.add_theme_font_size_override("font_size", 34)
-	_okey_value.add_theme_font_size_override("font_size", 16)
-
-func _style_rack_shell() -> void:
-	var rs := StyleBoxFlat.new()
-	rs.bg_color = Color(0.40, 0.27, 0.16, 0.98)
-	rs.border_width_left = 2
-	rs.border_width_top = 3
-	rs.border_width_right = 2
-	rs.border_width_bottom = 5
-	rs.border_color = Color(0.23, 0.15, 0.09, 0.96)
-	rs.shadow_color = Color(0, 0, 0, 0.34)
-	rs.shadow_size = 4
-	rs.corner_radius_top_left = 12
-	rs.corner_radius_top_right = 12
-	rs.corner_radius_bottom_left = 12
-	rs.corner_radius_bottom_right = 12
-	rs.content_margin_left = 12
-	rs.content_margin_right = 12
-	rs.content_margin_top = 9
-	rs.content_margin_bottom = 9
-	_rack_panel.add_theme_stylebox_override("panel", rs)
-	_row1.add_theme_constant_override("separation", 5)
-	_row2.add_theme_constant_override("separation", 5)
-
-func _create_board_geometry() -> void:
-	_board_layer = Node2D.new()
-	_board_layer.name = "BoardGeometry"
-	# Board polys render below gameplay widgets and above scene background.
-	_board_layer.z_index = -1
-	_table_area.add_child(_board_layer)
-	_table_area.move_child(_board_layer, 0)
-
-	_board_shadow_poly = Polygon2D.new()
-	_board_shadow_poly.color = Color(0, 0, 0, 0.22)
-	_board_layer.add_child(_board_shadow_poly)
-
-	_board_table_poly = Polygon2D.new()
-	_board_table_poly.color = Color(0.33, 0.21, 0.13, 0.96)
-	_board_layer.add_child(_board_table_poly)
-
-	_board_table_border = Line2D.new()
-	_board_table_border.width = 2.2
-	_board_table_border.default_color = Color(0.18, 0.11, 0.07, 0.92)
-	_board_table_border.antialiased = true
-	_board_layer.add_child(_board_table_border)
-
-	_board_outer_poly = Polygon2D.new()
-	_board_outer_poly.color = Color(0.26, 0.16, 0.09, 0.95)
-	_board_layer.add_child(_board_outer_poly)
-
-	_board_felt_poly = Polygon2D.new()
-	_board_felt_poly.color = Color(0.04, 0.29, 0.40, 0.99)
-	_board_layer.add_child(_board_felt_poly)
-
-	_board_felt_sheen_poly = Polygon2D.new()
-	_board_felt_sheen_poly.color = Color(0.66, 0.90, 0.98, 0.08)
-	_board_layer.add_child(_board_felt_sheen_poly)
-
-	_board_felt_depth_poly = Polygon2D.new()
-	_board_felt_depth_poly.color = Color(0.0, 0.08, 0.12, 0.24)
-	_board_layer.add_child(_board_felt_depth_poly)
-
-	_board_felt_border = Line2D.new()
-	_board_felt_border.width = 1.8
-	_board_felt_border.default_color = Color(0.49, 0.86, 0.98, 0.70)
-	_board_felt_border.antialiased = true
-	_board_layer.add_child(_board_felt_border)
-
-	_board_inner_border = Line2D.new()
-	_board_inner_border.width = 0.9
-	_board_inner_border.default_color = Color(0.69, 0.92, 0.98, 0.22)
-	_board_inner_border.antialiased = true
-	_board_layer.add_child(_board_inner_border)
-
-func _layout_table_backdrop(table_w: float, table_h: float) -> void:
-	if _board_table_poly == null or _board_table_border == null:
-		return
-	var inset: float = 0.5
-	var tl: Vector2 = Vector2(inset, inset)
-	var tr: Vector2 = Vector2(table_w - inset, inset)
-	var br: Vector2 = Vector2(table_w - inset, table_h - inset)
-	var bl: Vector2 = Vector2(inset, table_h - inset)
-	_board_table_poly.polygon = PackedVector2Array([tl, tr, br, bl])
-	_board_table_border.points = PackedVector2Array([tl, tr, br, bl, tl])
-
-func _layout_board_geometry(top_left: Vector2, top_right: Vector2, bottom_right: Vector2, bottom_left: Vector2) -> void:
-	if _board_layer == null or _board_outer_poly == null or _board_felt_poly == null:
-		return
-	var top_expand: float = 13.0
-	var side_expand_far: float = 22.0
-	var side_expand_near: float = 28.0
-	var bottom_expand: float = 18.0
-
-	var outer_tl: Vector2 = Vector2(top_left.x - side_expand_far, top_left.y - top_expand)
-	var outer_tr: Vector2 = Vector2(top_right.x + side_expand_far, top_right.y - top_expand)
-	var outer_br: Vector2 = Vector2(bottom_right.x + side_expand_near, bottom_right.y + bottom_expand)
-	var outer_bl: Vector2 = Vector2(bottom_left.x - side_expand_near, bottom_left.y + bottom_expand)
-
-	if _board_shadow_poly != null:
-		var shadow_off := Vector2(22.0, 20.0)
-		var sh_tl: Vector2 = outer_tl + shadow_off + Vector2(0, -2.0)
-		var sh_tr: Vector2 = outer_tr + shadow_off + Vector2(4.0, 0.0)
-		var sh_br: Vector2 = outer_br + shadow_off + Vector2(10.0, 6.0)
-		var sh_bl: Vector2 = outer_bl + shadow_off + Vector2(-6.0, 5.0)
-		_board_shadow_poly.polygon = PackedVector2Array([sh_tl, sh_tr, sh_br, sh_bl])
-
-	_board_outer_poly.polygon = PackedVector2Array([outer_tl, outer_tr, outer_br, outer_bl])
-	_board_felt_poly.polygon = PackedVector2Array([top_left, top_right, bottom_right, bottom_left])
-
-	if _board_felt_sheen_poly != null:
-		var sheen_tl: Vector2 = top_left + Vector2(36.0, 22.0)
-		var sheen_tr: Vector2 = top_right + Vector2(-36.0, 22.0)
-		var sheen_br: Vector2 = top_right.lerp(bottom_right, 0.34) + Vector2(-24.0, -10.0)
-		var sheen_bl: Vector2 = top_left.lerp(bottom_left, 0.34) + Vector2(24.0, -10.0)
-		_board_felt_sheen_poly.polygon = PackedVector2Array([sheen_tl, sheen_tr, sheen_br, sheen_bl])
-
-	if _board_felt_depth_poly != null:
-		var depth_tl: Vector2 = top_left.lerp(bottom_left, 0.58) + Vector2(18.0, 2.0)
-		var depth_tr: Vector2 = top_right.lerp(bottom_right, 0.58) + Vector2(-18.0, 2.0)
-		var depth_br: Vector2 = bottom_right + Vector2(-22.0, -9.0)
-		var depth_bl: Vector2 = bottom_left + Vector2(22.0, -9.0)
-		_board_felt_depth_poly.polygon = PackedVector2Array([depth_tl, depth_tr, depth_br, depth_bl])
-
-	_board_felt_border.points = PackedVector2Array([top_left, top_right, bottom_right, bottom_left, top_left])
-
-	var inner_tl: Vector2 = top_left + Vector2(16.0, 12.0)
-	var inner_tr: Vector2 = top_right + Vector2(-16.0, 12.0)
-	var inner_br: Vector2 = bottom_right + Vector2(-18.0, -13.0)
-	var inner_bl: Vector2 = bottom_left + Vector2(18.0, -13.0)
-	_board_inner_border.points = PackedVector2Array([inner_tl, inner_tr, inner_br, inner_bl, inner_tl])
-
-func _create_wall_ring() -> void:
-	_wall_ring_layer = Control.new()
-	_wall_ring_layer.name = "WallRing"
-	_wall_ring_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_wall_ring_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_wall_ring_layer.z_index = 3
-	_meld_island.add_child(_wall_ring_layer)
-	_wall_stack_nodes.clear()
-	for i in range(53):
-		var stack_panel := Panel.new()
-		stack_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		stack_panel.z_index = 3
-		var s := StyleBoxFlat.new()
-		s.bg_color = Color(0.94, 0.91, 0.84, 0.36)
-		s.border_width_left = 1
-		s.border_width_top = 1
-		s.border_width_right = 1
-		s.border_width_bottom = 2
-		s.border_color = Color(0.77, 0.70, 0.58, 0.52)
-		s.corner_radius_top_left = 3
-		s.corner_radius_top_right = 3
-		s.corner_radius_bottom_left = 3
-		s.corner_radius_bottom_right = 3
-		stack_panel.add_theme_stylebox_override("panel", s)
-		_wall_ring_layer.add_child(stack_panel)
-		_wall_stack_nodes.append(stack_panel)
-
-func _layout_wall_ring() -> void:
-	if _wall_ring_layer == null:
-		return
-	if not SHOW_WALL_RING:
-		_wall_ring_layer.visible = false
-		return
-	var island_w: float = max(220.0, _meld_island.size.x)
-	var island_h: float = max(180.0, _meld_island.size.y)
-	var outer_w: float = clamp(island_w * 0.44, 300.0, 560.0)
-	var outer_h: float = clamp(island_h * 0.48, 200.0, 340.0)
-	var cx: float = island_w * 0.47
-	var cy: float = island_h * 0.40
-	var left: float = cx - outer_w * 0.5
-	var top: float = cy - outer_h * 0.5
-	var stack_w: float = clamp(_slot_size.x * 0.22, 9.0, 15.0)
-	var stack_h: float = clamp(_slot_size.y * 0.36, 16.0, 26.0)
-	# Perspective-like split: far side shorter, near side longer.
-	var top_n: int = 11
-	var right_n: int = 14
-	var bottom_n: int = 16
-	var left_n: int = 12
-	var far_inset: float = clamp(outer_w * 0.12, 22.0, 44.0)
-	var side_inset: float = clamp(outer_w * 0.05, 8.0, 20.0)
-	var idx: int = 0
-	for i in range(top_n):
-		var t: float = 0.0 if top_n <= 1 else float(i) / float(top_n - 1)
-		var x: float = left + far_inset + t * (outer_w - far_inset * 2.0 - stack_w)
-		_set_rect_pixels(_wall_stack_nodes[idx], x, top, stack_w, stack_h)
-		idx += 1
-	for i in range(right_n):
-		var t: float = 0.0 if right_n <= 1 else float(i) / float(right_n - 1)
-		var y: float = top + t * (outer_h - stack_w)
-		var x: float = left + outer_w - stack_h - lerpf(0.0, side_inset, t)
-		_set_rect_pixels(_wall_stack_nodes[idx], x, y, stack_h, stack_w)
-		idx += 1
-	for i in range(bottom_n):
-		var t: float = 0.0 if bottom_n <= 1 else float(i) / float(bottom_n - 1)
-		var x: float = left + (1.0 - t) * (outer_w - stack_w)
-		_set_rect_pixels(_wall_stack_nodes[idx], x, top + outer_h - stack_h, stack_w, stack_h)
-		idx += 1
-	for i in range(left_n):
-		var t: float = 0.0 if left_n <= 1 else float(i) / float(left_n - 1)
-		var y: float = top + (1.0 - t) * (outer_h - stack_w)
-		var x: float = left + lerpf(0.0, side_inset, t)
-		_set_rect_pixels(_wall_stack_nodes[idx], x, y, stack_h, stack_w)
-		idx += 1
 
 func configure_game(rule_config: RuleConfig, game_seed: int, player_count: int) -> void:
 	_rule_config = rule_config
@@ -564,15 +169,15 @@ func _create_opponent_areas() -> void:
 		var name_lbl := Label.new()
 		name_lbl.text = opp_names[i]
 		name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_lbl.add_theme_color_override("font_color", Color(0.91, 0.92, 0.95, 0.70))
-		name_lbl.add_theme_font_size_override("font_size", 10)
+		name_lbl.add_theme_color_override("font_color", Color(0.86, 0.9, 0.95, 0.82))
+		name_lbl.add_theme_font_size_override("font_size", 11)
 		rack_vbox.add_child(name_lbl)
 
 		var count_lbl := Label.new()
 		count_lbl.text = "21 tiles"
 		count_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		count_lbl.add_theme_color_override("font_color", Color(0.97, 0.96, 0.94, 0.94))
-		count_lbl.add_theme_font_size_override("font_size", 13)
+		count_lbl.add_theme_color_override("font_color", Color(0.95, 0.95, 0.98, 0.9))
+		count_lbl.add_theme_font_size_override("font_size", 15)
 		rack_vbox.add_child(count_lbl)
 
 		_opp_rack_panels.append(rack)
@@ -597,7 +202,7 @@ func _create_opponent_areas() -> void:
 		var disc_hint := Label.new()
 		disc_hint.text = "..."
 		disc_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		disc_hint.add_theme_color_override("font_color", Color(0.62, 0.82, 0.90, 0.46))
+		disc_hint.add_theme_color_override("font_color", Color(0.55, 0.75, 0.85, 0.55))
 		disc_hint.add_theme_font_size_override("font_size", 10)
 		disc_vbox.add_child(disc_hint)
 
@@ -622,10 +227,10 @@ func _create_opponent_areas() -> void:
 		glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		glow.visible = false
 		var gs := StyleBoxFlat.new()
-		gs.bg_color = Color(0.95, 0.76, 0.24, 0.12)
+		gs.bg_color = Color(0.9, 0.7, 0.2, 0.15)
 		gs.border_width_left = 2; gs.border_width_top = 2
 		gs.border_width_right = 2; gs.border_width_bottom = 2
-		gs.border_color = Color(0.98, 0.82, 0.31, 0.78)
+		gs.border_color = Color(0.95, 0.78, 0.25, 0.85)
 		gs.corner_radius_top_left = 8; gs.corner_radius_top_right = 8
 		gs.corner_radius_bottom_left = 8; gs.corner_radius_bottom_right = 8
 		glow.add_theme_stylebox_override("panel", gs)
@@ -643,10 +248,10 @@ func _create_my_discard_glow() -> void:
 	_my_discard_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_my_discard_glow.visible = false
 	var gs := StyleBoxFlat.new()
-	gs.bg_color = Color(0.95, 0.76, 0.24, 0.12)
+	gs.bg_color = Color(0.9, 0.7, 0.2, 0.15)
 	gs.border_width_left = 2; gs.border_width_top = 2
 	gs.border_width_right = 2; gs.border_width_bottom = 2
-	gs.border_color = Color(0.98, 0.82, 0.31, 0.78)
+	gs.border_color = Color(0.95, 0.78, 0.25, 0.85)
 	gs.corner_radius_top_left = 8; gs.corner_radius_top_right = 8
 	gs.corner_radius_bottom_left = 8; gs.corner_radius_bottom_right = 8
 	_my_discard_glow.add_theme_stylebox_override("panel", gs)
@@ -654,35 +259,25 @@ func _create_my_discard_glow() -> void:
 
 func _apply_opp_rack_style(panel: PanelContainer, opp_idx: int) -> void:
 	var s := StyleBoxFlat.new()
-	s.bg_color = OPP_COLORS[opp_idx].darkened(0.48)
-	s.bg_color.a = 0.90
-	s.border_width_left = 1
-	s.border_width_top = 1
-	s.border_width_right = 1
-	s.border_width_bottom = 2
-	s.border_color = OPP_COLORS[opp_idx].lightened(0.22)
-	s.border_color.a = 0.70
-	s.shadow_color = Color(0, 0, 0, 0.24)
-	s.shadow_size = 2
-	s.corner_radius_top_left = 10
-	s.corner_radius_top_right = 10
-	s.corner_radius_bottom_left = 10
-	s.corner_radius_bottom_right = 10
-	s.content_margin_left = 4
-	s.content_margin_right = 4
-	s.content_margin_top = 2
-	s.content_margin_bottom = 2
+	s.bg_color = OPP_COLORS[opp_idx].darkened(0.55)
+	s.bg_color.a = 0.84
+	s.border_width_left = 1; s.border_width_top = 1
+	s.border_width_right = 1; s.border_width_bottom = 1
+	s.border_color = OPP_COLORS[opp_idx].lightened(0.25)
+	s.border_color.a = 0.72
+	s.corner_radius_top_left = 8; s.corner_radius_top_right = 8
+	s.corner_radius_bottom_left = 8; s.corner_radius_bottom_right = 8
 	panel.add_theme_stylebox_override("panel", s)
 
 func _apply_discard_zone_style(panel: PanelContainer) -> void:
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.02, 0.14, 0.20, 0.16)
+	s.bg_color = Color(0.03, 0.16, 0.24, 0.12)
 	s.border_width_left = 2; s.border_width_top = 2
 	s.border_width_right = 2; s.border_width_bottom = 2
-	s.border_color = Color(0.52, 0.86, 0.95, 0.60)
+	s.border_color = Color(0.45, 0.78, 0.90, 0.72)
 	s.border_blend = true
-	s.shadow_color = Color(0, 0, 0, 0.22)
-	s.shadow_size = 3
+	s.shadow_color = Color(0, 0, 0, 0.16)
+	s.shadow_size = 2
 	s.corner_radius_top_left = 8; s.corner_radius_top_right = 8
 	s.corner_radius_bottom_left = 8; s.corner_radius_bottom_right = 8
 	panel.add_theme_stylebox_override("panel", s)
@@ -829,20 +424,10 @@ func _render_hud() -> void:
 	var pts: int = _selected_points()
 	_open_meter.text = "Open: %d/101" % pts
 	_open_meter_bottom.text = "Open: %d/101" % pts
-	_open_meter.visible = _is_my_turn() and state.phase == GameState.Phase.TURN_PLAY
-	_meld_hint.visible = _is_my_turn() and state.phase == GameState.Phase.TURN_PLAY and _controller.state.table_melds.is_empty()
-	if _wall_ring_layer != null:
-		_wall_ring_layer.visible = SHOW_WALL_RING
-		if SHOW_WALL_RING:
-			var ring_alpha: float = 0.82 if state.table_melds.is_empty() else 0.22
-			for stack_panel in _wall_stack_nodes:
-				if stack_panel != null:
-					stack_panel.modulate = Color(1, 1, 1, ring_alpha)
+	_meld_hint.visible = _controller.state.table_melds.is_empty()
 	if _stage_panel != null:
 		# No explicit staging panel UI: pending tiles are rendered directly on felt.
-		# Keep it visible only while interactive or when it already contains tiles.
-		_stage_panel.visible = (_is_my_turn() and state.phase == GameState.Phase.TURN_PLAY) or _has_staged_tiles()
-	_update_stage_slot_visuals()
+		_stage_panel.visible = true
 	_instructions.text = _instruction_for_state()
 
 func _render_opponents() -> void:
@@ -881,12 +466,10 @@ func _render_discard_stack(stack_root: Control, tiles: Array) -> void:
 		chip.position = Vector2(4 + float(i * 2), float((vis_count - i - 1) * 3))
 		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var cs := StyleBoxFlat.new()
-		cs.bg_color = Color(0.98, 0.95, 0.88, 0.98)
+		cs.bg_color = Color(0.99, 0.97, 0.92, 1)
 		cs.border_width_left = 1; cs.border_width_top = 1
 		cs.border_width_right = 1; cs.border_width_bottom = 2
-		cs.border_color = Color(0.62, 0.50, 0.32, 0.98)
-		cs.shadow_color = Color(0, 0, 0, 0.20)
-		cs.shadow_size = 2
+		cs.border_color = Color(0.76, 0.67, 0.52, 1)
 		cs.corner_radius_top_left = 4; cs.corner_radius_top_right = 4
 		cs.corner_radius_bottom_left = 4; cs.corner_radius_bottom_right = 4
 		chip.add_theme_stylebox_override("panel", cs)
@@ -1007,17 +590,14 @@ func _on_tile_drag_ended(tile_ctrl: OkeyTile, global_pos: Vector2) -> void:
 	var from_slot: int = _rack_slots.find(tile_id)
 	var from_stage_slot: int = _stage_slots.find(tile_id)
 	var phase: int = _controller.state.phase
-	var on_discard_zone: bool = _my_discard.get_global_rect().has_point(global_pos)
-	var on_rack_zone: bool = _rack_panel.get_global_rect().has_point(global_pos)
-	var on_meld_zone: bool = _is_on_felt_interaction_zone(global_pos)
 
 	# Discard: drag to my discard zone
 	if _is_my_turn() and (phase == GameState.Phase.STARTER_DISCARD or phase == GameState.Phase.TURN_DISCARD):
-		if on_discard_zone:
+		if _my_discard.get_global_rect().has_point(global_pos):
 			_discard_tile(tile_id)
 			return
 	# Fast path: during TURN_PLAY dropping to discard implicitly ends play then discards.
-	if _is_my_turn() and phase == GameState.Phase.TURN_PLAY and on_discard_zone:
+	if _is_my_turn() and phase == GameState.Phase.TURN_PLAY and _my_discard.get_global_rect().has_point(global_pos):
 		_try_end_play_then_discard(tile_id)
 		return
 
@@ -1027,25 +607,19 @@ func _on_tile_drag_ended(tile_ctrl: OkeyTile, global_pos: Vector2) -> void:
 		if meld_index != -1:
 			_add_to_meld([tile_id], meld_index)
 			return
-		if on_meld_zone:
+		if _stage_panel != null and _stage_panel.get_global_rect().has_point(global_pos):
 			var to_stage_slot: int = _find_stage_drop_slot(global_pos)
-			if from_slot != -1:
-				# Rack -> felt should be permissive; always try to stage even if row hit-testing fails.
-				if to_stage_slot == -1:
-					to_stage_slot = _first_empty_stage_slot()
-				if to_stage_slot != -1:
+			if to_stage_slot != -1:
+				if from_slot != -1:
 					_move_rack_to_stage(from_slot, to_stage_slot)
 					return
-			if from_stage_slot != -1:
-				if to_stage_slot == -1:
-					to_stage_slot = from_stage_slot
-				if from_stage_slot != to_stage_slot:
+				if from_stage_slot != -1 and from_stage_slot != to_stage_slot:
 					_move_stage_slot(from_stage_slot, to_stage_slot)
 					return
 			return
 
 	# Rack reorder
-	if on_rack_zone:
+	if _rack_panel.get_global_rect().has_point(global_pos):
 		var to_slot: int = _find_drop_slot(global_pos)
 		if from_slot != -1 and to_slot != -1 and to_slot != from_slot:
 			_move_slot(from_slot, to_slot)
@@ -1255,6 +829,22 @@ func _validate_new_meld_candidate(ids: Array, hand_by_id: Dictionary, validator:
 		return {"kind": Meld.Kind.SET, "tile_ids": ids.duplicate()}
 	return {}
 
+func _apply_layoffs_for_tile_ids(tile_ids: Array) -> bool:
+	for tid in tile_ids:
+		var placed: bool = false
+		for meld_index in range(_controller.state.table_melds.size()):
+			var action: Action = Action.new(Action.ActionType.ADD_TO_MELD, {"target_meld_index": meld_index, "tile_ids": [int(tid)]})
+			_action_in_flight = true
+			var result: Dictionary = _controller.apply_action_if_valid(0, action)
+			if bool(result.get("ok", false)):
+				placed = true
+				break
+			_action_in_flight = false
+		if not placed:
+			_last_stage_error = "Could not add staged tile %d to any meld" % int(tid)
+			return false
+	return true
+
 func _build_melds_from_stage_slots() -> Array:
 	if _controller.state == null:
 		return []
@@ -1370,91 +960,68 @@ func _render_melds() -> void:
 	var by_owner := {0: [], 1: [], 2: [], 3: []}
 	for i in range(_controller.state.table_melds.size()):
 		var meld = _controller.state.table_melds[i]
-		var meld_owner: int = _meld_owner_for_render(meld)
-		if not by_owner.has(meld_owner):
-			by_owner[meld_owner] = []
-		by_owner[meld_owner].append(i)
+		var owner: int = _meld_owner_for_render(meld)
+		if not by_owner.has(owner):
+			by_owner[owner] = []
+		by_owner[owner].append(i)
 
 	var render_order: Array = [2, 3, 1, 0] # top, left, right, bottom(front of rack)
-	for owner_idx in render_order:
-		var zone: Rect2 = zones.get(owner_idx, Rect2(4.0, 4.0, max_w - 8.0, max_h - 8.0))
-		var chip_w: float = clamp(_slot_size.x * 0.70, 30.0, 44.0)
-		var chip_h: float = clamp(_slot_size.y * 0.70, 42.0, 58.0)
-		var panel_h: float = chip_h + 8.0
-		var meld_indices: Array = by_owner.get(owner_idx, [])
-		if meld_indices.is_empty():
-			continue
-
-		# Build wrapped rows first so we can center each row in the owner's lane.
-		var rows: Array = []
-		var cur_row: Array = []
-		var cur_w: float = 0.0
-		for meld_index in meld_indices:
-			var meld_obj = _controller.state.table_melds[int(meld_index)]
-			var tile_count: int = int(meld_obj.tiles.size())
-			var width: float = 16.0 + float(max(1, tile_count)) * (chip_w + 2.0)
-			var add_w: float = width if cur_row.is_empty() else width + 8.0
-			if not cur_row.is_empty() and cur_w + add_w > zone.size.x:
-				rows.append({"items": cur_row, "width": cur_w})
-				cur_row = []
-				cur_w = 0.0
-				add_w = width
-			cur_row.append({"meld_index": int(meld_index), "width": width})
-			cur_w += add_w
-		if not cur_row.is_empty():
-			rows.append({"items": cur_row, "width": cur_w})
-
+	for owner in render_order:
+		var zone: Rect2 = zones.get(owner, Rect2(4.0, 4.0, max_w - 8.0, max_h - 8.0))
+		var x: float = zone.position.x
 		var y: float = zone.position.y
-		for row_data in rows:
+		var row_advance: float = 0.0
+		for meld_index in by_owner.get(owner, []):
+			var meld = _controller.state.table_melds[int(meld_index)]
+			var tile_count: int = int(meld.tiles.size())
+			var chip_w: float = clamp(_slot_size.x * 0.70, 30.0, 44.0)
+			var chip_h: float = clamp(_slot_size.y * 0.70, 42.0, 58.0)
+			var width: float = 16.0 + float(max(1, tile_count)) * (chip_w + 2.0)
+			var panel_h: float = chip_h + 8.0
+			if x + width > zone.position.x + zone.size.x:
+				x = zone.position.x
+				y += row_advance + 6.0
+				row_advance = 0.0
 			if y + panel_h > zone.position.y + zone.size.y:
 				break
-			var row_w: float = float(row_data.get("width", 0.0))
-			var x: float = zone.position.x + max(0.0, (zone.size.x - row_w) * 0.5)
-			var row_items: Array = row_data.get("items", [])
-			for item in row_items:
-				var meld_index: int = int(item.get("meld_index", -1))
-				var width: float = float(item.get("width", 0.0))
-				var meld = _controller.state.table_melds[meld_index]
 
-				var panel := PanelContainer.new()
-				panel.custom_minimum_size = Vector2(width, panel_h)
-				panel.position = Vector2(x, y)
-				panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-				panel.set_meta("meld_index", meld_index)
-				var ps := StyleBoxFlat.new()
-				ps.bg_color = Color(0.96, 0.94, 0.88, 0.97)
-				ps.border_width_left = 1
-				ps.border_width_top = 1
-				ps.border_width_right = 1
-				ps.border_width_bottom = 2
-				ps.border_color = Color(0.63, 0.50, 0.32, 0.90)
-				ps.shadow_color = Color(0, 0, 0, 0.16)
-				ps.shadow_size = 2
-				ps.corner_radius_top_left = 6
-				ps.corner_radius_top_right = 6
-				ps.corner_radius_bottom_left = 6
-				ps.corner_radius_bottom_right = 6
-				panel.add_theme_stylebox_override("panel", ps)
+			var panel := PanelContainer.new()
+			panel.custom_minimum_size = Vector2(width, panel_h)
+			panel.position = Vector2(x, y)
+			panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			panel.set_meta("meld_index", int(meld_index))
+			var ps := StyleBoxFlat.new()
+			ps.bg_color = Color(0.95, 0.94, 0.89, 0.98)
+			ps.border_width_left = 1
+			ps.border_width_top = 1
+			ps.border_width_right = 1
+			ps.border_width_bottom = 2
+			ps.border_color = Color(0.69, 0.56, 0.37, 0.95)
+			ps.corner_radius_top_left = 6
+			ps.corner_radius_top_right = 6
+			ps.corner_radius_bottom_left = 6
+			ps.corner_radius_bottom_right = 6
+			panel.add_theme_stylebox_override("panel", ps)
 
-				var row := HBoxContainer.new()
-				row.alignment = BoxContainer.ALIGNMENT_CENTER
-				row.add_theme_constant_override("separation", 2)
-				row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-				row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-				panel.add_child(row)
+			var row := HBoxContainer.new()
+			row.alignment = BoxContainer.ALIGNMENT_CENTER
+			row.add_theme_constant_override("separation", 2)
+			row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			panel.add_child(row)
 
-				for tile_obj in meld.tiles_data:
-					var tile_chip: OkeyTile = OKEY_TILE_SCENE.instantiate()
-					tile_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-					tile_chip.setup(tile_obj, -1)
-					tile_chip.set_zoom(0.84)
-					tile_chip.set_selected(false)
-					row.add_child(tile_chip)
+			for tile_obj in meld.tiles_data:
+				var tile_chip: OkeyTile = OKEY_TILE_SCENE.instantiate()
+				tile_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				tile_chip.setup(tile_obj, -1)
+				tile_chip.set_zoom(0.84)
+				tile_chip.set_selected(false)
+				row.add_child(tile_chip)
 
-				_meld_island.add_child(panel)
-				_meld_clusters.append(panel)
-				x += width + 8.0
-			y += panel_h + 6.0
+			_meld_island.add_child(panel)
+			_meld_clusters.append(panel)
+			row_advance = max(row_advance, panel_h)
+			x += width + 8.0
 
 func _find_meld_cluster(global_pos: Vector2) -> int:
 	for cluster in _meld_clusters:
@@ -1467,35 +1034,34 @@ func _find_meld_cluster(global_pos: Vector2) -> int:
 func _meld_owner_for_render(meld: Meld) -> int:
 	if meld == null:
 		return 2
-	var meld_owner: int = int(meld.owner_index)
-	if meld_owner < 0:
+	var owner: int = int(meld.owner_index)
+	if owner < 0:
 		return 2
-	if _controller.state != null and meld_owner >= _controller.state.players.size():
+	if _controller.state != null and owner >= _controller.state.players.size():
 		return 2
-	return meld_owner
+	return owner
 
 func _build_meld_owner_zones(max_w: float, max_h: float) -> Dictionary:
-	var pad: float = 8.0
-	var far_inset: float = clamp(max_w * 0.22, 120.0, 240.0)
-	var near_inset: float = clamp(max_w * 0.06, 28.0, 84.0)
-	var top_h: float = clamp(max_h * 0.14, 58.0, 92.0)
-	var mid_h: float = clamp(max_h * 0.12, 56.0, 90.0)
-	var bottom_h: float = clamp(max_h * 0.15, 62.0, 98.0)
-	var center_top_w: float = max(180.0, max_w - far_inset * 2.0)
-	var center_bottom_w: float = max(220.0, max_w - near_inset * 2.0)
-	var left_w: float = clamp(max_w * 0.16, 96.0, 160.0)
+	var pad: float = 4.0
+	var top_h: float = clamp(max_h * 0.20, 74.0, 120.0)
+	var bottom_h: float = clamp(max_h * 0.22, 86.0, 138.0)
+	var side_w: float = clamp(max_w * 0.18, 116.0, 190.0)
+	var mid_h: float = max(40.0, max_h - top_h - bottom_h - 18.0)
 
 	var zones := {}
-	# P2 (top opponent lane: narrow/far due to perspective)
-	zones[2] = Rect2((max_w - center_top_w) * 0.5, pad, center_top_w, top_h)
-	# P3 (left opponent lane)
-	zones[3] = Rect2(near_inset * 0.42, max_h * 0.44 - mid_h * 0.5, left_w, mid_h)
-	# P1 (right opponent lane)
-	zones[1] = Rect2(max_w - left_w - near_inset * 0.42, max_h * 0.44 - mid_h * 0.5, left_w, mid_h)
-	# P0 (bottom player lane: wider/near)
-	var bottom_y: float = max_h - bottom_h - _pending_band_height() - 14.0
-	bottom_y = clamp(bottom_y, top_h + 18.0, max_h - bottom_h - 8.0)
-	zones[0] = Rect2((max_w - center_bottom_w) * 0.5, bottom_y, center_bottom_w, bottom_h)
+	# Player 2 (top)
+	zones[2] = Rect2(pad, pad, max_w - pad * 2.0, top_h)
+	# Player 3 (left)
+	zones[3] = Rect2(pad, top_h + 8.0, side_w, mid_h)
+	# Player 1 (right)
+	zones[1] = Rect2(max_w - side_w - pad, top_h + 8.0, side_w, mid_h)
+	# Player 0 (front/bottom)
+	var bottom_x: float = side_w + 12.0
+	var bottom_w: float = max_w - (side_w * 2.0 + 24.0)
+	if bottom_w < 180.0:
+		bottom_x = pad
+		bottom_w = max_w - pad * 2.0
+	zones[0] = Rect2(bottom_x, max_h - bottom_h - pad, bottom_w, bottom_h)
 	return zones
 
 # ═══════════════════════════════════════════
@@ -1515,23 +1081,20 @@ func _init_stage_slots() -> void:
 func _create_stage_area() -> void:
 	_stage_panel = Control.new()
 	_stage_panel.name = "PendingSlots"
-	_stage_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stage_panel.mouse_filter = Control.MOUSE_FILTER_PASS
 	_stage_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_stage_panel.z_index = 30
 	_meld_island.add_child(_stage_panel)
 
 	_stage_row1 = HBoxContainer.new()
 	_stage_row1.alignment = BoxContainer.ALIGNMENT_CENTER
 	_stage_row1.add_theme_constant_override("separation", 4)
 	_stage_row1.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_stage_row1.z_index = 31
 	_stage_panel.add_child(_stage_row1)
 
 	_stage_row2 = HBoxContainer.new()
 	_stage_row2.alignment = BoxContainer.ALIGNMENT_CENTER
 	_stage_row2.add_theme_constant_override("separation", 4)
 	_stage_row2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_stage_row2.z_index = 31
 	_stage_panel.add_child(_stage_row2)
 
 func _ensure_stage_slot_controls() -> void:
@@ -1595,10 +1158,10 @@ func _ensure_slot_controls() -> void:
 		slot_panel.mouse_filter = Control.MOUSE_FILTER_PASS
 
 		var ss := StyleBoxFlat.new()
-		ss.bg_color = Color(0.24, 0.17, 0.11, 0.38)
+		ss.bg_color = Color(0.95, 0.85, 0.72, 0.22)
 		ss.border_width_left = 1; ss.border_width_top = 1
 		ss.border_width_right = 1; ss.border_width_bottom = 2
-		ss.border_color = Color(0.70, 0.56, 0.39, 0.34)
+		ss.border_color = Color(0.33, 0.23, 0.14, 0.5)
 		ss.corner_radius_top_left = 5; ss.corner_radius_top_right = 5
 		ss.corner_radius_bottom_left = 5; ss.corner_radius_bottom_right = 5
 		slot_panel.add_theme_stylebox_override("panel", ss)
@@ -1607,7 +1170,7 @@ func _ensure_slot_controls() -> void:
 		slot_bg.name = "SlotBg"
 		slot_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 		slot_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		slot_bg.modulate = Color(1, 1, 1, 0.04)
+		slot_bg.modulate = Color(1, 1, 1, 0.08)
 		slot_panel.add_child(slot_bg)
 
 		if i < RACK_ROW_SLOTS:
@@ -1691,12 +1254,6 @@ func _find_drop_slot(global_pos: Vector2) -> int:
 	for i in range(_slot_controls.size()):
 		if _slot_controls[i].get_global_rect().grow(10.0).has_point(global_pos):
 			return i
-	var row1_rect: Rect2 = _row1.get_global_rect()
-	var row2_rect: Rect2 = _row2.get_global_rect()
-	if row1_rect.grow(10.0).has_point(global_pos):
-		return _rack_slot_index_from_row_point(global_pos, row1_rect, 0)
-	if row2_rect.grow(10.0).has_point(global_pos):
-		return _rack_slot_index_from_row_point(global_pos, row2_rect, RACK_ROW_SLOTS)
 	var row1_cy: float = _row1.get_global_rect().get_center().y
 	var row2_cy: float = _row2.get_global_rect().get_center().y
 	var use_row2: bool = absf(global_pos.y - row2_cy) < absf(global_pos.y - row1_cy)
@@ -1711,47 +1268,21 @@ func _find_drop_slot(global_pos: Vector2) -> int:
 			best_i = i
 	return best_i
 
-func _rack_slot_index_from_row_point(global_pos: Vector2, row_rect: Rect2, row_start: int) -> int:
-	var sep: float = 4.0
-	var cell_w: float = _slot_size.x + sep
-	var local_x: float = clamp(global_pos.x - row_rect.position.x, 0.0, row_rect.size.x)
-	var col: int = int(floor(local_x / max(1.0, cell_w)))
-	col = clamp(col, 0, RACK_ROW_SLOTS - 1)
-	return row_start + col
-
 func _find_stage_drop_slot(global_pos: Vector2) -> int:
-	if _stage_slot_controls.is_empty():
-		return -1
-	var row1_rect: Rect2 = _stage_row1.get_global_rect() if _stage_row1 != null else Rect2()
-	var row2_rect: Rect2 = _stage_row2.get_global_rect() if _stage_row2 != null else Rect2()
-	var hit_pad: float = 12.0
-	if row1_rect.grow(hit_pad).has_point(global_pos):
-		return _stage_slot_index_from_row_point(global_pos, row1_rect, 0)
-	if row2_rect.grow(hit_pad).has_point(global_pos):
-		return _stage_slot_index_from_row_point(global_pos, row2_rect, STAGE_ROW_SLOTS)
-	var best_i: int = -1
-	var best_d: float = INF
 	for i in range(_stage_slot_controls.size()):
-		var slot_ctrl: Control = _stage_slot_controls[i]
-		if slot_ctrl == null or not is_instance_valid(slot_ctrl):
-			continue
-		var d: float = slot_ctrl.get_global_rect().get_center().distance_squared_to(global_pos)
-		if d < best_d:
-			best_d = d
-			best_i = i
-	if best_i == -1:
+		if _stage_slot_controls[i].get_global_rect().grow(10.0).has_point(global_pos):
+			return i
+	if _stage_slot_controls.is_empty() or _stage_row1 == null or _stage_row2 == null:
 		return -1
-	# Prefer the closest geometric slot to where the tile was dropped; if occupied,
-	# search the nearest empty slot in that lane before falling back globally.
-	return _nearest_empty_stage_slot(best_i)
-
-func _stage_slot_index_from_row_point(global_pos: Vector2, row_rect: Rect2, row_start: int) -> int:
-	var sep: float = 4.0
-	var cell_w: float = _slot_size.x + sep
-	var local_x: float = clamp(global_pos.x - row_rect.position.x, 0.0, row_rect.size.x)
-	var col: int = int(floor(local_x / max(1.0, cell_w)))
-	col = clamp(col, 0, STAGE_ROW_SLOTS - 1)
-	return row_start + col
+	var row1_rect: Rect2 = _stage_row1.get_global_rect()
+	var row2_rect: Rect2 = _stage_row2.get_global_rect()
+	var use_row2: bool = absf(global_pos.y - row2_rect.get_center().y) < absf(global_pos.y - row1_rect.get_center().y)
+	var row_rect: Rect2 = row2_rect if use_row2 else row1_rect
+	var step: float = max(1.0, _slot_size.x + 4.0)
+	var local_x: float = clamp(global_pos.x - row_rect.position.x, 0.0, max(0.0, row_rect.size.x - 1.0))
+	var col: int = int(floor(local_x / step))
+	col = clampi(col, 0, STAGE_ROW_SLOTS - 1)
+	return col + (STAGE_ROW_SLOTS if use_row2 else 0)
 
 func _nearest_empty_stage_slot(preferred_slot: int) -> int:
 	if preferred_slot < 0 or preferred_slot >= _stage_slots.size():
@@ -1764,12 +1295,12 @@ func _nearest_empty_stage_slot(preferred_slot: int) -> int:
 		start = STAGE_ROW_SLOTS
 		stop = STAGE_SLOT_COUNT
 	for radius in range(1, STAGE_ROW_SLOTS):
-		var right: int = preferred_slot + radius
-		if right >= start and right < stop and _stage_slots[right] == -1:
-			return right
 		var left: int = preferred_slot - radius
 		if left >= start and left < stop and _stage_slots[left] == -1:
 			return left
+		var right: int = preferred_slot + radius
+		if right >= start and right < stop and _stage_slots[right] == -1:
+			return right
 	for i in range(_stage_slots.size()):
 		if _stage_slots[i] == -1:
 			return i
@@ -1951,101 +1482,69 @@ func _render_round_controls() -> void:
 func _apply_responsive_layout() -> void:
 	var vp: Vector2 = get_viewport_rect().size
 	var margin: float = OUTER_MARGIN
-	var content_top: float = TOP_BAR_HEIGHT + 8.0
-	var tile_gap: float = 4.0
-	var usable_w: float = max(960.0, vp.x - margin * 2.0)
-	# Keep rack readable on desktop while preserving two-row capacity.
-	var tile_w: float = clamp((usable_w * 0.54 - 30.0 - float(RACK_ROW_SLOTS - 1) * tile_gap) / float(RACK_ROW_SLOTS), 36.0, 56.0)
-	var tile_h: float = clamp(tile_w * 1.34, 58.0, 86.0)
-	_slot_size = Vector2(tile_w, tile_h)
+	var top_h: float = TOP_BAR_HEIGHT
+	var table_top: float = top_h + 8.0
+	var available_h: float = vp.y - table_top - margin
+	var rack_h: float = clamp(available_h * 0.31, RACK_MIN_HEIGHT, RACK_MAX_HEIGHT)
+	var table_h: float = clamp(available_h - rack_h - 10.0, TABLE_MIN_HEIGHT, TABLE_MAX_HEIGHT)
+	if table_h + rack_h + 10.0 > available_h:
+		rack_h = max(RACK_MIN_HEIGHT, available_h - table_h - 10.0)
 
-	var rack_w: float = float(RACK_ROW_SLOTS) * tile_w + float(RACK_ROW_SLOTS - 1) * tile_gap + 34.0
-	rack_w = min(rack_w, vp.x - margin * 2.0)
-	var rack_h: float = clamp(tile_h * 2.0 + 14.0, RACK_MIN_HEIGHT, RACK_MAX_HEIGHT)
-	var rack_x: float = (vp.x - rack_w) * 0.5
-	var rack_y: float = vp.y - rack_h - BOTTOM_PADDING
-	_set_rect_pixels(_rack_panel, rack_x, rack_y, rack_w, rack_h)
+	_set_rect_pixels(_table_area, margin, table_top, vp.x - margin * 2.0, table_h)
 
-	var table_x: float = margin
-	var table_y: float = content_top
-	var table_w: float = vp.x - margin * 2.0
-	var table_h: float = clamp(rack_y - content_top - BOTTOM_RACK_GAP, TABLE_MIN_HEIGHT, TABLE_MAX_HEIGHT)
-	_set_rect_pixels(_table_area, table_x, table_y, table_w, table_h)
-	_layout_table_backdrop(table_w, table_h)
-
-	# Pseudo-3D board geometry: all anchors derive from this felt frame.
-	var felt_w: float = clamp(table_w * FELT_WIDTH_RATIO, FELT_MIN_WIDTH, table_w - FELT_SIDE_INSET_MAX)
-	var felt_h: float = clamp(table_h * FELT_HEIGHT_RATIO, FELT_MIN_HEIGHT, table_h - FELT_BOTTOM_INSET_MAX)
-	var felt_x: float = (table_w - felt_w) * 0.5
-	var felt_y_span: float = max(FELT_TOP_MARGIN_MIN, table_h - felt_h - FELT_BOTTOM_MARGIN_MIN)
-	var felt_y: float = lerpf(FELT_TOP_MARGIN_MIN, felt_y_span, FELT_VERTICAL_BIAS)
-	_set_rect_pixels(_melds_panel, felt_x, felt_y, felt_w, felt_h)
-	_set_rect_pixels(
-		_meld_island,
-		MELD_ISLAND_INSET_X,
-		MELD_ISLAND_INSET_TOP,
-		felt_w - MELD_ISLAND_INSET_X * 2.0,
-		felt_h - MELD_ISLAND_INSET_TOP - MELD_ISLAND_INSET_BOTTOM
-	)
-
-	# Projected board footprint used for all table-space anchors.
-	var board_proj: Dictionary = _project_board_footprint(felt_x, felt_y, felt_w, felt_h)
-	var top_left: Vector2 = board_proj.get("top_left", Vector2())
-	var top_right: Vector2 = board_proj.get("top_right", Vector2())
-	var bottom_left: Vector2 = board_proj.get("bottom_left", Vector2())
-	var bottom_right: Vector2 = board_proj.get("bottom_right", Vector2())
-	var proj_top_w: float = float(board_proj.get("top_width", 0.0))
-	var proj_bottom_w: float = float(board_proj.get("bottom_width", 0.0))
-	_layout_board_geometry(top_left, top_right, bottom_right, bottom_left)
-
-	_layout_wall_ring()
+	var center_w: float = clamp(_table_area.size.x * 0.18, 244.0, 336.0)
+	var center_h: float = clamp(_table_area.size.y * 0.12, 78.0, 98.0)
+	_set_rect_pixels(_center_zone, (_table_area.size.x - center_w) * 0.5, 10.0, center_w, center_h)
+	_set_rect_pixels(_melds_panel, 10.0, center_h + 16.0, _table_area.size.x - 20.0, _table_area.size.y - center_h - 24.0)
+	_set_rect_pixels(_meld_island, 10.0, 22.0, _melds_panel.size.x - 20.0, _melds_panel.size.y - 30.0)
 	if _stage_panel != null:
 		_stage_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 		_layout_pending_rows()
 
-	# Pseudo-3D table rails around the felt (camera-tilt illusion).
-	if SHOW_TABLE_RAILS and _rail_top != null and _rail_left != null and _rail_right != null and _rail_bottom != null:
-		var side_w: float = clamp(felt_w * 0.016, 8.0, 14.0)
-		var top_h: float = clamp(felt_h * 0.018, 8.0, 14.0)
-		var bottom_h: float = clamp(felt_h * 0.016, 6.0, 12.0)
-		var top_inset: float = clamp(felt_w * 0.12, 88.0, 170.0)
-		# Keep rails fully inside TableArea so they never overlap the top HUD bar.
-		var top_y: float = max(2.0, felt_y - top_h * 0.10)
-		_set_rect_pixels(_rail_top, top_left.x + top_inset * 0.5, top_y, proj_top_w - top_inset, top_h)
-		_set_rect_pixels(_rail_left, bottom_left.x - side_w - 1.0, top_left.y + top_h * 0.55, side_w, (bottom_left.y - top_left.y) + top_h * 0.40)
-		_set_rect_pixels(_rail_right, bottom_right.x + 1.0, top_right.y + top_h * 0.55, side_w, (bottom_right.y - top_right.y) + top_h * 0.40)
-		_set_rect_pixels(_rail_bottom, bottom_left.x - side_w * 0.08, bottom_left.y + 2.0, proj_bottom_w + side_w * 0.16, bottom_h)
-		# Side rails can visually look like giant overlays at some scales; keep only a subtle bottom lip.
-		_rail_left.visible = false
-		_rail_right.visible = false
-		_rail_top.visible = false
-		_rail_bottom.visible = true
+	var tile_gap: float = 4.0
+	var tile_w: float = clamp((vp.x * 0.60 - 24.0 - float(RACK_ROW_SLOTS - 1) * tile_gap) / float(RACK_ROW_SLOTS), 36.0, 50.0)
+	var tile_h: float = clamp(tile_w * 1.38, 58.0, 84.0)
+	_slot_size = Vector2(tile_w, tile_h)
+	var rack_w: float = float(RACK_ROW_SLOTS) * tile_w + float(RACK_ROW_SLOTS - 1) * tile_gap + 36.0
+	rack_w = min(rack_w, vp.x - margin * 2.0)
+	var rack_y: float = table_top + table_h + 12.0
+	rack_h = clamp(vp.y - rack_y - 12.0, RACK_MIN_HEIGHT, RACK_MAX_HEIGHT)
+	_set_rect_pixels(_rack_panel, (vp.x - rack_w) * 0.5, rack_y, rack_w, rack_h)
 
-	var anchors: Dictionary = _build_table_anchor_contract(top_left, top_right, bottom_left, bottom_right, felt_w, felt_h)
-	var center_size: Vector2 = anchors.get("center_size", Vector2())
-	var center_anchor: Vector2 = anchors.get("center_anchor", Vector2())
-	_set_rect_pixels(
-		_center_zone,
-		center_anchor.x - center_size.x * 0.5,
-		center_anchor.y - center_size.y * 0.5,
-		center_size.x,
-		center_size.y
-	)
-
-	var opp_rack_rects: Array = anchors.get("opp_rack_rects", [])
-	for i in range(min(_opp_rack_panels.size(), opp_rack_rects.size())):
-		var rr: Rect2 = opp_rack_rects[i]
-		_set_rect_pixels(_opp_rack_panels[i], rr.position.x, rr.position.y, rr.size.x, rr.size.y)
-
-	var opp_disc_rects: Array = anchors.get("opp_discard_rects", [])
+	var meld_local_pos: Vector2 = _melds_panel.position
+	var meld_size: Vector2 = _melds_panel.size
+	var zone_margin: float = 8.0
+	var opp_disc_rects: Array[Rect2] = [
+		Rect2(meld_local_pos.x + zone_margin, meld_local_pos.y + zone_margin, DISCARD_ZONE_SIZE.x, DISCARD_ZONE_SIZE.y), # P2 top-left
+		Rect2(meld_local_pos.x + meld_size.x - DISCARD_ZONE_SIZE.x - zone_margin, meld_local_pos.y + zone_margin, DISCARD_ZONE_SIZE.x, DISCARD_ZONE_SIZE.y), # P1 top-right
+		Rect2(meld_local_pos.x + zone_margin, meld_local_pos.y + meld_size.y - DISCARD_ZONE_SIZE.y - zone_margin, DISCARD_ZONE_SIZE.x, DISCARD_ZONE_SIZE.y), # P3 bottom-left
+	]
 	for i in range(min(_opp_discard_panels.size(), opp_disc_rects.size())):
 		var r: Rect2 = opp_disc_rects[i]
 		_set_rect_pixels(_opp_discard_panels[i], r.position.x, r.position.y, r.size.x, r.size.y)
 
-	var my_discard_local: Rect2 = anchors.get("my_discard_local", Rect2())
-	var my_discard_x: float = table_x + my_discard_local.position.x
-	var my_discard_y: float = table_y + my_discard_local.position.y
-	_set_rect_pixels(_my_discard, my_discard_x, my_discard_y, my_discard_local.size.x, my_discard_local.size.y)
+	var badge_w: float = 112.0
+	var badge_h: float = 54.0
+	var top_badge_x: float = (_table_area.size.x - badge_w) * 0.5
+	var top_badge_rect: Rect2 = Rect2(top_badge_x, 6.0, badge_w, badge_h)
+	var center_rect: Rect2 = Rect2(_center_zone.position, _center_zone.size)
+	if top_badge_rect.intersects(center_rect):
+		top_badge_x = _center_zone.position.x + _center_zone.size.x + 12.0
+	if top_badge_x + badge_w > _table_area.size.x - 6.0:
+		top_badge_x = _center_zone.position.x - badge_w - 12.0
+	top_badge_x = clamp(top_badge_x, 6.0, _table_area.size.x - badge_w - 6.0)
+	var opp_rack_rects: Array[Rect2] = [
+		Rect2(_table_area.size.x - badge_w - 4.0, _table_area.size.y * 0.50 - badge_h * 0.5, badge_w, badge_h), # right
+		Rect2(top_badge_x, 6.0, badge_w, badge_h), # top
+		Rect2(4.0, _table_area.size.y * 0.50 - badge_h * 0.5, badge_w, badge_h), # left
+	]
+	for i in range(min(_opp_rack_panels.size(), opp_rack_rects.size())):
+		var rr: Rect2 = opp_rack_rects[i]
+		_set_rect_pixels(_opp_rack_panels[i], rr.position.x, rr.position.y, rr.size.x, rr.size.y)
+
+	var my_discard_x: float = _table_area.position.x + meld_local_pos.x + meld_size.x - DISCARD_ZONE_SIZE.x - zone_margin
+	var my_discard_y: float = _table_area.position.y + meld_local_pos.y + meld_size.y - DISCARD_ZONE_SIZE.y - zone_margin
+	_set_rect_pixels(_my_discard, my_discard_x, my_discard_y, DISCARD_ZONE_SIZE.x, DISCARD_ZONE_SIZE.y)
 
 	_ensure_slot_controls()
 	_ensure_stage_slot_controls()
@@ -2055,84 +1554,6 @@ func _apply_responsive_layout() -> void:
 		_set_rect_pixels(_round_controls, vp.x - controls_w - margin, margin + 4.0, controls_w, controls_h)
 	if _controller.state != null:
 		_render_all()
-
-func _project_board_footprint(felt_x: float, felt_y: float, felt_w: float, felt_h: float) -> Dictionary:
-	var proj_top_y: float = felt_y + felt_h * PERSPECTIVE_TOP_Y_RATIO
-	var proj_bottom_y: float = felt_y + felt_h * PERSPECTIVE_BOTTOM_Y_RATIO
-	var proj_top_w: float = felt_w * PERSPECTIVE_FAR_WIDTH_RATIO
-	var proj_bottom_w: float = felt_w * PERSPECTIVE_NEAR_WIDTH_RATIO
-	var proj_top_x: float = felt_x + (felt_w - proj_top_w) * 0.5
-	var proj_bottom_x: float = felt_x + (felt_w - proj_bottom_w) * 0.5
-	return {
-		"top_left": Vector2(proj_top_x, proj_top_y),
-		"top_right": Vector2(proj_top_x + proj_top_w, proj_top_y),
-		"bottom_left": Vector2(proj_bottom_x, proj_bottom_y),
-		"bottom_right": Vector2(proj_bottom_x + proj_bottom_w, proj_bottom_y),
-		"top_width": proj_top_w,
-		"bottom_width": proj_bottom_w,
-	}
-
-func _build_table_anchor_contract(
-	top_left: Vector2,
-	top_right: Vector2,
-	bottom_left: Vector2,
-	bottom_right: Vector2,
-	felt_w: float,
-	felt_h: float
-) -> Dictionary:
-	var center_w: float = clamp(felt_w * CENTER_ZONE_WIDTH_RATIO, CENTER_ZONE_MIN_WIDTH, CENTER_ZONE_MAX_WIDTH)
-	var center_h: float = clamp(felt_h * CENTER_ZONE_HEIGHT_RATIO, CENTER_ZONE_MIN_HEIGHT, CENTER_ZONE_MAX_HEIGHT)
-	var center_anchor: Vector2 = Vector2(
-		lerpf(top_left.x, top_right.x, CENTER_ZONE_ANCHOR_X),
-		lerpf(top_left.y, bottom_left.y, CENTER_ZONE_ANCHOR_Y)
-	)
-
-	var side_badge_w: float = clamp(felt_w * OPP_BADGE_SIDE_WIDTH_RATIO, OPP_BADGE_SIDE_MIN_WIDTH, OPP_BADGE_SIDE_MAX_WIDTH)
-	var side_badge_h: float = clamp(felt_h * OPP_BADGE_SIDE_HEIGHT_RATIO, OPP_BADGE_SIDE_MIN_HEIGHT, OPP_BADGE_SIDE_MAX_HEIGHT)
-	var top_badge_w: float = side_badge_w * OPP_BADGE_TOP_WIDTH_RATIO
-	var top_badge_h: float = side_badge_h * OPP_BADGE_TOP_HEIGHT_RATIO
-
-	var opp_rack_rects: Array = [
-		Rect2(
-			lerpf(top_right.x, bottom_right.x, OPP_BADGE_SIDE_ANCHOR_T) - side_badge_w * 0.5,
-			lerpf(top_right.y, bottom_right.y, OPP_BADGE_SIDE_ANCHOR_T) - side_badge_h * 0.5,
-			side_badge_w,
-			side_badge_h
-		), # right
-		Rect2(
-			(top_left.x + top_right.x) * 0.5 - top_badge_w * 0.5,
-			top_left.y + OPP_BADGE_TOP_MARGIN,
-			top_badge_w,
-			top_badge_h
-		), # top
-		Rect2(
-			lerpf(top_left.x, bottom_left.x, OPP_BADGE_SIDE_ANCHOR_T) - side_badge_w * 0.5,
-			lerpf(top_left.y, bottom_left.y, OPP_BADGE_SIDE_ANCHOR_T) - side_badge_h * 0.5,
-			side_badge_w,
-			side_badge_h
-		), # left
-	]
-
-	var opp_discard_rects: Array = [
-		Rect2(top_left.x + DISCARD_ZONE_MARGIN, top_left.y + DISCARD_ZONE_MARGIN, DISCARD_ZONE_SIZE.x, DISCARD_ZONE_SIZE.y), # top-left (P2)
-		Rect2(top_right.x - DISCARD_ZONE_SIZE.x - DISCARD_ZONE_MARGIN, top_right.y + DISCARD_ZONE_MARGIN, DISCARD_ZONE_SIZE.x, DISCARD_ZONE_SIZE.y), # top-right (P1)
-		Rect2(bottom_left.x + DISCARD_ZONE_MARGIN, bottom_left.y - DISCARD_ZONE_SIZE.y - DISCARD_ZONE_MARGIN, DISCARD_ZONE_SIZE.x, DISCARD_ZONE_SIZE.y), # bottom-left (P3)
-	]
-
-	var my_discard_local := Rect2(
-		bottom_right.x - DISCARD_ZONE_SIZE.x - DISCARD_ZONE_MARGIN,
-		bottom_right.y - DISCARD_ZONE_SIZE.y - DISCARD_ZONE_MARGIN,
-		DISCARD_ZONE_SIZE.x,
-		DISCARD_ZONE_SIZE.y
-	)
-
-	return {
-		"center_size": Vector2(center_w, center_h),
-		"center_anchor": center_anchor,
-		"opp_rack_rects": opp_rack_rects,
-		"opp_discard_rects": opp_discard_rects,
-		"my_discard_local": my_discard_local,
-	}
 
 func _compute_round_seed() -> int:
 	# Preserve deterministic progression when a fixed seed is provided.
@@ -2149,45 +1570,10 @@ func _layout_pending_rows() -> void:
 		return
 	var row_w: float = float(STAGE_ROW_SLOTS) * _slot_size.x + float(STAGE_ROW_SLOTS - 1) * 4.0
 	var x: float = (_meld_island.size.x - row_w) * 0.5
-	var total_h: float = _slot_size.y * 2.0 + 4.0
-	# Keep pending rows near the lower felt half (closer to player's rack), without a visible panel.
-	var y1: float = _meld_island.size.y * 0.58
-	y1 = clamp(y1, 10.0, max(10.0, _meld_island.size.y - total_h - 10.0))
-	var y2: float = y1 + _slot_size.y + 4.0
+	var y2: float = _meld_island.size.y - _slot_size.y - 8.0
+	var y1: float = y2 - _slot_size.y - 4.0
 	_set_rect_pixels(_stage_row1, x, y1, row_w, _slot_size.y)
 	_set_rect_pixels(_stage_row2, x, y2, row_w, _slot_size.y)
-	_update_stage_slot_visuals()
-
-func _first_empty_stage_slot() -> int:
-	for i in range(_stage_slots.size()):
-		if int(_stage_slots[i]) == -1:
-			return i
-	return -1
-
-func _is_on_felt_interaction_zone(global_pos: Vector2) -> bool:
-	if _melds_panel != null and is_instance_valid(_melds_panel):
-		return _melds_panel.get_global_rect().grow(26.0).has_point(global_pos)
-	if _meld_island != null and is_instance_valid(_meld_island):
-		return _meld_island.get_global_rect().grow(26.0).has_point(global_pos)
-	return false
-
-func _update_stage_slot_visuals() -> void:
-	if _stage_slot_controls.is_empty():
-		return
-	for i in range(_stage_slot_controls.size()):
-		var slot_ctrl: Control = _stage_slot_controls[i]
-		if slot_ctrl == null or not is_instance_valid(slot_ctrl):
-			continue
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(0, 0, 0, 0)
-		style.border_width_left = 0
-		style.border_width_top = 0
-		style.border_width_right = 0
-		style.border_width_bottom = 0
-		slot_ctrl.add_theme_stylebox_override("panel", style)
-		var bg: Panel = slot_ctrl.get_node_or_null("SlotBg")
-		if bg != null:
-			bg.modulate = Color(1, 1, 1, 0.0)
 
 func _set_rect_pixels(node: Control, x: float, y: float, w: float, h: float) -> void:
 	node.anchor_left = 0.0

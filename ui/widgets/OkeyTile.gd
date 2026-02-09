@@ -26,7 +26,7 @@ var _drag_pointer_pos: Vector2 = Vector2.ZERO
 var _zoom_factor: float = 1.0
 
 const DRAG_THRESHOLD := 10.0
-const BASE_TILE_SIZE := Vector2(44, 62)
+const BASE_TILE_SIZE := Vector2(46, 66)
 
 # Style caches
 var _body_style: StyleBoxFlat
@@ -51,6 +51,7 @@ func _ready() -> void:
 	if tile_data != null:
 		_update_visuals()
 	_apply_zoom_font()
+	_apply_selected_visuals()
 
 func setup(tile, index: int) -> void:
 	tile_data = tile
@@ -63,29 +64,29 @@ func setup(tile, index: int) -> void:
 func _setup_styles() -> void:
 	# Shadow style
 	_shadow_style = StyleBoxFlat.new()
-	_shadow_style.bg_color = Color(0, 0, 0, 0.35)
-	_shadow_style.corner_radius_top_left = 4
-	_shadow_style.corner_radius_top_right = 4
-	_shadow_style.corner_radius_bottom_right = 5
-	_shadow_style.corner_radius_bottom_left = 5
+	_shadow_style.bg_color = Color(0, 0, 0, 0.26)
+	_shadow_style.corner_radius_top_left = 5
+	_shadow_style.corner_radius_top_right = 5
+	_shadow_style.corner_radius_bottom_right = 6
+	_shadow_style.corner_radius_bottom_left = 6
 	_shadow.add_theme_stylebox_override("panel", _shadow_style)
 
 	# Body style (cream tile)
 	_body_style = StyleBoxFlat.new()
-	_body_style.bg_color = Color(0.99, 0.98, 0.94)
-	_body_style.corner_radius_top_left = 4
-	_body_style.corner_radius_top_right = 4
-	_body_style.corner_radius_bottom_right = 4
-	_body_style.corner_radius_bottom_left = 4
+	_body_style.bg_color = Color(0.985, 0.965, 0.91)
+	_body_style.corner_radius_top_left = 5
+	_body_style.corner_radius_top_right = 5
+	_body_style.corner_radius_bottom_right = 5
+	_body_style.corner_radius_bottom_left = 5
 	_body_style.border_width_left = 1
 	_body_style.border_width_top = 1
 	_body_style.border_width_right = 1
-	_body_style.border_width_bottom = 3
-	_body_style.border_color = Color(0.77, 0.68, 0.52)
+	_body_style.border_width_bottom = 2
+	_body_style.border_color = Color(0.73, 0.61, 0.42)
 	_body.add_theme_stylebox_override("panel", _body_style)
 
 	_strip_style = StyleBoxFlat.new()
-	_strip_style.bg_color = Color(0.4, 0.4, 0.4, 0.92)
+	_strip_style.bg_color = Color(0.4, 0.4, 0.4, 0.94)
 	_strip_style.corner_radius_top_left = 2
 	_strip_style.corner_radius_top_right = 2
 	_strip_style.corner_radius_bottom_right = 2
@@ -94,7 +95,7 @@ func _setup_styles() -> void:
 
 	# Highlight style (selection glow)
 	_highlight_style = StyleBoxFlat.new()
-	_highlight_style.bg_color = Color(0.3, 0.8, 0.4, 0.3)
+	_highlight_style.bg_color = Color(0.96, 0.78, 0.24, 0.14)
 	_highlight_style.corner_radius_top_left = 6
 	_highlight_style.corner_radius_top_right = 6
 	_highlight_style.corner_radius_bottom_right = 6
@@ -103,7 +104,7 @@ func _setup_styles() -> void:
 	_highlight_style.border_width_top = 2
 	_highlight_style.border_width_right = 2
 	_highlight_style.border_width_bottom = 2
-	_highlight_style.border_color = Color(0.2, 0.7, 0.3, 0.8)
+	_highlight_style.border_color = Color(0.98, 0.82, 0.29, 0.86)
 	_highlight.add_theme_stylebox_override("panel", _highlight_style)
 
 func _update_visuals() -> void:
@@ -119,24 +120,24 @@ func _update_visuals() -> void:
 	# Set number color based on tile color
 	var text_color = TILE_COLORS.get(tile_data.color, Color.WHITE)
 	_number.add_theme_color_override("font_color", text_color)
-	_number.add_theme_font_size_override("font_size", 24)
-	_number.add_theme_color_override("font_outline_color", Color(0.1, 0.1, 0.1, 0.2))
-	_number.add_theme_constant_override("outline_size", 2)
+	_number.add_theme_font_size_override("font_size", 23)
+	_number.add_theme_color_override("font_outline_color", Color(0.1, 0.1, 0.1, 0.16))
+	_number.add_theme_constant_override("outline_size", 1)
 
 	# Update body style for false okey
 	if tile_data.kind != 0:
-		_body_style.border_color = Color(0.9, 0.5, 0.2)
+		_body_style.border_color = Color(0.93, 0.55, 0.24)
 		_body_style.border_width_left = 2
 		_body_style.border_width_top = 2
 		_body_style.border_width_right = 2
-		_body_style.border_width_bottom = 3
+		_body_style.border_width_bottom = 2
 		_strip_style.bg_color = Color(0.92, 0.55, 0.2, 0.95)
 	else:
-		_body_style.border_color = Color(0.77, 0.68, 0.52)
+		_body_style.border_color = Color(0.73, 0.61, 0.42)
 		_body_style.border_width_left = 1
 		_body_style.border_width_top = 1
 		_body_style.border_width_right = 1
-		_body_style.border_width_bottom = 3
+		_body_style.border_width_bottom = 2
 		_strip_style.bg_color = text_color.darkened(0.08)
 
 func set_zoom(zoom: float) -> void:
@@ -149,16 +150,25 @@ func _apply_zoom_font() -> void:
 		return
 	if _number == null:
 		return
-	_number.add_theme_font_size_override("font_size", int(round(24.0 * _zoom_factor)))
+	_number.add_theme_font_size_override("font_size", int(round(23.0 * _zoom_factor)))
 
 func set_selected(selected: bool) -> void:
 	is_selected = selected
-	_highlight.visible = selected
-	if selected:
-		_body_style.bg_color = Color(0.93, 0.97, 0.93)
+	_apply_selected_visuals()
+
+func _apply_selected_visuals() -> void:
+	if not is_node_ready():
+		return
+	if _highlight == null:
+		return
+	_highlight.visible = is_selected
+	if _body_style == null:
+		return
+	if is_selected:
+		_body_style.bg_color = Color(0.99, 0.97, 0.90)
 		z_index = 1
 	else:
-		_body_style.bg_color = Color(0.98, 0.97, 0.93)
+		_body_style.bg_color = Color(0.985, 0.965, 0.91)
 		z_index = 0
 
 func _on_mouse_entered() -> void:
@@ -174,7 +184,7 @@ func _on_mouse_exited() -> void:
 func _animate_hover(hovering: bool) -> void:
 	var tween = create_tween()
 	if hovering:
-		tween.tween_property(self, "scale", Vector2(1.06, 1.06), 0.08)
+		tween.tween_property(self, "scale", Vector2(1.04, 1.04), 0.08)
 	else:
 		tween.tween_property(self, "scale", Vector2(1.0, 1.0), 0.08)
 
@@ -246,8 +256,8 @@ func _start_drag(global_pos: Vector2) -> void:
 	drag_offset = global_pos - start_global
 	_origin_global = start_global
 	z_index = 100
-	scale = Vector2(1.15, 1.15)
-	modulate.a = 0.9
+	scale = Vector2(1.10, 1.10)
+	modulate.a = 0.94
 	drag_started.emit(self)
 
 func _end_drag(global_pos: Vector2) -> void:

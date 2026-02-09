@@ -7,6 +7,12 @@ Run tests in headless mode:
 godot --headless -s res://tests/run_tests.gd
 ```
 
+Recommended project wrapper usage:
+
+```powershell
+.\tools\godot.cmd --headless --path . -s res://tests/run_tests.gd
+```
+
 ### Mono Headless Crash (Windows)
 If the mono build crashes on startup in headless mode, use the standard (non-mono) Godot
 console executable to run GDScript tests, or run tests from the editor.

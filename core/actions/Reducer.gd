@@ -44,6 +44,12 @@ func _apply_draw_from_deck(state: GameState, player_index: int) -> void:
 func _apply_take_discard(state: GameState, player_index: int) -> void:
 	var tile = state.discard_pile.pop_back()
 	state.players[player_index].hand.append(tile)
+	if player_index >= 0 and player_index < state.player_discard_stacks.size():
+		var prev_index: int = _prev_player_index(state, player_index)
+		if prev_index >= 0 and prev_index < state.player_discard_stacks.size():
+			var prev_stack: Array = state.player_discard_stacks[prev_index]
+			if not prev_stack.is_empty():
+				prev_stack.pop_back()
 	state.turn_required_use_tile_id = tile.unique_id
 
 func _apply_discard(state: GameState, player_index: int, action: Action) -> bool:
@@ -55,6 +61,9 @@ func _apply_discard(state: GameState, player_index: int, action: Action) -> bool
 	var tile = hand[index]
 	hand.remove_at(index)
 	state.discard_pile.append(tile)
+	if player_index >= 0 and player_index < state.player_discard_stacks.size():
+		var player_stack: Array = state.player_discard_stacks[player_index]
+		player_stack.append(tile)
 	state.turn_required_use_tile_id = -1
 	return true
 
@@ -81,7 +90,7 @@ func _apply_open_melds(state: GameState, player_index: int, action: Action) -> v
 		var kind = int(meld["kind"])
 		var tile_ids: Array = meld["tile_ids"]
 		var tiles_data = _resolve_tiles_from_hand(state.players[player_index], tile_ids)
-		state.table_melds.append(Meld.new(kind, tile_ids.duplicate(), tiles_data))
+		state.table_melds.append(Meld.new(kind, tile_ids.duplicate(), tiles_data, player_index))
 		for tile_id in tile_ids:
 			used_ids.append(tile_id)
 
@@ -171,6 +180,9 @@ func _find_tile_index_by_id(hand: Array, tile_id: int) -> int:
 func _next_player_index(state: GameState, current: int) -> int:
 	return (current + 1) % state.players.size()
 
+func _prev_player_index(state: GameState, current: int) -> int:
+	return (current - 1 + state.players.size()) % state.players.size()
+
 func _clone_state(state: GameState) -> GameState:
 	var next = GameState.new()
 	next.rule_config = state.rule_config
@@ -186,7 +198,19 @@ func _clone_state(state: GameState) -> GameState:
 
 	next.deck = state.deck.duplicate(true)
 	next.discard_pile = state.discard_pile.duplicate(true)
-	next.table_melds = state.table_melds.duplicate(true)
+	next.player_discard_stacks = []
+	for stack in state.player_discard_stacks:
+		var cloned_stack: Array = []
+		for t in stack:
+			cloned_stack.append(_clone_tile(t))
+		next.player_discard_stacks.append(cloned_stack)
+	next.table_melds = []
+	for meld in state.table_melds:
+		var cloned_ids: Array = meld.tiles.duplicate()
+		var cloned_tiles: Array = []
+		for t in meld.tiles_data:
+			cloned_tiles.append(_clone_tile(t))
+		next.table_melds.append(Meld.new(int(meld.kind), cloned_ids, cloned_tiles, int(meld.owner_index)))
 
 	next.players = []
 	for p in state.players:
@@ -200,5 +224,8 @@ func _clone_state(state: GameState) -> GameState:
 		next.players.append(np)
 
 	return next
+
+func _clone_tile(tile: Tile) -> Tile:
+	return Tile.new(int(tile.color), int(tile.number), int(tile.kind), int(tile.unique_id))
 
 

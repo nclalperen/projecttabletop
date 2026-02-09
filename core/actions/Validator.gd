@@ -71,7 +71,7 @@ func _validate_take_discard(state: GameState, player_index: int) -> Dictionary:
 		return _fail("hand_size", "Player cannot take discard with starter_tiles or more tiles in hand")
 
 	# If the player has already opened, only allow taking discard if it can be used immediately.
-	if player.has_opened and state.rule_config.require_discard_take_to_be_used:
+	if player.has_opened and _must_use_taken_discard_always(state):
 		var discard_tile = state.discard_pile[state.discard_pile.size() - 1]
 		if not _can_use_discard_after_take(state, player, discard_tile):
 			return _fail("cannot_use_discard", "Cannot use discard immediately")
@@ -167,7 +167,7 @@ func _validate_open_melds(state: GameState, player_index: int, action: Action) -
 			return _fail("open_points", "Not enough points to open")
 
 	if state.turn_required_use_tile_id != -1:
-		if state.rule_config.discard_take_must_be_used_always:
+		if _must_use_taken_discard_always(state):
 			if not used_tile_ids.has(state.turn_required_use_tile_id):
 				return _fail("must_use_taken_tile", "Must include taken discard in melds")
 		elif (not player.has_opened) and state.rule_config.if_not_opened_discard_take_requires_open_and_includes_tile:
@@ -235,7 +235,7 @@ func _validate_end_play(state: GameState, player_index: int) -> Dictionary:
 	var player = state.players[player_index]
 	if player.hand.is_empty():
 		return _fail("hand_empty", "Player must have at least one tile to discard")
-	if state.turn_required_use_tile_id != -1 and state.rule_config.discard_take_must_be_used_always:
+	if state.turn_required_use_tile_id != -1 and _must_use_taken_discard_always(state):
 		return _fail("must_use_taken_tile", "Must use taken discard before ending play")
 	if state.turn_required_use_tile_id != -1 and (not player.has_opened) and state.rule_config.if_not_opened_discard_take_requires_open_and_includes_tile:
 		return _fail("must_use_taken_tile", "Must open and include taken discard before ending play")
@@ -265,7 +265,7 @@ func _validate_discard(state: GameState, player_index: int, action: Action) -> D
 		return _fail("not_opened", "Player must have opened before finishing by discard")
 
 	if state.turn_required_use_tile_id != -1:
-		if state.rule_config.discard_take_must_be_used_always:
+		if _must_use_taken_discard_always(state):
 			return _fail("must_use_taken_tile", "Must use taken discard before discarding")
 		if (not player.has_opened) and state.rule_config.if_not_opened_discard_take_requires_open_and_includes_tile:
 			return _fail("must_use_taken_tile", "Must open and include taken discard before discarding")
@@ -298,7 +298,9 @@ func _validate_pair_meld(tiles: Array, _okey_context) -> bool:
 		return false
 	var a: Tile = tiles[0]
 	var b: Tile = tiles[1]
-	return a.color == b.color and a.number == b.number
+	var a_key: String = _effective_pair_key(a, _okey_context)
+	var b_key: String = _effective_pair_key(b, _okey_context)
+	return a_key == b_key
 
 func _can_use_discard_after_take(state: GameState, player, discard_tile: Tile) -> bool:
 	if _can_add_tile_to_table(state, discard_tile):
@@ -333,16 +335,16 @@ func _can_form_any_meld_with_tile(hand: Array, tile: Tile, okey_context) -> bool
 func _can_open_with_discard_unopened(state: GameState, player, discard_tile: Tile) -> bool:
 	# Opening can be by five pairs (if allowed) or by 101+ points with melds.
 	if state.rule_config.allow_open_by_five_pairs:
-		if _can_open_by_pairs_with_discard(player.hand, discard_tile):
+		if _can_open_by_pairs_with_discard(player.hand, discard_tile, state.okey_context):
 			return true
 	return _can_open_by_meld_points_with_discard(player.hand, discard_tile, state.okey_context, state.rule_config.open_min_points_initial)
 
-func _can_open_by_pairs_with_discard(hand: Array, discard_tile: Tile) -> bool:
+func _can_open_by_pairs_with_discard(hand: Array, discard_tile: Tile, okey_context) -> bool:
 	var counts = {}
 	for t in hand:
-		var key = "%s-%s" % [t.color, t.number]
+		var key: String = _effective_pair_key(t, okey_context)
 		counts[key] = int(counts.get(key, 0)) + 1
-	var discard_key = "%s-%s" % [discard_tile.color, discard_tile.number]
+	var discard_key: String = _effective_pair_key(discard_tile, okey_context)
 	counts[discard_key] = int(counts.get(discard_key, 0)) + 1
 
 	var discard_can_pair = int(counts.get(discard_key, 0)) >= 2
@@ -353,6 +355,11 @@ func _can_open_by_pairs_with_discard(hand: Array, discard_tile: Tile) -> bool:
 	for key in counts.keys():
 		pair_count += int(counts[key] / 2.0)
 	return pair_count >= 5
+
+func _effective_pair_key(tile: Tile, okey_context) -> String:
+	if tile.kind == Tile.Kind.FAKE_OKEY and okey_context != null:
+		return "%s-%s" % [int(okey_context.okey_color), int(okey_context.okey_number)]
+	return "%s-%s" % [int(tile.color), int(tile.number)]
 
 func _can_open_by_meld_points_with_discard(hand: Array, discard_tile: Tile, okey_context, min_points: int) -> bool:
 	var tiles: Array = hand.duplicate()
@@ -526,9 +533,14 @@ func _validate_finish_melds(state: GameState, player_index: int, action: Action)
 
 	# Enforce discard-take must be used in melds (cannot finish by discarding it).
 	if state.turn_required_use_tile_id != -1:
-		if not used_tile_ids.has(state.turn_required_use_tile_id):
+		if _must_use_taken_discard_always(state) and not used_tile_ids.has(state.turn_required_use_tile_id):
 			return _fail("must_use_taken_tile", "Must include taken discard in melds to finish")
 		if int(state.turn_required_use_tile_id) == final_discard_tile_id:
 			return _fail("must_use_taken_tile", "Taken discard cannot be the final discard")
 
 	return _ok()
+
+func _must_use_taken_discard_always(state: GameState) -> bool:
+	if state == null or state.rule_config == null:
+		return true
+	return bool(state.rule_config.require_discard_take_to_be_used) and bool(state.rule_config.discard_take_must_be_used_always)
