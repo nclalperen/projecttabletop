@@ -9,6 +9,7 @@ signal double_clicked(tile_control: OkeyTile)
 @onready var _shadow: Panel = $Shadow
 @onready var _body: Panel = $TileBody
 @onready var _color_strip: Panel = $TileBody/ColorStrip
+@onready var _bottom_edge: Panel = $TileBody/BottomEdge
 @onready var _number: Label = $TileBody/Number
 @onready var _highlight: Panel = $Highlight
 
@@ -26,13 +27,14 @@ var _drag_pointer_pos: Vector2 = Vector2.ZERO
 var _zoom_factor: float = 1.0
 
 const DRAG_THRESHOLD := 10.0
-const BASE_TILE_SIZE := Vector2(46, 66)
+const BASE_TILE_SIZE := Vector2(44, 62)
 
 # Style caches
 var _body_style: StyleBoxFlat
 var _shadow_style: StyleBoxFlat
 var _highlight_style: StyleBoxFlat
 var _strip_style: StyleBoxFlat
+var _edge_style: StyleBoxFlat
 
 const TILE_COLORS = {
 	0: Color(0.85, 0.12, 0.1),    # Red
@@ -64,42 +66,52 @@ func setup(tile, index: int) -> void:
 func _setup_styles() -> void:
 	# Shadow style
 	_shadow_style = StyleBoxFlat.new()
-	_shadow_style.bg_color = Color(0, 0, 0, 0.26)
+	_shadow_style.bg_color = Color(0, 0, 0, 0.34)
 	_shadow_style.corner_radius_top_left = 5
 	_shadow_style.corner_radius_top_right = 5
-	_shadow_style.corner_radius_bottom_right = 6
-	_shadow_style.corner_radius_bottom_left = 6
+	_shadow_style.corner_radius_bottom_right = 7
+	_shadow_style.corner_radius_bottom_left = 7
 	_shadow.add_theme_stylebox_override("panel", _shadow_style)
 
 	# Body style (cream tile)
 	_body_style = StyleBoxFlat.new()
-	_body_style.bg_color = Color(0.985, 0.965, 0.91)
-	_body_style.corner_radius_top_left = 5
-	_body_style.corner_radius_top_right = 5
-	_body_style.corner_radius_bottom_right = 5
-	_body_style.corner_radius_bottom_left = 5
+	_body_style.bg_color = Color(0.985, 0.965, 0.90)
+	_body_style.corner_radius_top_left = 4
+	_body_style.corner_radius_top_right = 4
+	_body_style.corner_radius_bottom_right = 4
+	_body_style.corner_radius_bottom_left = 4
 	_body_style.border_width_left = 1
 	_body_style.border_width_top = 1
 	_body_style.border_width_right = 1
-	_body_style.border_width_bottom = 2
-	_body_style.border_color = Color(0.73, 0.61, 0.42)
+	_body_style.border_width_bottom = 1
+	_body_style.border_color = Color(0.78, 0.66, 0.48)
 	_body.add_theme_stylebox_override("panel", _body_style)
+
+	_edge_style = StyleBoxFlat.new()
+	_edge_style.bg_color = Color(0.88, 0.81, 0.66, 0.96)
+	_edge_style.corner_radius_top_left = 0
+	_edge_style.corner_radius_top_right = 0
+	_edge_style.corner_radius_bottom_right = 3
+	_edge_style.corner_radius_bottom_left = 3
+	_edge_style.border_width_top = 1
+	_edge_style.border_color = Color(0.69, 0.58, 0.42, 0.72)
+	_bottom_edge.add_theme_stylebox_override("panel", _edge_style)
 
 	_strip_style = StyleBoxFlat.new()
 	_strip_style.bg_color = Color(0.4, 0.4, 0.4, 0.94)
-	_strip_style.corner_radius_top_left = 2
-	_strip_style.corner_radius_top_right = 2
-	_strip_style.corner_radius_bottom_right = 2
-	_strip_style.corner_radius_bottom_left = 2
+	_strip_style.corner_radius_top_left = 1
+	_strip_style.corner_radius_top_right = 1
+	_strip_style.corner_radius_bottom_right = 1
+	_strip_style.corner_radius_bottom_left = 1
 	_color_strip.add_theme_stylebox_override("panel", _strip_style)
 
 	# Highlight style (selection glow)
 	_highlight_style = StyleBoxFlat.new()
 	_highlight_style.bg_color = Color(0.96, 0.78, 0.24, 0.14)
-	_highlight_style.corner_radius_top_left = 6
-	_highlight_style.corner_radius_top_right = 6
-	_highlight_style.corner_radius_bottom_right = 6
-	_highlight_style.corner_radius_bottom_left = 6
+	_highlight_style.corner_radius_top_left = 5
+	_highlight_style.corner_radius_top_right = 5
+	_highlight_style.corner_radius_bottom_right = 5
+	_highlight_style.corner_radius_bottom_left = 5
 	_highlight_style.border_width_left = 2
 	_highlight_style.border_width_top = 2
 	_highlight_style.border_width_right = 2
@@ -120,8 +132,8 @@ func _update_visuals() -> void:
 	# Set number color based on tile color
 	var text_color = TILE_COLORS.get(tile_data.color, Color.WHITE)
 	_number.add_theme_color_override("font_color", text_color)
-	_number.add_theme_font_size_override("font_size", 23)
-	_number.add_theme_color_override("font_outline_color", Color(0.1, 0.1, 0.1, 0.16))
+	_number.add_theme_font_size_override("font_size", 21)
+	_number.add_theme_color_override("font_outline_color", Color(0.1, 0.1, 0.1, 0.12))
 	_number.add_theme_constant_override("outline_size", 1)
 
 	# Update body style for false okey
@@ -132,16 +144,18 @@ func _update_visuals() -> void:
 		_body_style.border_width_right = 2
 		_body_style.border_width_bottom = 2
 		_strip_style.bg_color = Color(0.92, 0.55, 0.2, 0.95)
+		_edge_style.bg_color = Color(0.88, 0.74, 0.58, 0.96)
 	else:
-		_body_style.border_color = Color(0.73, 0.61, 0.42)
+		_body_style.border_color = Color(0.78, 0.66, 0.48)
 		_body_style.border_width_left = 1
 		_body_style.border_width_top = 1
 		_body_style.border_width_right = 1
-		_body_style.border_width_bottom = 2
+		_body_style.border_width_bottom = 1
 		_strip_style.bg_color = text_color.darkened(0.08)
+		_edge_style.bg_color = Color(0.88, 0.81, 0.66, 0.96)
 
 func set_zoom(zoom: float) -> void:
-	_zoom_factor = clamp(zoom, 0.85, 1.3)
+	_zoom_factor = clamp(zoom, 0.82, 1.24)
 	custom_minimum_size = BASE_TILE_SIZE * _zoom_factor
 	_apply_zoom_font()
 
@@ -150,7 +164,7 @@ func _apply_zoom_font() -> void:
 		return
 	if _number == null:
 		return
-	_number.add_theme_font_size_override("font_size", int(round(23.0 * _zoom_factor)))
+	_number.add_theme_font_size_override("font_size", int(round(21.0 * _zoom_factor)))
 
 func set_selected(selected: bool) -> void:
 	is_selected = selected
@@ -165,10 +179,10 @@ func _apply_selected_visuals() -> void:
 	if _body_style == null:
 		return
 	if is_selected:
-		_body_style.bg_color = Color(0.99, 0.97, 0.90)
+		_body_style.bg_color = Color(0.995, 0.98, 0.93)
 		z_index = 1
 	else:
-		_body_style.bg_color = Color(0.985, 0.965, 0.91)
+		_body_style.bg_color = Color(0.985, 0.965, 0.90)
 		z_index = 0
 
 func _on_mouse_entered() -> void:
@@ -184,7 +198,7 @@ func _on_mouse_exited() -> void:
 func _animate_hover(hovering: bool) -> void:
 	var tween = create_tween()
 	if hovering:
-		tween.tween_property(self, "scale", Vector2(1.04, 1.04), 0.08)
+		tween.tween_property(self, "scale", Vector2(1.03, 1.03), 0.08)
 	else:
 		tween.tween_property(self, "scale", Vector2(1.0, 1.0), 0.08)
 

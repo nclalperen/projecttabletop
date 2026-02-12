@@ -1,0 +1,50 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://ui/GameTable3D.gd" id="1"]
+
+[sub_resource type="QuadMesh" id="1"]
+size = Vector2(0.8, 0.8)
+
+[sub_resource type="BoxMesh" id="2"]
+size = Vector3(1, 0.075, 1)
+
+[sub_resource type="QuadMesh" id="3"]
+size = Vector2(12, 8)
+
+[node name="GameTable3D" type="Node"]
+script = ExtResource("1")
+
+[node name="World" type="Node3D" parent="."]
+
+[node name="Backdrop" type="MeshInstance3D" parent="World"]
+mesh = SubResource(3)
+
+[node name="TableBody" type="MeshInstance3D" parent="World"]
+mesh = SubResource(2)
+
+[node name="TableSurface" type="MeshInstance3D" parent="World"]
+mesh = SubResource(1)
+rotation_degrees = Vector3(-90, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="World"]
+current = true
+fov = 90.0
+near = 0.03
+far = 20.0
+
+[node name="KeyLight" type="DirectionalLight3D" parent="World"]
+light_color = Color(1, 0.95, 0.88, 1)
+light_energy = 1.55
+
+[node name="RimLight" type="DirectionalLight3D" parent="World"]
+light_color = Color(0.55, 0.72, 0.9, 1)
+light_energy = 0.42
+
+[node name="FillLight" type="OmniLight3D" parent="World"]
+light_color = Color(1, 0.74, 0.56, 1)
+light_energy = 0.55
+omni_range = 9.0
+
+[node name="GameViewport" type="SubViewport" parent="."]
+size = Vector2i(1920, 1080)
+render_target_update_mode = 4

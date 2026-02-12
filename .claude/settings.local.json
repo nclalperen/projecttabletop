@@ -21,7 +21,14 @@
       "Bash(tmux capture-pane:*)",
       "Bash(chmod:*)",
       "Bash(tmux-cli:*)",
-      "Bash(./tools/export_windows.sh:*)"
+      "Bash(./tools/export_windows.sh:*)",
+      "Bash(.toolsgodot.cmd:*)",
+      "Bash(cmd /c \".\\\\tools\\\\godot.cmd --headless --path . --quit\")",
+      "Bash(cmd /c \".\\\\tools\\\\godot.cmd --headless --path . -s res://tests/run_tests.gd\")",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\Alperen\\\\Desktop\\\\project101 && .\\\\tools\\\\godot.cmd --headless --path . -s res://tests/run_tests.gd\")",
+      "Bash(powershell:*)",
+      "Bash(python3:*)",
+      "Bash(unzip:*)"
     ]
   }
 }
