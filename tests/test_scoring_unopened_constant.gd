@@ -26,8 +26,10 @@ func _test_unopened_is_always_202() -> bool:
 
 	var scoring = Scoring.new()
 	var scores = scoring.compute_round_scores(state, 0)
+	if int(scores[0]) != -101:
+		push_error("Winner score must be -101 for normal finish, got %s" % int(scores[0]))
+		return false
 	if int(scores[1]) != 202:
 		push_error("Unopened score must be 202 regardless of hand, got %s" % int(scores[1]))
 		return false
 	return true
-

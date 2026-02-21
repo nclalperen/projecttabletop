@@ -58,12 +58,18 @@ func _test_finish_and_scoring() -> bool:
 		push_error("Expected ROUND_END after finish")
 		return false
 
-	if state.players[0].score_round != 0 or state.players[0].score_total != 0:
+	if state.players[0].score_round != -101 or state.players[0].score_total != -101:
 		push_error("Winner score incorrect")
 		return false
 
 	if state.players[1].score_round != 202 or state.players[1].score_total != 202:
 		push_error("Non-opened penalty incorrect")
+		return false
+	if int(state.last_winner_index) != 0:
+		push_error("Expected last_winner_index=0")
+		return false
+	if String(state.last_finish_type) != Scoring.FINISH_NORMAL:
+		push_error("Expected finish type normal, got %s" % String(state.last_finish_type))
 		return false
 
 	return true

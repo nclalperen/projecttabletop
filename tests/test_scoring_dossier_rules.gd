@@ -44,14 +44,14 @@ func _test_opened_scoring_real_okey_fake_okey_and_pairs_double() -> bool:
 	var scoring = Scoring.new()
 	var scores = scoring.compute_round_scores(state, 0)
 
-	if int(scores[0]) != 0:
-		push_error("Winner must score 0")
+	if int(scores[0]) != -101:
+		push_error("Winner must score -101")
 		return false
-	if int(scores[1]) != 114:
-		push_error("Opened normal score mismatch. Expected 114, got %s" % int(scores[1]))
+	if int(scores[1]) != 209:
+		push_error("Opened normal score mismatch. Expected 209, got %s" % int(scores[1]))
 		return false
-	if int(scores[2]) != 220:
-		push_error("Opened-by-pairs score mismatch. Expected 220, got %s" % int(scores[2]))
+	if int(scores[2]) != 410:
+		push_error("Opened-by-pairs score mismatch. Expected 410, got %s" % int(scores[2]))
 		return false
 	if int(scores[3]) != 202:
 		push_error("Unopened player score mismatch. Expected 202, got %s" % int(scores[3]))

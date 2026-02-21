@@ -22,3 +22,11 @@ var turn_required_use_tile_id: int = -1
 var okey_context: OkeyContext
 var rule_config: RuleConfig
 var last_finish_all_in_one_turn: bool = false
+
+# Canonical round/match metadata for deterministic scoring and sync.
+var round_index: int = 1
+var round_end_reason: String = ""
+var last_winner_index: int = -1
+var last_finish_type: String = ""
+var match_finished: bool = false
+var match_winner_indices: Array = []

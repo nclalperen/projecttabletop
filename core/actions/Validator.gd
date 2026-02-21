@@ -12,6 +12,8 @@ func validate_action(state: GameState, player_index: int, action: Action) -> Dic
 			return _validate_draw_from_deck(state, player_index)
 		Action.ActionType.TAKE_DISCARD:
 			return _validate_take_discard(state, player_index)
+		Action.ActionType.PLACE_TILES:
+			return _validate_place_tiles(state, player_index, action)
 		Action.ActionType.OPEN_MELDS:
 			return _validate_open_melds(state, player_index, action)
 		Action.ActionType.ADD_TO_MELD:
@@ -24,6 +26,113 @@ func validate_action(state: GameState, player_index: int, action: Action) -> Dic
 			return _validate_finish(state, player_index, action)
 		_:
 			return _fail("unknown_action", "Unknown action type")
+
+func _validate_place_tiles(state: GameState, player_index: int, action: Action) -> Dictionary:
+	if state.phase != GameState.Phase.TURN_PLAY:
+		return _fail("phase", "Not in TURN_PLAY phase")
+	if not action.payload.has("placements"):
+		return _fail("missing_placements", "placements required")
+	var placements: Array = action.payload["placements"]
+	if placements.is_empty():
+		return _fail("empty_placements", "At least one placement is required")
+
+	var player = state.players[player_index]
+	var create_melds: Array = []
+	var add_ops: Array = []
+	var used_tile_ids := {}
+
+	var open_mode_raw: String = String(action.payload.get("open_mode", ""))
+	var open_mode: String = open_mode_raw.strip_edges().to_upper()
+	var open_by_pairs: bool = false
+	if open_mode == "DOUBLES":
+		open_by_pairs = true
+	elif open_mode == "SETS_RUNS":
+		open_by_pairs = false
+
+	for placement in placements:
+		if typeof(placement) != TYPE_DICTIONARY:
+			return _fail("placement_format", "Each placement must be a dictionary")
+		var op: String = String(placement.get("op", "")).strip_edges().to_upper()
+		if op == "CREATE_MELD":
+			var meld_type: String = String(placement.get("meld_type", "")).strip_edges().to_upper()
+			var tile_ids: Array = placement.get("tiles", [])
+			if tile_ids.is_empty():
+				return _fail("empty_tiles", "CREATE_MELD requires tiles")
+			var kind: int = -1
+			if meld_type == "SET":
+				kind = Meld.Kind.SET
+			elif meld_type == "RUN":
+				kind = Meld.Kind.RUN
+			elif meld_type == "PAIRS" or meld_type == "PAIR":
+				kind = Meld.Kind.PAIRS
+			else:
+				return _fail("invalid_meld_type", "Unknown meld_type")
+			if kind == Meld.Kind.PAIRS:
+				open_by_pairs = true
+			for tile_id in tile_ids:
+				if used_tile_ids.has(tile_id):
+					return _fail("tile_reused", "Tile used in multiple placements")
+				used_tile_ids[tile_id] = true
+			create_melds.append({"kind": kind, "tile_ids": tile_ids.duplicate()})
+		elif op == "ADD_TO_MELD":
+			var meld_ref: Dictionary = placement.get("meld_ref", {})
+			if typeof(meld_ref) != TYPE_DICTIONARY:
+				return _fail("invalid_meld_ref", "ADD_TO_MELD requires meld_ref dictionary")
+			if not meld_ref.has("index"):
+				return _fail("invalid_meld_ref", "meld_ref.index required")
+			var target_index: int = int(meld_ref.get("index", -1))
+			var add_tile_ids: Array = placement.get("tiles", [])
+			if add_tile_ids.is_empty():
+				return _fail("empty_tiles", "ADD_TO_MELD requires tiles")
+			for tile_id in add_tile_ids:
+				if used_tile_ids.has(tile_id):
+					return _fail("tile_reused", "Tile used in multiple placements")
+				used_tile_ids[tile_id] = true
+			add_ops.append({"target_meld_index": target_index, "tile_ids": add_tile_ids.duplicate()})
+		else:
+			return _fail("invalid_op", "Unknown placement op")
+
+	var declare_open: bool = bool(action.payload.get("declare_open", false))
+	var treat_as_open: bool = declare_open or (not player.has_opened and not create_melds.is_empty())
+	if treat_as_open and create_melds.is_empty():
+		return _fail("missing_melds", "Opening requires CREATE_MELD placements")
+
+	if not open_mode_raw.is_empty() and open_mode != "SETS_RUNS" and open_mode != "DOUBLES":
+		return _fail("invalid_open_mode", "open_mode must be SETS_RUNS or DOUBLES")
+
+	if not create_melds.is_empty():
+		var open_action := Action.new(Action.ActionType.OPEN_MELDS, {
+			"melds": create_melds,
+			"open_by_pairs": open_by_pairs,
+		})
+		var create_res: Dictionary = _validate_open_melds(state, player_index, open_action)
+		if not bool(create_res.get("ok", false)):
+			return create_res
+
+	if add_ops.is_empty():
+		return _ok()
+	return _validate_add_ops_for_place_tiles(state, player_index, add_ops, treat_as_open, open_by_pairs)
+
+func _validate_add_ops_for_place_tiles(state: GameState, player_index: int, add_ops: Array, treat_as_open: bool, open_by_pairs: bool) -> Dictionary:
+	var player = state.players[player_index]
+	var old_opened: bool = player.has_opened
+	var old_opened_by_pairs: bool = player.opened_by_pairs
+
+	if treat_as_open and not player.has_opened:
+		player.has_opened = true
+		player.opened_by_pairs = open_by_pairs
+
+	for op in add_ops:
+		var add_action := Action.new(Action.ActionType.ADD_TO_MELD, op)
+		var add_res: Dictionary = _validate_add_to_meld(state, player_index, add_action)
+		if not bool(add_res.get("ok", false)):
+			player.has_opened = old_opened
+			player.opened_by_pairs = old_opened_by_pairs
+			return add_res
+
+	player.has_opened = old_opened
+	player.opened_by_pairs = old_opened_by_pairs
+	return _ok()
 
 func _validate_starter_discard(state: GameState, player_index: int, action: Action) -> Dictionary:
 	if state.phase != GameState.Phase.STARTER_DISCARD:
@@ -287,9 +396,6 @@ func _validate_finish(state: GameState, player_index: int, action: Action) -> Di
 func _ok() -> Dictionary:
 	return {"ok": true, "reason": "", "code": "ok"}
 
-func _todo() -> Dictionary:
-	return {"ok": false, "reason": "TODO", "code": "todo"}
-
 func _fail(code: String, reason: String) -> Dictionary:
 	return {"ok": false, "reason": reason, "code": code}
 
@@ -327,10 +433,6 @@ func _can_form_meld_with_tile(hand: Array, tile: Tile, okey_context) -> bool:
 			if res_set.ok:
 				return true
 	return false
-
-func _can_form_any_meld_with_tile(hand: Array, tile: Tile, okey_context) -> bool:
-	# For unopened hands we only ensure the discard can be included in at least one meld.
-	return _can_form_meld_with_tile(hand, tile, okey_context)
 
 func _can_open_with_discard_unopened(state: GameState, player, discard_tile: Tile) -> bool:
 	# Opening can be by five pairs (if allowed) or by 101+ points with melds.

@@ -7,6 +7,8 @@ func apply_action(state: GameState, player_index: int, action: Action) -> GameSt
 	match action.type:
 		Action.ActionType.STARTER_DISCARD:
 			if _apply_discard(next, player_index, action):
+				var starter_discard_tile: Tile = next.discard_pile[next.discard_pile.size() - 1]
+				_apply_non_finishing_discard_penalties(next, player_index, starter_discard_tile)
 				next.phase = GameState.Phase.TURN_DRAW
 				next.current_player_index = _next_player_index(next, player_index)
 		Action.ActionType.DRAW_FROM_DECK:
@@ -15,6 +17,8 @@ func apply_action(state: GameState, player_index: int, action: Action) -> GameSt
 		Action.ActionType.TAKE_DISCARD:
 			_apply_take_discard(next, player_index)
 			next.phase = GameState.Phase.TURN_PLAY
+		Action.ActionType.PLACE_TILES:
+			_apply_place_tiles(next, player_index, action)
 		Action.ActionType.OPEN_MELDS:
 			_apply_open_melds(next, player_index, action)
 		Action.ActionType.ADD_TO_MELD:
@@ -23,12 +27,14 @@ func apply_action(state: GameState, player_index: int, action: Action) -> GameSt
 			next.phase = GameState.Phase.TURN_DISCARD
 		Action.ActionType.DISCARD:
 			if _apply_discard(next, player_index, action):
+				var discard_tile: Tile = next.discard_pile[next.discard_pile.size() - 1]
 				# SeOkey11 dossier: finishing is by discarding the last tile.
 				if next.players[player_index].hand.is_empty():
 					var scoring = Scoring.new()
 					scoring.apply_round_scores(next, player_index)
 					next.phase = GameState.Phase.ROUND_END
 				else:
+					_apply_non_finishing_discard_penalties(next, player_index, discard_tile)
 					next.phase = GameState.Phase.TURN_DRAW
 					next.current_player_index = _next_player_index(next, player_index)
 		Action.ActionType.FINISH:
@@ -36,6 +42,57 @@ func apply_action(state: GameState, player_index: int, action: Action) -> GameSt
 			next.phase = GameState.Phase.ROUND_END
 
 	return next
+
+func _apply_place_tiles(state: GameState, player_index: int, action: Action) -> void:
+	if not action.payload.has("placements"):
+		return
+	var placements: Array = action.payload["placements"]
+	if placements.is_empty():
+		return
+
+	var create_melds: Array = []
+	var add_ops: Array = []
+	var open_mode_raw: String = String(action.payload.get("open_mode", ""))
+	var open_mode: String = open_mode_raw.strip_edges().to_upper()
+	var open_by_pairs: bool = open_mode == "DOUBLES"
+
+	for placement in placements:
+		if typeof(placement) != TYPE_DICTIONARY:
+			continue
+		var op: String = String(placement.get("op", "")).strip_edges().to_upper()
+		if op == "CREATE_MELD":
+			var meld_type: String = String(placement.get("meld_type", "")).strip_edges().to_upper()
+			var tile_ids: Array = placement.get("tiles", [])
+			var kind: int = -1
+			if meld_type == "SET":
+				kind = Meld.Kind.SET
+			elif meld_type == "RUN":
+				kind = Meld.Kind.RUN
+			elif meld_type == "PAIRS" or meld_type == "PAIR":
+				kind = Meld.Kind.PAIRS
+				open_by_pairs = true
+			if kind != -1 and not tile_ids.is_empty():
+				create_melds.append({"kind": kind, "tile_ids": tile_ids.duplicate()})
+		elif op == "ADD_TO_MELD":
+			var meld_ref: Dictionary = placement.get("meld_ref", {})
+			if typeof(meld_ref) != TYPE_DICTIONARY:
+				continue
+			var add_tile_ids: Array = placement.get("tiles", [])
+			if add_tile_ids.is_empty():
+				continue
+			add_ops.append({
+				"target_meld_index": int(meld_ref.get("index", -1)),
+				"tile_ids": add_tile_ids.duplicate(),
+			})
+
+	if not create_melds.is_empty():
+		_apply_open_melds(state, player_index, Action.new(Action.ActionType.OPEN_MELDS, {
+			"melds": create_melds,
+			"open_by_pairs": open_by_pairs,
+		}))
+
+	for add_op in add_ops:
+		_apply_add_to_meld(state, player_index, Action.new(Action.ActionType.ADD_TO_MELD, add_op))
 
 func _apply_draw_from_deck(state: GameState, player_index: int) -> void:
 	var tile = state.deck.pop_back()
@@ -195,6 +252,12 @@ func _clone_state(state: GameState) -> GameState:
 	next.indicator_stack_index = state.indicator_stack_index
 	next.indicator_tile_index = state.indicator_tile_index
 	next.draw_stack_indices = state.draw_stack_indices.duplicate(true)
+	next.round_index = state.round_index
+	next.round_end_reason = state.round_end_reason
+	next.last_winner_index = state.last_winner_index
+	next.last_finish_type = state.last_finish_type
+	next.match_finished = state.match_finished
+	next.match_winner_indices = state.match_winner_indices.duplicate(true)
 
 	next.deck = state.deck.duplicate(true)
 	next.discard_pile = state.discard_pile.duplicate(true)
@@ -221,11 +284,36 @@ func _clone_state(state: GameState) -> GameState:
 		np.opened_mode = p.opened_mode
 		np.score_total = p.score_total
 		np.score_round = p.score_round
+		np.deal_penalty_points = p.deal_penalty_points
+		np.last_round_breakdown = p.last_round_breakdown.duplicate(true)
 		next.players.append(np)
 
 	return next
 
 func _clone_tile(tile: Tile) -> Tile:
 	return Tile.new(int(tile.color), int(tile.number), int(tile.kind), int(tile.unique_id))
+
+func _apply_non_finishing_discard_penalties(state: GameState, player_index: int, tile: Tile) -> void:
+	if state == null or state.rule_config == null:
+		return
+	if player_index < 0 or player_index >= state.players.size():
+		return
+	var cfg: RuleConfig = state.rule_config
+	var player: PlayerState = state.players[player_index]
+	if cfg.penalty_discard_joker and _is_joker_tile(state, tile):
+		player.deal_penalty_points += int(cfg.penalty_value)
+	if cfg.penalty_discard_playable_tile:
+		var discard_rules := DiscardRules.new()
+		if discard_rules.is_tile_extendable_on_table(state, tile):
+			player.deal_penalty_points += int(cfg.penalty_value)
+
+func _is_joker_tile(state: GameState, tile: Tile) -> bool:
+	if tile == null:
+		return false
+	if tile.kind == Tile.Kind.FAKE_OKEY:
+		return true
+	if state != null and state.okey_context != null and state.okey_context.is_real_okey(tile):
+		return true
+	return false
 
 
