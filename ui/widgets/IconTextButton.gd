@@ -1,9 +1,10 @@
 extends Button
 class_name IconTextButton
 
-const KENNEY_ASSET_LOADER: Script = preload("res://ui/services/KenneyAssetLoader.gd")
-const BUTTON_GOLD_PATH := "res://Kenney_c0/kenney_ui-pack/PNG/Yellow/Default/button_rectangle_depth_gradient.png"
-const BUTTON_BLUE_PATH := "res://Kenney_c0/kenney_ui-pack/PNG/Blue/Default/button_rectangle_depth_gradient.png"
+const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
+const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
+const BUTTON_GOLD_ID: StringName = ASSET_IDS.UI_BUTTON_RECT_GOLD
+const BUTTON_BLUE_ID: StringName = ASSET_IDS.UI_BUTTON_RECT_BLUE
 
 enum ButtonVariant {
 	PRIMARY_GOLD = 0,
@@ -44,14 +45,14 @@ func _ready() -> void:
 
 
 func _apply_kenney_button_skin() -> void:
-	var texture_path: String = BUTTON_GOLD_PATH
+	var texture_id: StringName = BUTTON_GOLD_ID
 	var font_normal := Color(0.08, 0.18, 0.22, 1.0)
 	var font_hover := Color(0.08, 0.18, 0.22, 1.0)
 	if style_variant == ButtonVariant.SECONDARY_BLUE:
-		texture_path = BUTTON_BLUE_PATH
+		texture_id = BUTTON_BLUE_ID
 		font_normal = Color(0.95, 0.98, 1.0, 1.0)
 		font_hover = Color(1.0, 0.99, 0.88, 1.0)
-	var texture: Texture2D = KENNEY_ASSET_LOADER.texture(texture_path)
+	var texture: Texture2D = ASSET_REGISTRY.texture(texture_id)
 	if texture == null:
 		return
 

@@ -1,17 +1,18 @@
 extends PanelContainer
 class_name LobbyPlayerChip
 
-const KENNEY_ASSET_LOADER: Script = preload("res://ui/services/KenneyAssetLoader.gd")
-const AVATAR_PATHS: Array[String] = [
-	"res://Kenney_c0/kenney_modular-characters/PNG/Face/Completes/face1.png",
-	"res://Kenney_c0/kenney_modular-characters/PNG/Face/Completes/face2.png",
-	"res://Kenney_c0/kenney_modular-characters/PNG/Face/Completes/face3.png",
-	"res://Kenney_c0/kenney_modular-characters/PNG/Face/Completes/face4.png",
+const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
+const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
+const AVATAR_IDS: Array[StringName] = [
+	ASSET_IDS.UI_AVATAR_FACE_1,
+	ASSET_IDS.UI_AVATAR_FACE_2,
+	ASSET_IDS.UI_AVATAR_FACE_3,
+	ASSET_IDS.UI_AVATAR_FACE_4,
 ]
 
-const ICON_HOST_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/crown_a.png"
-const ICON_READY_PATH := "res://Kenney_c0/kenney_game-icons/PNG/White/1x/checkmark.png"
-const ICON_WAITING_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/hourglass.png"
+const ICON_HOST_ID: StringName = ASSET_IDS.UI_ICON_CROWN_A
+const ICON_READY_ID: StringName = ASSET_IDS.UI_ICON_CHECKMARK
+const ICON_WAITING_ID: StringName = ASSET_IDS.UI_ICON_HOURGLASS
 
 @onready var _avatar: TextureRect = $Margin/HBox/Avatar
 @onready var _name_label: Label = $Margin/HBox/Info/Name
@@ -33,21 +34,21 @@ func set_member(member: Dictionary, owner_puid: String, local_puid: String) -> v
 	_name_label.text = display_name
 	_meta_label.text = "Seat %d \u00b7 %s" % [seat, status]
 	_avatar.texture = _avatar_for_index(seat)
-	_host_icon.texture = _texture(ICON_HOST_PATH)
+	_host_icon.texture = _texture(ICON_HOST_ID)
 	_host_icon.visible = puid == owner_puid
-	_ready_icon.texture = _texture(ICON_READY_PATH) if ready else _texture(ICON_WAITING_PATH)
+	_ready_icon.texture = _texture(ICON_READY_ID) if ready else _texture(ICON_WAITING_ID)
 	_ready_label.text = "Ready" if ready else "Waiting"
 	_ready_label.modulate = Color(0.45, 0.86, 0.54) if ready else Color(0.94, 0.8, 0.42)
 
 
 func _avatar_for_index(index: int) -> Texture2D:
-	if AVATAR_PATHS.is_empty():
+	if AVATAR_IDS.is_empty():
 		return null
-	var wrapped: int = index % AVATAR_PATHS.size()
+	var wrapped: int = index % AVATAR_IDS.size()
 	if wrapped < 0:
-		wrapped += AVATAR_PATHS.size()
-	return _texture(AVATAR_PATHS[wrapped])
+		wrapped += AVATAR_IDS.size()
+	return _texture(AVATAR_IDS[wrapped])
 
 
-func _texture(path: String) -> Texture2D:
-	return KENNEY_ASSET_LOADER.texture(path)
+func _texture(id: StringName) -> Texture2D:
+	return ASSET_REGISTRY.texture(id)

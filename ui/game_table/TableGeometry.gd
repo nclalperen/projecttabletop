@@ -6,6 +6,8 @@
 class_name TableGeometry
 extends RefCounted
 
+const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
+
 # ─── Slot counts ───
 const RACK_SLOT_COUNT: int = 30
 const RACK_ROW_SLOTS: int = 15
@@ -73,7 +75,7 @@ const OPP_BADGE_TOP_MARGIN: float = 12.0
 # ─── Discard and presentation ───
 const DISCARD_ZONE_MARGIN: float = 14.0
 const OPP_3D_SIDE_RACK_ROTATION_DEG: float = 28.0
-const CLOTH_TEXTURE_PATH: String = "res://assets/cloth-texture.png"
+const CLOTH_TEXTURE_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_CLOTH
 
 # ─── Visual styling ───
 const OPP_COLORS: Array[Color] = [

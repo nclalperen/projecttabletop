@@ -7,6 +7,7 @@ const TILE_HELPERS = preload("res://ui/game_table/TileHelpers.gd")
 const RACK_SLOT_MANAGER = preload("res://ui/game_table/RackSlotManager.gd")
 const STAGE_MELD_LOGIC = preload("res://ui/game_table/StageMeldLogic.gd")
 const BOARD_RENDERER = preload("res://ui/game_table/BoardRenderer.gd")
+const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 
 # ─── Scene node references ───
 @onready var _top_bar: PanelContainer = $TopBar
@@ -542,7 +543,7 @@ func _apply_felt_style() -> void:
 		var fs := StyleBoxEmpty.new()
 		(_melds_panel as Panel).add_theme_stylebox_override("panel", fs)
 	if _felt_cloth_texture == null:
-		_felt_cloth_texture = load(GEO.CLOTH_TEXTURE_PATH) as Texture2D
+		_felt_cloth_texture = ASSET_REGISTRY.texture(GEO.CLOTH_TEXTURE_ID)
 	if _board != null and _felt_cloth_texture != null:
 		_board.apply_felt_texture(_felt_cloth_texture)
 

@@ -20,19 +20,20 @@ const ONLINE_LOBBY_SCENE: PackedScene = preload("res://ui/OnlineLobby.tscn")
 const ONLINE_SERVICE_SCRIPT: Script = preload("res://net/OnlineServiceEOS.gd")
 const MENU_AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/MenuAudioService.gd")
 const ICON_BUTTON_SCENE: PackedScene = preload("res://ui/widgets/IconTextButton.tscn")
-const KENNEY_ASSET_LOADER: Script = preload("res://ui/services/KenneyAssetLoader.gd")
+const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
+const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
 
-const FONT_MAIN_PATH := "res://Kenney_c0/kenney_ui-pack/Font/Kenney Future.ttf"
-const PANEL_BORDER_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/panel_border_grey_detail.png"
-const PANEL_FILL_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/panel_grey_dark.png"
-const PANEL_GRID_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/pattern_diagonal_transparent_small.png"
-const ICON_START_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/card_add.png"
-const ICON_ONLINE_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/pawns.png"
-const ICON_SETTINGS_PATH := "res://Kenney_c0/kenney_game-icons/PNG/White/1x/gear.png"
-const ICON_QUIT_PATH := "res://Kenney_c0/kenney_game-icons/PNG/White/1x/cross.png"
-const ICON_TIMER_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/timer_100.png"
-const ICON_ONLINE_LOCKED_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/lock_closed.png"
-const ICON_ONLINE_UNLOCKED_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/lock_open.png"
+const FONT_MAIN_ID: StringName = ASSET_IDS.UI_FONT_KENNEY_FUTURE
+const PANEL_BORDER_ID: StringName = ASSET_IDS.UI_PANEL_BORDER_GREY_DETAIL
+const PANEL_FILL_ID: StringName = ASSET_IDS.UI_PANEL_GREY_DARK
+const PANEL_GRID_ID: StringName = ASSET_IDS.UI_PANEL_PATTERN_DIAGONAL_TRANSPARENT_SMALL
+const ICON_START_ID: StringName = ASSET_IDS.UI_ICON_CARD_ADD
+const ICON_ONLINE_ID: StringName = ASSET_IDS.UI_ICON_PAWNS
+const ICON_SETTINGS_ID: StringName = ASSET_IDS.UI_ICON_GEAR
+const ICON_QUIT_ID: StringName = ASSET_IDS.UI_ICON_CROSS
+const ICON_TIMER_ID: StringName = ASSET_IDS.UI_ICON_TIMER_100
+const ICON_ONLINE_LOCKED_ID: StringName = ASSET_IDS.UI_ICON_LOCK_CLOSED
+const ICON_ONLINE_UNLOCKED_ID: StringName = ASSET_IDS.UI_ICON_LOCK_OPEN
 
 # Game configuration
 var player_count: int = 4
@@ -124,11 +125,11 @@ func _button_list() -> Array:
 
 
 func _apply_main_button_icons() -> void:
-	_set_icon_text_button(_start_button, _texture(ICON_START_PATH), "Start Game", 0)
-	_set_icon_text_button(_settings_button, _texture(ICON_SETTINGS_PATH), "Settings", 1)
-	_set_icon_text_button(_quit_button, _texture(ICON_QUIT_PATH), "Quit", 1)
+	_set_icon_text_button(_start_button, _texture(ICON_START_ID), "Start Game", 0)
+	_set_icon_text_button(_settings_button, _texture(ICON_SETTINGS_ID), "Settings", 1)
+	_set_icon_text_button(_quit_button, _texture(ICON_QUIT_ID), "Quit", 1)
 	if _online_button != null:
-		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_PATH), "Online (EOS)", 0)
+		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_ID), "Online (EOS)", 0)
 
 
 func _set_icon_text_button(button: Button, icon_texture: Texture2D, label_text: String, variant: int = 0) -> void:
@@ -151,13 +152,13 @@ func _has_property(target: Object, property_name: String) -> bool:
 	return false
 
 
-func _texture(path: String) -> Texture2D:
-	return KENNEY_ASSET_LOADER.texture(path)
+func _texture(id: StringName) -> Texture2D:
+	return ASSET_REGISTRY.texture(id)
 
 
 func _apply_background_pattern() -> void:
 	if _background != null:
-		_background.texture = _texture(PANEL_GRID_PATH)
+		_background.texture = _texture(PANEL_GRID_ID)
 		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		_background.stretch_mode = TextureRect.STRETCH_TILE
 		_background.modulate = Color(0.16, 0.25, 0.3, 0.76)
@@ -166,7 +167,7 @@ func _apply_background_pattern() -> void:
 func _apply_panel_shell() -> void:
 	if _menu_card == null:
 		return
-	var panel_tex: Texture2D = _texture(PANEL_FILL_PATH)
+	var panel_tex: Texture2D = _texture(PANEL_FILL_ID)
 	if panel_tex != null:
 		var panel_style := StyleBoxTexture.new()
 		panel_style.texture = panel_tex
@@ -181,7 +182,7 @@ func _apply_panel_shell() -> void:
 		panel_style.content_margin_bottom = 18.0
 		_menu_card.add_theme_stylebox_override("panel", panel_style)
 
-	var border_tex: Texture2D = _texture(PANEL_BORDER_PATH)
+	var border_tex: Texture2D = _texture(PANEL_BORDER_ID)
 	if border_tex == null:
 		return
 	var border := _menu_card.get_node_or_null("KenneyBorder") as NinePatchRect
@@ -202,10 +203,10 @@ func _apply_panel_shell() -> void:
 
 func _apply_meta_chip_icons() -> void:
 	if _players_chip_icon != null:
-		_players_chip_icon.texture = _texture(ICON_ONLINE_PATH)
+		_players_chip_icon.texture = _texture(ICON_ONLINE_ID)
 		_players_chip_icon.modulate = Color(1.0, 0.93, 0.62, 1.0)
 	if _timer_chip_icon != null:
-		_timer_chip_icon.texture = _texture(ICON_TIMER_PATH)
+		_timer_chip_icon.texture = _texture(ICON_TIMER_ID)
 		_timer_chip_icon.modulate = Color(1.0, 0.93, 0.62, 1.0)
 	_update_online_chip_icon()
 
@@ -214,11 +215,11 @@ func _update_online_chip_icon() -> void:
 	if _online_chip_icon == null:
 		return
 	var locked: bool = _online_button != null and _online_button.disabled
-	_online_chip_icon.texture = _texture(ICON_ONLINE_LOCKED_PATH if locked else ICON_ONLINE_UNLOCKED_PATH)
+	_online_chip_icon.texture = _texture(ICON_ONLINE_LOCKED_ID if locked else ICON_ONLINE_UNLOCKED_ID)
 
 
 func _apply_kenney_fonts() -> void:
-	var main_font: FontFile = KENNEY_ASSET_LOADER.font(FONT_MAIN_PATH)
+	var main_font: FontFile = ASSET_REGISTRY.font(FONT_MAIN_ID)
 	if main_font != null:
 		var title: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Title
 		var subtitle: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Subtitle
@@ -358,7 +359,7 @@ func _ensure_online_button() -> void:
 		_buttons_box.add_child(_online_button)
 		_buttons_box.move_child(_online_button, 1)
 		_online_button.pressed.connect(_on_online_pressed)
-	_set_icon_text_button(_online_button, _texture(ICON_ONLINE_PATH), "Online (EOS)", 0)
+	_set_icon_text_button(_online_button, _texture(ICON_ONLINE_ID), "Online (EOS)", 0)
 
 	var online_service = ONLINE_SERVICE_SCRIPT.new()
 	var init_res: Dictionary = online_service.initialize()
@@ -367,10 +368,10 @@ func _ensure_online_button() -> void:
 	_online_button.disabled = not available
 	if not available:
 		_online_button.tooltip_text = String(init_res.get("reason", "Online unavailable"))
-		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_LOCKED_PATH), "Online (EOS)", 0)
+		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_LOCKED_ID), "Online (EOS)", 0)
 	else:
 		_online_button.tooltip_text = "Backend: %s" % String(init_res.get("backend_mode", "mock"))
-		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_UNLOCKED_PATH), "Online (EOS)", 0)
+		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_UNLOCKED_ID), "Online (EOS)", 0)
 	_sync_meta_chips()
 
 

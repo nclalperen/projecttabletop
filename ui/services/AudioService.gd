@@ -1,6 +1,9 @@
 extends Node
 class_name AudioService
 
+const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
+const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
+
 const EVENT_DRAW_FROM_DECK: StringName = &"draw_from_deck"
 const EVENT_TAKE_DISCARD: StringName = &"take_discard"
 const EVENT_RACK_MOVE: StringName = &"rack_move"
@@ -13,7 +16,6 @@ const EVENT_NEW_ROUND: StringName = &"new_round"
 
 const PACK_PROCEDURAL: StringName = &"procedural"
 const PACK_CC0: StringName = &"cc0"
-const CC0_AUDIO_BASE_PATH: String = "res://assets/audio/cc0"
 
 const SFX_POOL_SIZE: int = 8
 const SAMPLE_RATE: int = 22050
@@ -190,36 +192,26 @@ func _linear_to_db_safe(level: float) -> float:
 
 
 func _try_apply_cc0_pack() -> void:
-	var event_to_base: Dictionary = {
-		EVENT_DRAW_FROM_DECK: "draw_from_deck",
-		EVENT_TAKE_DISCARD: "take_discard",
-		EVENT_RACK_MOVE: "rack_move",
-		EVENT_STAGE_MOVE: "stage_move",
-		EVENT_ADD_TO_MELD: "add_to_meld",
-		EVENT_DISCARD: "discard",
-		EVENT_INVALID_ACTION: "invalid_action",
-		EVENT_ROUND_END: "round_end",
-		EVENT_NEW_ROUND: "new_round",
+	var event_to_id: Dictionary = {
+		EVENT_DRAW_FROM_DECK: ASSET_IDS.GAMEPLAY_AUDIO_DRAW_FROM_DECK,
+		EVENT_TAKE_DISCARD: ASSET_IDS.GAMEPLAY_AUDIO_TAKE_DISCARD,
+		EVENT_RACK_MOVE: ASSET_IDS.GAMEPLAY_AUDIO_RACK_MOVE,
+		EVENT_STAGE_MOVE: ASSET_IDS.GAMEPLAY_AUDIO_STAGE_MOVE,
+		EVENT_ADD_TO_MELD: ASSET_IDS.GAMEPLAY_AUDIO_ADD_TO_MELD,
+		EVENT_DISCARD: ASSET_IDS.GAMEPLAY_AUDIO_DISCARD,
+		EVENT_INVALID_ACTION: ASSET_IDS.GAMEPLAY_AUDIO_INVALID_ACTION,
+		EVENT_ROUND_END: ASSET_IDS.GAMEPLAY_AUDIO_ROUND_END,
+		EVENT_NEW_ROUND: ASSET_IDS.GAMEPLAY_AUDIO_NEW_ROUND,
 	}
-	for event_id in event_to_base.keys():
-		var base: String = str(event_to_base[event_id])
-		var stream: AudioStream = _load_stream_from_cc0_pack(base)
+	for event_id in event_to_id.keys():
+		var stream: AudioStream = _load_stream_from_cc0_pack(event_to_id[event_id] as StringName)
 		if stream != null:
 			_sfx_streams[event_id] = stream
 
-	var ambient_stream: AudioStream = _load_stream_from_cc0_pack("ambient_table")
+	var ambient_stream: AudioStream = _load_stream_from_cc0_pack(ASSET_IDS.GAMEPLAY_AUDIO_AMBIENT_TABLE)
 	if ambient_stream != null:
 		_ambient_stream = ambient_stream
 
 
-func _load_stream_from_cc0_pack(base_name: String) -> AudioStream:
-	var candidates: PackedStringArray = [
-		"%s/%s.ogg" % [CC0_AUDIO_BASE_PATH, base_name],
-		"%s/%s.wav" % [CC0_AUDIO_BASE_PATH, base_name],
-	]
-	for p in candidates:
-		if FileAccess.file_exists(p):
-			var stream: AudioStream = load(p) as AudioStream
-			if stream != null:
-				return stream
-	return null
+func _load_stream_from_cc0_pack(asset_id: StringName) -> AudioStream:
+	return ASSET_REGISTRY.audio(asset_id)

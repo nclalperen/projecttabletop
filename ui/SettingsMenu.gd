@@ -9,16 +9,17 @@ const UI_SETTINGS_SCRIPT: Script = preload("res://ui/services/UISettings.gd")
 const VISUAL_QUALITY_SCRIPT: Script = preload("res://ui/services/VisualQualityService.gd")
 const MENU_AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/MenuAudioService.gd")
 const PROMPT_BADGE_SCENE: PackedScene = preload("res://ui/widgets/InputPromptBadge.tscn")
-const KENNEY_ASSET_LOADER: Script = preload("res://ui/services/KenneyAssetLoader.gd")
+const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
+const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
 
-const FONT_MAIN_PATH := "res://Kenney_c0/kenney_ui-pack/Font/Kenney Future.ttf"
-const PANEL_BORDER_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/panel_border_grey_detail.png"
-const PANEL_FILL_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/panel_grey_dark.png"
-const PANEL_GRID_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/pattern_diagonal_transparent_small.png"
-const ICON_SAVE_PATH := "res://Kenney_c0/kenney_game-icons/PNG/White/1x/checkmark.png"
-const ICON_CANCEL_PATH := "res://Kenney_c0/kenney_game-icons/PNG/White/1x/return.png"
-const PROMPT_ENTER_PATH := "res://Kenney_c0/kenney_input-prompts-pixel-16/Tiles/tile_0133.png"
-const PROMPT_ESC_PATH := "res://Kenney_c0/kenney_input-prompts-pixel-16/Tiles/tile_0017.png"
+const FONT_MAIN_ID: StringName = ASSET_IDS.UI_FONT_KENNEY_FUTURE
+const PANEL_BORDER_ID: StringName = ASSET_IDS.UI_PANEL_BORDER_GREY_DETAIL
+const PANEL_FILL_ID: StringName = ASSET_IDS.UI_PANEL_GREY_DARK
+const PANEL_GRID_ID: StringName = ASSET_IDS.UI_PANEL_PATTERN_DIAGONAL_TRANSPARENT_SMALL
+const ICON_SAVE_ID: StringName = ASSET_IDS.UI_ICON_CHECKMARK
+const ICON_CANCEL_ID: StringName = ASSET_IDS.UI_ICON_RETURN
+const PROMPT_ENTER_ID: StringName = ASSET_IDS.UI_PROMPT_ENTER
+const PROMPT_ESC_ID: StringName = ASSET_IDS.UI_PROMPT_ESC
 
 @onready var _background: TextureRect = $Background
 @onready var _panel: Panel = $Panel
@@ -73,8 +74,8 @@ func _ready():
 
 
 func _apply_button_icons() -> void:
-	_set_icon_button(save_button, _texture(ICON_SAVE_PATH), "Save", 0)
-	_set_icon_button(cancel_button, _texture(ICON_CANCEL_PATH), "Cancel", 1)
+	_set_icon_button(save_button, _texture(ICON_SAVE_ID), "Save", 0)
+	_set_icon_button(cancel_button, _texture(ICON_CANCEL_ID), "Cancel", 1)
 
 
 func _set_icon_button(button: Button, texture: Texture2D, label_text: String, variant: int = 0) -> void:
@@ -97,12 +98,12 @@ func _has_property(target: Object, property_name: String) -> bool:
 	return false
 
 
-func _texture(path: String) -> Texture2D:
-	return KENNEY_ASSET_LOADER.texture(path)
+func _texture(id: StringName) -> Texture2D:
+	return ASSET_REGISTRY.texture(id)
 
 
 func _apply_kenney_fonts() -> void:
-	var main_font: FontFile = KENNEY_ASSET_LOADER.font(FONT_MAIN_PATH)
+	var main_font: FontFile = ASSET_REGISTRY.font(FONT_MAIN_ID)
 	if main_font != null:
 		var title: Label = $Panel/MarginContainer/VBoxContainer/Label
 		title.add_theme_font_override("font", main_font)
@@ -120,7 +121,7 @@ func _apply_kenney_fonts() -> void:
 
 func _apply_background_pattern() -> void:
 	if _background != null:
-		_background.texture = _texture(PANEL_GRID_PATH)
+		_background.texture = _texture(PANEL_GRID_ID)
 		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		_background.stretch_mode = TextureRect.STRETCH_TILE
 		_background.modulate = Color(0.16, 0.25, 0.3, 0.74)
@@ -129,7 +130,7 @@ func _apply_background_pattern() -> void:
 func _apply_panel_shell() -> void:
 	if _panel == null:
 		return
-	var panel_tex: Texture2D = _texture(PANEL_FILL_PATH)
+	var panel_tex: Texture2D = _texture(PANEL_FILL_ID)
 	if panel_tex != null:
 		var panel_style := StyleBoxTexture.new()
 		panel_style.texture = panel_tex
@@ -144,7 +145,7 @@ func _apply_panel_shell() -> void:
 		panel_style.content_margin_bottom = 12.0
 		_panel.add_theme_stylebox_override("panel", panel_style)
 
-	var border_tex: Texture2D = _texture(PANEL_BORDER_PATH)
+	var border_tex: Texture2D = _texture(PANEL_BORDER_ID)
 	if border_tex == null:
 		return
 	var border := _panel.get_node_or_null("KenneyBorder") as NinePatchRect
@@ -225,8 +226,8 @@ func _build_prompt_strip() -> void:
 	for child in _prompt_strip.get_children():
 		child.queue_free()
 	var prompts: Array[Dictionary] = [
-		{"icon": _texture(PROMPT_ENTER_PATH), "text": "ENTER Save"},
-		{"icon": _texture(PROMPT_ESC_PATH), "text": "ESC Cancel"},
+		{"icon": _texture(PROMPT_ENTER_ID), "text": "ENTER Save"},
+		{"icon": _texture(PROMPT_ESC_ID), "text": "ESC Cancel"},
 	]
 	for entry in prompts:
 		var badge: Node = PROMPT_BADGE_SCENE.instantiate()

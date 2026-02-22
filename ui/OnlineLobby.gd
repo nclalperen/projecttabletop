@@ -11,32 +11,33 @@ const MENU_AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/MenuAudioSe
 const PLAYER_CHIP_SCENE: PackedScene = preload("res://ui/widgets/LobbyPlayerChip.tscn")
 const PROMPT_BADGE_SCENE: PackedScene = preload("res://ui/widgets/InputPromptBadge.tscn")
 const EMOTE_BUTTON_SCENE: PackedScene = preload("res://ui/widgets/LobbyEmoteButton.tscn")
-const KENNEY_ASSET_LOADER: Script = preload("res://ui/services/KenneyAssetLoader.gd")
+const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
+const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
 
-const FONT_MAIN_PATH := "res://Kenney_c0/kenney_ui-pack/Font/Kenney Future.ttf"
-const PANEL_BORDER_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/panel_border_grey_detail.png"
-const PANEL_FILL_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/panel_grey_dark.png"
-const PANEL_GRID_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/pattern_diagonal_transparent_small.png"
-const ICON_LOGIN_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/lock_open.png"
-const ICON_QUICK_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/cards_stack.png"
-const ICON_PRIVATE_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/lock_closed.png"
-const ICON_READY_ON_PATH := "res://Kenney_c0/kenney_game-icons/PNG/White/1x/checkmark.png"
-const ICON_READY_WAIT_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/hourglass.png"
-const ICON_START_PATH := "res://Kenney_c0/kenney_board-game-icons/PNG/Default (64px)/crown_a.png"
-const ICON_BACK_PATH := "res://Kenney_c0/kenney_game-icons/PNG/White/1x/return.png"
+const FONT_MAIN_ID: StringName = ASSET_IDS.UI_FONT_KENNEY_FUTURE
+const PANEL_BORDER_ID: StringName = ASSET_IDS.UI_PANEL_BORDER_GREY_DETAIL
+const PANEL_FILL_ID: StringName = ASSET_IDS.UI_PANEL_GREY_DARK
+const PANEL_GRID_ID: StringName = ASSET_IDS.UI_PANEL_PATTERN_DIAGONAL_TRANSPARENT_SMALL
+const ICON_LOGIN_ID: StringName = ASSET_IDS.UI_ICON_LOCK_OPEN
+const ICON_QUICK_ID: StringName = ASSET_IDS.UI_ICON_CARDS_STACK
+const ICON_PRIVATE_ID: StringName = ASSET_IDS.UI_ICON_LOCK_CLOSED
+const ICON_READY_ON_ID: StringName = ASSET_IDS.UI_ICON_CHECKMARK
+const ICON_READY_WAIT_ID: StringName = ASSET_IDS.UI_ICON_HOURGLASS
+const ICON_START_ID: StringName = ASSET_IDS.UI_ICON_CROWN_A
+const ICON_BACK_ID: StringName = ASSET_IDS.UI_ICON_RETURN
 
-const PROMPT_ESC_PATH := "res://Kenney_c0/kenney_input-prompts-pixel-16/Tiles/tile_0017.png"
-const PROMPT_ENTER_PATH := "res://Kenney_c0/kenney_input-prompts-pixel-16/Tiles/tile_0133.png"
-const PROMPT_SPACE_PATH := "res://Kenney_c0/kenney_input-prompts-pixel-16/Tiles/tile_0135.png"
-const PROMPT_LMB_PATH := "res://Kenney_c0/kenney_game-icons-expansion/PNG/White/1x/mouseLeft.png"
-const PROMPT_RMB_PATH := "res://Kenney_c0/kenney_game-icons-expansion/PNG/White/1x/mouseRight.png"
+const PROMPT_ESC_ID: StringName = ASSET_IDS.UI_PROMPT_ESC
+const PROMPT_ENTER_ID: StringName = ASSET_IDS.UI_PROMPT_ENTER
+const PROMPT_SPACE_ID: StringName = ASSET_IDS.UI_PROMPT_SPACE
+const PROMPT_LMB_ID: StringName = ASSET_IDS.UI_PROMPT_MOUSE_LEFT
+const PROMPT_RMB_ID: StringName = ASSET_IDS.UI_PROMPT_MOUSE_RIGHT
 
 const EMOTE_DATA: Array[Dictionary] = [
-	{"id": "question", "label": "Question", "icon_path": "res://Kenney_c0/kenney_game-icons/PNG/White/1x/question.png"},
-	{"id": "checkmark", "label": "Ready", "icon_path": "res://Kenney_c0/kenney_game-icons/PNG/White/1x/checkmark.png"},
-	{"id": "warning", "label": "Warning", "icon_path": "res://Kenney_c0/kenney_game-icons/PNG/White/1x/warning.png"},
-	{"id": "star", "label": "Nice", "icon_path": "res://Kenney_c0/kenney_game-icons/PNG/White/1x/star.png"},
-	{"id": "trophy", "label": "GG", "icon_path": "res://Kenney_c0/kenney_game-icons/PNG/White/1x/trophy.png"},
+	{"id": "question", "label": "Question", "icon_id": ASSET_IDS.UI_ICON_QUESTION},
+	{"id": "checkmark", "label": "Ready", "icon_id": ASSET_IDS.UI_ICON_CHECKMARK},
+	{"id": "warning", "label": "Warning", "icon_id": ASSET_IDS.UI_ICON_WARNING},
+	{"id": "star", "label": "Nice", "icon_id": ASSET_IDS.UI_ICON_STAR},
+	{"id": "trophy", "label": "GG", "icon_id": ASSET_IDS.UI_ICON_TROPHY},
 ]
 
 @onready var _status_label: Label = $Margin/RootCard/CardMargin/VBox/Status
@@ -126,12 +127,12 @@ func _ready() -> void:
 
 
 func _apply_button_icons() -> void:
-	_set_icon_button(_login_btn, _texture(ICON_LOGIN_PATH), "Login", 1)
-	_set_icon_button(_quick_btn, _texture(ICON_QUICK_PATH), "Quick Match", 0)
-	_set_icon_button(_private_btn, _texture(ICON_PRIVATE_PATH), "Private", 1)
-	_set_icon_button(_ready_btn, _texture(ICON_READY_WAIT_PATH), "Ready", 0)
-	_set_icon_button(_start_btn, _texture(ICON_START_PATH), "Start", 0)
-	_set_icon_button(_back_btn, _texture(ICON_BACK_PATH), "Back", 1)
+	_set_icon_button(_login_btn, _texture(ICON_LOGIN_ID), "Login", 1)
+	_set_icon_button(_quick_btn, _texture(ICON_QUICK_ID), "Quick Match", 0)
+	_set_icon_button(_private_btn, _texture(ICON_PRIVATE_ID), "Private", 1)
+	_set_icon_button(_ready_btn, _texture(ICON_READY_WAIT_ID), "Ready", 0)
+	_set_icon_button(_start_btn, _texture(ICON_START_ID), "Start", 0)
+	_set_icon_button(_back_btn, _texture(ICON_BACK_ID), "Back", 1)
 
 
 func _set_icon_button(button: Button, texture: Texture2D, label_text: String, variant: int = 0) -> void:
@@ -154,12 +155,12 @@ func _has_property(target: Object, property_name: String) -> bool:
 	return false
 
 
-func _texture(path: String) -> Texture2D:
-	return KENNEY_ASSET_LOADER.texture(path)
+func _texture(id: StringName) -> Texture2D:
+	return ASSET_REGISTRY.texture(id)
 
 
 func _apply_kenney_fonts() -> void:
-	var main_font: FontFile = KENNEY_ASSET_LOADER.font(FONT_MAIN_PATH)
+	var main_font: FontFile = ASSET_REGISTRY.font(FONT_MAIN_ID)
 	if main_font != null:
 		var title: Label = $Margin/RootCard/CardMargin/VBox/Title
 		title.add_theme_font_override("font", main_font)
@@ -183,7 +184,7 @@ func _apply_kenney_fonts() -> void:
 
 func _apply_background_pattern() -> void:
 	if _background != null:
-		_background.texture = _texture(PANEL_GRID_PATH)
+		_background.texture = _texture(PANEL_GRID_ID)
 		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		_background.stretch_mode = TextureRect.STRETCH_TILE
 		_background.modulate = Color(0.16, 0.25, 0.3, 0.74)
@@ -192,7 +193,7 @@ func _apply_background_pattern() -> void:
 func _apply_panel_shell() -> void:
 	if _root_card == null:
 		return
-	var panel_tex: Texture2D = _texture(PANEL_FILL_PATH)
+	var panel_tex: Texture2D = _texture(PANEL_FILL_ID)
 	if panel_tex != null:
 		var panel_style := StyleBoxTexture.new()
 		panel_style.texture = panel_tex
@@ -207,7 +208,7 @@ func _apply_panel_shell() -> void:
 		panel_style.content_margin_bottom = 12.0
 		_root_card.add_theme_stylebox_override("panel", panel_style)
 
-	var border_tex: Texture2D = _texture(PANEL_BORDER_PATH)
+	var border_tex: Texture2D = _texture(PANEL_BORDER_ID)
 	if border_tex == null:
 		return
 	var border := _root_card.get_node_or_null("KenneyBorder") as NinePatchRect
@@ -254,11 +255,11 @@ func _build_prompt_strip() -> void:
 	for child in _prompt_strip.get_children():
 		child.queue_free()
 	var prompts: Array[Dictionary] = [
-		{"icon": _texture(PROMPT_ESC_PATH), "text": "ESC Back"},
-		{"icon": _texture(PROMPT_ENTER_PATH), "text": "ENTER Start"},
-		{"icon": _texture(PROMPT_SPACE_PATH), "text": "SPACE Ready"},
-		{"icon": _texture(PROMPT_LMB_PATH), "text": "LMB Select"},
-		{"icon": _texture(PROMPT_RMB_PATH), "text": "RMB Menu"},
+		{"icon": _texture(PROMPT_ESC_ID), "text": "ESC Back"},
+		{"icon": _texture(PROMPT_ENTER_ID), "text": "ENTER Start"},
+		{"icon": _texture(PROMPT_SPACE_ID), "text": "SPACE Ready"},
+		{"icon": _texture(PROMPT_LMB_ID), "text": "LMB Select"},
+		{"icon": _texture(PROMPT_RMB_ID), "text": "RMB Menu"},
 	]
 	for entry in prompts:
 		var badge: Node = PROMPT_BADGE_SCENE.instantiate()
@@ -280,7 +281,7 @@ func _build_emote_row() -> void:
 				"configure",
 				String(entry.get("id", "")),
 				String(entry.get("label", "")),
-				_texture(String(entry.get("icon_path", "")))
+				_texture(StringName(entry.get("icon_id", StringName(""))))
 			)
 		emote_btn.connect("emote_selected", Callable(self, "_on_emote_selected"))
 
@@ -703,7 +704,7 @@ func _refresh_ready_button_visual() -> void:
 	var is_ready: bool = not lobby.is_empty() and _current_member_ready(lobby)
 	_set_icon_button(
 		_ready_btn,
-		_texture(ICON_READY_ON_PATH if is_ready else ICON_READY_WAIT_PATH),
+		_texture(ICON_READY_ON_ID if is_ready else ICON_READY_WAIT_ID),
 		"Ready" if not is_ready else "Unready",
 		0
 	)

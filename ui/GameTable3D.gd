@@ -2,29 +2,31 @@ extends Node
 
 const GAME_TABLE_SCENE: PackedScene = preload("res://ui/GameTable.tscn")
 const INVALID_TABLE_POS: Vector2 = Vector2(-99999.0, -99999.0)
+const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
+const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
 
-# Asset paths
-const CLOTH_TEX_PATH: String = "res://assets/cloth-texture.png"
-const WOOD_TEX_PATH: String = "res://assets/rack-basecolor.png"
-const TILE_FACE_TEX_PATH: String = "res://assets/tile-texture.png"
-const CC0_HDRI_PRIMARY_PATH: String = "res://assets/cc0/hdri/studio_small_01_4k.hdr"
-const CC0_HDRI_SECONDARY_PATH: String = "res://assets/cc0/hdri/studio_small_03_4k.hdr"
-const CC0_FELT_COLOR_PATH: String = "res://assets/cc0/textures/felt/fabric083_2k_jpg/color.jpg"
-const CC0_FELT_ROUGHNESS_PATH: String = "res://assets/cc0/textures/felt/fabric083_2k_jpg/roughness.jpg"
-const CC0_TABLE_WOOD_DIFFUSE_PATH: String = "res://assets/cc0/textures/wood/wood_table_worn_2k_jpg/diffuse.jpg"
-const CC0_TABLE_WOOD_NORMAL_PATH: String = "res://assets/cc0/textures/wood/wood_table_worn_2k_jpg/normal_gl.jpg"
-const CC0_TABLE_WOOD_ROUGHNESS_PATH: String = "res://assets/cc0/textures/wood/wood_table_worn_2k_jpg/roughness.jpg"
-const CC0_RACK_WOOD_DIFFUSE_PATH: String = "res://assets/cc0/textures/wood/wood_table_001_2k_jpg/diffuse.jpg"
-const CC0_RACK_WOOD_NORMAL_PATH: String = "res://assets/cc0/textures/wood/wood_table_001_2k_jpg/normal_gl.jpg"
-const CC0_RACK_WOOD_ROUGHNESS_PATH: String = "res://assets/cc0/textures/wood/wood_table_001_2k_jpg/roughness.jpg"
-const RACK_MODEL_PATH: String = "res://assets/rack.glb"
-const TILE_MODEL_PATH: String = "res://assets/tile.glb"
-const TILES_LIBRARY_PATH: String = "res://assets/tiles_library.glb"
-const TILESET_RED_PATH: String = "res://assets/tiles/tilesetred.glb"
-const TILESET_BLUE_PATH: String = "res://assets/tiles/tilesetblue.glb"
-const TILESET_YELLOW_PATH: String = "res://assets/tiles/tilesetyellow.glb"
-const TILESET_GREEN_PATH: String = "res://assets/tiles/tilesetgreen.glb"
-const TILESET_FAKE_OKEY_PATH: String = "res://assets/tiles/tilesetfakeokey.glb"
+# Asset IDs
+const CLOTH_TEX_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_CLOTH
+const WOOD_TEX_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_RACK_BASECOLOR
+const TILE_FACE_TEX_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_TILE_FACE
+const CC0_HDRI_PRIMARY_ID: StringName = ASSET_IDS.GAMEPLAY_HDRI_STUDIO_SMALL_01
+const CC0_HDRI_SECONDARY_ID: StringName = ASSET_IDS.GAMEPLAY_HDRI_STUDIO_SMALL_03
+const CC0_FELT_COLOR_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_FELT_COLOR
+const CC0_FELT_ROUGHNESS_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_FELT_ROUGHNESS
+const CC0_TABLE_WOOD_DIFFUSE_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_TABLE_WOOD_DIFFUSE
+const CC0_TABLE_WOOD_NORMAL_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_TABLE_WOOD_NORMAL
+const CC0_TABLE_WOOD_ROUGHNESS_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_TABLE_WOOD_ROUGHNESS
+const CC0_RACK_WOOD_DIFFUSE_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_RACK_WOOD_DIFFUSE
+const CC0_RACK_WOOD_NORMAL_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_RACK_WOOD_NORMAL
+const CC0_RACK_WOOD_ROUGHNESS_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_RACK_WOOD_ROUGHNESS
+const RACK_MODEL_ID: StringName = ASSET_IDS.GAMEPLAY_MODEL_RACK
+const TILE_MODEL_ID: StringName = ASSET_IDS.GAMEPLAY_MODEL_TILE
+const TILES_LIBRARY_ID: StringName = ASSET_IDS.GAMEPLAY_MODEL_TILES_LIBRARY
+const TILESET_RED_ID: StringName = ASSET_IDS.GAMEPLAY_MODEL_TILESET_RED
+const TILESET_BLUE_ID: StringName = ASSET_IDS.GAMEPLAY_MODEL_TILESET_BLUE
+const TILESET_YELLOW_ID: StringName = ASSET_IDS.GAMEPLAY_MODEL_TILESET_YELLOW
+const TILESET_GREEN_ID: StringName = ASSET_IDS.GAMEPLAY_MODEL_TILESET_GREEN
+const TILESET_FAKE_OKEY_ID: StringName = ASSET_IDS.GAMEPLAY_MODEL_TILESET_FAKE_OKEY
 const USE_LEGACY_TILESET_FALLBACK: bool = false
 const AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/AudioService.gd")
 const UI_SETTINGS_SCRIPT: Script = preload("res://ui/services/UISettings.gd")
@@ -669,6 +671,10 @@ func _load_texture_first(paths: Array[String]) -> Texture2D:
 	return null
 
 
+func _asset_path(id: StringName) -> String:
+	return ASSET_REGISTRY.path(id)
+
+
 func _load_packed_scene_if_exists(path: String) -> PackedScene:
 	if path == "" or not FileAccess.file_exists(path):
 		return null
@@ -692,7 +698,10 @@ func _apply_pbr_textures(mat: StandardMaterial3D, albedo: Texture2D, normal_tex:
 
 
 func _make_tabletop_sky() -> Sky:
-	var hdri: Texture2D = _load_texture_first([CC0_HDRI_PRIMARY_PATH, CC0_HDRI_SECONDARY_PATH])
+	var hdri: Texture2D = _load_texture_first([
+		_asset_path(CC0_HDRI_PRIMARY_ID),
+		_asset_path(CC0_HDRI_SECONDARY_ID),
+	])
 	if hdri != null:
 		var hdri_sky := Sky.new()
 		var pan := PanoramaSkyMaterial.new()
@@ -795,27 +804,27 @@ func _configure_materials() -> void:
 	var table_wood_albedo_paths: Array[String] = []
 	if _tune_table_wood_albedo_path != "":
 		table_wood_albedo_paths.append(_tune_table_wood_albedo_path)
-	table_wood_albedo_paths.append(CC0_TABLE_WOOD_DIFFUSE_PATH)
-	table_wood_albedo_paths.append(WOOD_TEX_PATH)
+	table_wood_albedo_paths.append(_asset_path(CC0_TABLE_WOOD_DIFFUSE_ID))
+	table_wood_albedo_paths.append(_asset_path(WOOD_TEX_ID))
 	var table_wood_albedo: Texture2D = _load_texture_first(table_wood_albedo_paths)
-	var table_wood_normal: Texture2D = _load_texture_first([CC0_TABLE_WOOD_NORMAL_PATH])
-	var table_wood_roughness: Texture2D = _load_texture_first([CC0_TABLE_WOOD_ROUGHNESS_PATH])
+	var table_wood_normal: Texture2D = _load_texture_first([_asset_path(CC0_TABLE_WOOD_NORMAL_ID)])
+	var table_wood_roughness: Texture2D = _load_texture_first([_asset_path(CC0_TABLE_WOOD_ROUGHNESS_ID)])
 	var rack_wood_albedo_paths: Array[String] = []
 	if _tune_rack_wood_albedo_path != "":
 		rack_wood_albedo_paths.append(_tune_rack_wood_albedo_path)
-	rack_wood_albedo_paths.append(CC0_RACK_WOOD_DIFFUSE_PATH)
-	rack_wood_albedo_paths.append(WOOD_TEX_PATH)
+	rack_wood_albedo_paths.append(_asset_path(CC0_RACK_WOOD_DIFFUSE_ID))
+	rack_wood_albedo_paths.append(_asset_path(WOOD_TEX_ID))
 	var rack_wood_albedo: Texture2D = _load_texture_first(rack_wood_albedo_paths)
-	var rack_wood_normal: Texture2D = _load_texture_first([CC0_RACK_WOOD_NORMAL_PATH])
-	var rack_wood_roughness: Texture2D = _load_texture_first([CC0_RACK_WOOD_ROUGHNESS_PATH])
+	var rack_wood_normal: Texture2D = _load_texture_first([_asset_path(CC0_RACK_WOOD_NORMAL_ID)])
+	var rack_wood_roughness: Texture2D = _load_texture_first([_asset_path(CC0_RACK_WOOD_ROUGHNESS_ID)])
 	var felt_albedo_paths: Array[String] = []
 	if _tune_felt_albedo_path != "":
 		felt_albedo_paths.append(_tune_felt_albedo_path)
-	felt_albedo_paths.append(CLOTH_TEX_PATH)
-	felt_albedo_paths.append(CC0_FELT_COLOR_PATH)
+	felt_albedo_paths.append(_asset_path(CLOTH_TEX_ID))
+	felt_albedo_paths.append(_asset_path(CC0_FELT_COLOR_ID))
 	var felt_albedo: Texture2D = _load_texture_first(felt_albedo_paths)
 	var felt_normal: Texture2D = null
-	var felt_roughness: Texture2D = _load_texture_first([CC0_FELT_ROUGHNESS_PATH])
+	var felt_roughness: Texture2D = _load_texture_first([_asset_path(CC0_FELT_ROUGHNESS_ID)])
 
 	_table_wood_material = StandardMaterial3D.new()
 	_table_wood_material.albedo_color = _tune_table_wood_color
@@ -861,7 +870,7 @@ func _configure_materials() -> void:
 	_tile_face_material.metallic_specular = _tune_tile_face_specular
 	_tile_face_texture = null
 	if USE_TILE_FACE_TEXTURE:
-		_tile_face_texture = load(TILE_FACE_TEX_PATH) as Texture2D
+		_tile_face_texture = load(_asset_path(TILE_FACE_TEX_ID)) as Texture2D
 	if _tile_face_texture != null:
 		_tile_face_material.albedo_texture = _tile_face_texture
 		_tile_face_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
@@ -897,22 +906,22 @@ func _load_model_assets() -> void:
 	_rack_row1_tilt_deg = RACK_ROW_BOTTOM_TILT_DEG
 	_rack_row_anchors_calibrated = false
 	_rack_helper_rows_active = false
-	_rack_model_scene = _load_packed_scene_if_exists(RACK_MODEL_PATH)
-	_tile_model_scene = _load_packed_scene_if_exists(TILE_MODEL_PATH)
-	_tiles_library_scene = _load_packed_scene_if_exists(TILES_LIBRARY_PATH)
+	_rack_model_scene = _load_packed_scene_if_exists(_asset_path(RACK_MODEL_ID))
+	_tile_model_scene = _load_packed_scene_if_exists(_asset_path(TILE_MODEL_ID))
+	_tiles_library_scene = _load_packed_scene_if_exists(_asset_path(TILES_LIBRARY_ID))
 	_tileset_scene_by_color = {}
 	_tileset_fake_scene = null
 	if USE_LEGACY_TILESET_FALLBACK:
 		_tileset_scene_by_color = {
-			Tile.TileColor.RED: _load_packed_scene_if_exists(TILESET_RED_PATH),
-			Tile.TileColor.BLUE: _load_packed_scene_if_exists(TILESET_BLUE_PATH),
-			Tile.TileColor.BLACK: _load_packed_scene_if_exists(TILESET_GREEN_PATH),
-			Tile.TileColor.YELLOW: _load_packed_scene_if_exists(TILESET_YELLOW_PATH),
+			Tile.TileColor.RED: _load_packed_scene_if_exists(_asset_path(TILESET_RED_ID)),
+			Tile.TileColor.BLUE: _load_packed_scene_if_exists(_asset_path(TILESET_BLUE_ID)),
+			Tile.TileColor.BLACK: _load_packed_scene_if_exists(_asset_path(TILESET_GREEN_ID)),
+			Tile.TileColor.YELLOW: _load_packed_scene_if_exists(_asset_path(TILESET_YELLOW_ID)),
 		}
-		_tileset_fake_scene = _load_packed_scene_if_exists(TILESET_FAKE_OKEY_PATH)
+		_tileset_fake_scene = _load_packed_scene_if_exists(_asset_path(TILESET_FAKE_OKEY_ID))
 	_build_tileset_templates()
 	if _tiles_library_scene == null:
-		push_warning("Tile library scene not found at %s." % TILES_LIBRARY_PATH)
+		push_warning("Tile library scene not found at %s." % _asset_path(TILES_LIBRARY_ID))
 	if USE_AUTO_RACK_MODEL_PRE_ROT:
 		_rack_model_pre_rot_deg = _estimate_rack_model_pre_rotation(_rack_model_scene)
 	else:

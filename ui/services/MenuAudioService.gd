@@ -1,15 +1,17 @@
 extends Node
 class_name MenuAudioService
 
-const STREAM_HOVER_A := "res://Kenney_c0/kenney_ui-audio/Audio/rollover3.ogg"
-const STREAM_HOVER_B := "res://Kenney_c0/kenney_ui-audio/Audio/rollover5.ogg"
-const STREAM_CLICK := "res://Kenney_c0/kenney_ui-audio/Audio/click3.ogg"
-const STREAM_CONFIRM := "res://Kenney_c0/kenney_ui-audio/Audio/click4.ogg"
-const STREAM_TOGGLE := "res://Kenney_c0/kenney_ui-audio/Audio/switch12.ogg"
-const STREAM_OPEN := "res://Kenney_c0/kenney_interface-sounds/Audio/open_002.ogg"
-const STREAM_CLOSE := "res://Kenney_c0/kenney_interface-sounds/Audio/close_002.ogg"
-const STREAM_BACK := "res://Kenney_c0/kenney_interface-sounds/Audio/back_002.ogg"
-const STREAM_ERROR := "res://Kenney_c0/kenney_interface-sounds/Audio/error_004.ogg"
+const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
+const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
+const STREAM_HOVER_A_ID: StringName = ASSET_IDS.UI_AUDIO_ROLLOVER_3
+const STREAM_HOVER_B_ID: StringName = ASSET_IDS.UI_AUDIO_ROLLOVER_5
+const STREAM_CLICK_ID: StringName = ASSET_IDS.UI_AUDIO_CLICK_3
+const STREAM_CONFIRM_ID: StringName = ASSET_IDS.UI_AUDIO_CLICK_4
+const STREAM_TOGGLE_ID: StringName = ASSET_IDS.UI_AUDIO_SWITCH_12
+const STREAM_OPEN_ID: StringName = ASSET_IDS.UI_AUDIO_OPEN_002
+const STREAM_CLOSE_ID: StringName = ASSET_IDS.UI_AUDIO_CLOSE_002
+const STREAM_BACK_ID: StringName = ASSET_IDS.UI_AUDIO_BACK_002
+const STREAM_ERROR_ID: StringName = ASSET_IDS.UI_AUDIO_ERROR_004
 
 const PLAYER_POOL_SIZE: int = 4
 
@@ -82,26 +84,19 @@ func _ensure_player_pool() -> void:
 
 func _load_streams() -> void:
 	_streams.clear()
-	_streams["hover_a"] = _safe_load(STREAM_HOVER_A)
-	_streams["hover_b"] = _safe_load(STREAM_HOVER_B)
-	_streams["click"] = _safe_load(STREAM_CLICK)
-	_streams["confirm"] = _safe_load(STREAM_CONFIRM)
-	_streams["open"] = _safe_load(STREAM_OPEN)
-	_streams["close"] = _safe_load(STREAM_CLOSE)
-	_streams["back"] = _safe_load(STREAM_BACK)
-	_streams["error"] = _safe_load(STREAM_ERROR)
-	_streams["toggle"] = _safe_load(STREAM_TOGGLE)
+	_streams["hover_a"] = _stream(STREAM_HOVER_A_ID)
+	_streams["hover_b"] = _stream(STREAM_HOVER_B_ID)
+	_streams["click"] = _stream(STREAM_CLICK_ID)
+	_streams["confirm"] = _stream(STREAM_CONFIRM_ID)
+	_streams["open"] = _stream(STREAM_OPEN_ID)
+	_streams["close"] = _stream(STREAM_CLOSE_ID)
+	_streams["back"] = _stream(STREAM_BACK_ID)
+	_streams["error"] = _stream(STREAM_ERROR_ID)
+	_streams["toggle"] = _stream(STREAM_TOGGLE_ID)
 
 
-func _safe_load(path: String) -> AudioStream:
-	if not FileAccess.file_exists(path):
-		return null
-	var lowered: String = path.to_lower()
-	if lowered.ends_with(".ogg"):
-		return AudioStreamOggVorbis.load_from_file(path)
-	if lowered.ends_with(".wav"):
-		return AudioStreamWAV.load_from_file(path)
-	return load(path) as AudioStream
+func _stream(id: StringName) -> AudioStream:
+	return ASSET_REGISTRY.audio(id)
 
 
 func _play_stream(key: String) -> void:

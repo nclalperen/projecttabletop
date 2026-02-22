@@ -3,8 +3,9 @@ class_name LobbyEmoteButton
 
 signal emote_selected(emote_id: String)
 
-const KENNEY_ASSET_LOADER: Script = preload("res://ui/services/KenneyAssetLoader.gd")
-const BUTTON_GOLD_PATH := "res://Kenney_c0/kenney_ui-pack/PNG/Yellow/Default/button_rectangle_depth_gradient.png"
+const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
+const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
+const BUTTON_GOLD_ID: StringName = ASSET_IDS.UI_BUTTON_RECT_GOLD
 
 @export var emote_id: String = "":
 	set(value):
@@ -50,7 +51,7 @@ func _on_pressed() -> void:
 
 
 func _apply_skin() -> void:
-	var texture: Texture2D = KENNEY_ASSET_LOADER.texture(BUTTON_GOLD_PATH)
+	var texture: Texture2D = ASSET_REGISTRY.texture(BUTTON_GOLD_ID)
 	if texture == null:
 		return
 	add_theme_stylebox_override("normal", _style_from(texture, Color(0.95, 0.95, 0.95, 1.0)))
