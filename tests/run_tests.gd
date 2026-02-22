@@ -48,6 +48,7 @@ const TEST_SCRIPTS = [
 	"res://tests/test_protocol_schema.gd",
 	"res://tests/test_online_service_backend_modes.gd",
 	"res://tests/test_lobby_service_model_contract.gd",
+	"res://tests/test_online_lobby_flow.gd",
 	"res://tests/test_transport_envelope_runtime_guard.gd",
 	"res://tests/test_host_action_authority.gd",
 	"res://tests/test_reconnect_bot_takeover.gd",

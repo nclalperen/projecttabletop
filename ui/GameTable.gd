@@ -1759,6 +1759,8 @@ func _render_melds() -> void:
 	var max_w: float = max(200.0, _meld_island.size.x - 16.0)
 	var max_h: float = max(120.0, _meld_island.size.y - _pending_band_height() - 10.0)
 	var zones: Dictionary = GEO.build_meld_owner_zones(max_w, max_h, _pending_band_height())
+	var base_chip_w: float = clamp(_slot_size.x * 0.70, 30.0, 44.0)
+	var base_chip_h: float = clamp(_slot_size.y * 0.70, 42.0, 58.0)
 	var by_owner := {0: [], 1: [], 2: [], 3: []}
 	for i in range(_controller.state.table_melds.size()):
 		var meld = _controller.state.table_melds[i]
@@ -1770,9 +1772,15 @@ func _render_melds() -> void:
 	var render_order: Array = [2, 3, 1, 0] # top, left, right, bottom(front of rack)
 	for owner_idx in render_order:
 		var zone: Rect2 = zones.get(owner_idx, Rect2(4.0, 4.0, max_w - 8.0, max_h - 8.0))
-		var chip_w: float = clamp(_slot_size.x * 0.70, 30.0, 44.0)
-		var chip_h: float = clamp(_slot_size.y * 0.70, 42.0, 58.0)
-		var panel_h: float = chip_h + 8.0
+		var owner_scale: float = 1.0 if owner_idx == 0 else 0.85
+		var chip_w: float = base_chip_w * owner_scale
+		var chip_h: float = base_chip_h * owner_scale
+		var tile_zoom: float = 0.88 * owner_scale
+		var panel_h: float = chip_h + 8.0 * owner_scale
+		var panel_pad: float = 16.0 * owner_scale
+		var tile_sep: float = 2.0 * owner_scale
+		var meld_sep: float = 8.0 * owner_scale
+		var row_sep: float = 6.0 * owner_scale
 		var meld_indices: Array = by_owner.get(owner_idx, [])
 		if meld_indices.is_empty():
 			continue
@@ -1784,8 +1792,8 @@ func _render_melds() -> void:
 		for meld_index in meld_indices:
 			var meld_obj = _controller.state.table_melds[int(meld_index)]
 			var tile_count: int = int(meld_obj.tiles.size())
-			var width: float = 16.0 + float(max(1, tile_count)) * (chip_w + 2.0)
-			var add_w: float = width if cur_row.is_empty() else width + 8.0
+			var width: float = panel_pad + float(max(1, tile_count)) * (chip_w + tile_sep)
+			var add_w: float = width if cur_row.is_empty() else width + meld_sep
 			if not cur_row.is_empty() and cur_w + add_w > zone.size.x:
 				rows.append({"items": cur_row, "width": cur_w})
 				cur_row = []
@@ -1839,14 +1847,14 @@ func _render_melds() -> void:
 					var tile_chip: OkeyTile = OKEY_TILE_SCENE.instantiate()
 					tile_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 					tile_chip.setup(tile_obj, -1)
-					tile_chip.set_zoom(0.88)
+					tile_chip.set_zoom(tile_zoom)
 					tile_chip.set_selected(false)
 					row.add_child(tile_chip)
 
 				_meld_island.add_child(panel)
 				_meld_clusters.append(panel)
-				x += width + 8.0
-			y += panel_h + 6.0
+				x += width + meld_sep
+			y += panel_h + row_sep
 
 func _find_meld_cluster(global_pos: Vector2) -> int:
 	for cluster in _meld_clusters:
@@ -1857,14 +1865,18 @@ func _find_meld_cluster(global_pos: Vector2) -> int:
 	return -1
 
 func _meld_owner_for_render(meld: Meld) -> int:
+	var fallback_owner: int = 2
 	if meld == null:
-		return 2
+		return fallback_owner
 	var meld_owner: int = int(meld.owner_index)
-	if meld_owner < 0:
-		return 2
-	if _controller.state != null and meld_owner >= _controller.state.players.size():
-		return 2
-	return meld_owner
+	var player_count: int = 4
+	if _controller != null and _controller.state != null:
+		player_count = maxi(1, _controller.state.players.size())
+	if meld_owner < 0 or meld_owner >= player_count:
+		return fallback_owner
+	# StateCodec snapshots already project owners into local view space.
+	# Keep this value as-is and only normalize to a render lane index.
+	return meld_owner % 4
 
 
 # ═══════════════════════════════════════════
