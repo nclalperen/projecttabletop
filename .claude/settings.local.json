@@ -28,7 +28,13 @@
       "Bash(cmd /c \"cd /d C:\\\\Users\\\\Alperen\\\\Desktop\\\\project101 && .\\\\tools\\\\godot.cmd --headless --path . -s res://tests/run_tests.gd\")",
       "Bash(powershell:*)",
       "Bash(python3:*)",
-      "Bash(unzip:*)"
+      "Bash(unzip:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(sort:*)",
+      "Bash(./tools/godot.cmd:*)",
+      "Bash(\"C:\\\\Users\\\\blade16\\\\OneDrive\\\\Desktop\\\\Godot\\\\Godot_v4.6.1-stable_win64_console.exe\" --headless --path \"c:/projects/project101\" -s res://tests/run_tests.gd)",
+      "Bash(\"C:\\\\Users\\\\blade16\\\\OneDrive\\\\Desktop\\\\Godot\\\\Godot_v4.6.1-stable_win64_console.exe\" --headless --path \"c:/projects/project101\" --quit)"
     ]
   }
 }

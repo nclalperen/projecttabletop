@@ -1,0 +1,19 @@
+[remap]
+
+importer="oggvorbisstr"
+type="AudioStreamOggVorbis"
+uid="uid://ky52komaqu52"
+path="res://.godot/imported/error_007.ogg-7ce328c3b1caa80601e75a9265d708db.oggvorbisstr"
+
+[deps]
+
+source_file="res://cc0 assets/kenney_interface-sounds/Audio/error_007.ogg"
+dest_files=["res://.godot/imported/error_007.ogg-7ce328c3b1caa80601e75a9265d708db.oggvorbisstr"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4
