@@ -2,9 +2,9 @@ extends RefCounted
 
 const REGISTRY_PATH: String = "res://docs/ASSET_LICENSES.md"
 const RUNTIME_ASSET_PATHS: PackedStringArray = [
-	"res://assets/cloth-texture.png",
-	"res://assets/rack.glb",
-	"res://assets/tiles_library.glb",
+	"res://uassets/gameplay/3d/textures/cloth-texture.png",
+	"res://uassets/gameplay/3d/models/rack.glb",
+	"res://uassets/gameplay/3d/models/tiles_library.glb",
 ]
 
 

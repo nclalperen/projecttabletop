@@ -5,6 +5,8 @@ const TEST_SCRIPTS = [
 	"res://tests/test_action_surface.gd",
 	"res://tests/test_rule_config_schema.gd",
 	"res://tests/test_asset_license_registry.gd",
+	"res://tests/test_asset_registry_resolves.gd",
+	"res://tests/test_no_direct_asset_literals.gd",
 	"res://tests/test_game_setup.gd",
 	"res://tests/test_dealer_rotation.gd",
 	"res://tests/test_turn_loop.gd",
