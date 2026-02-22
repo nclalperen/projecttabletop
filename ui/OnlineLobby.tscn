@@ -1,6 +1,38 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=7 format=3]
 
-[ext_resource type="Script" path="res://ui/OnlineLobby.gd" id="1_8xg8j"]
+[ext_resource type="Script" path="res://ui/OnlineLobby.gd" id="1_lobby"]
+[ext_resource type="Theme" path="res://ui/themes/okey_theme_kenney.tres" id="2_theme"]
+[ext_resource type="PackedScene" path="res://ui/widgets/IconTextButton.tscn" id="3_btn"]
+
+[sub_resource type="StyleBoxFlat" id="1_card_style"]
+bg_color = Color(0.09, 0.27, 0.33, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.89, 0.72, 0.37, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0, 0, 0, 0.32)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="2_roster_style"]
+bg_color = Color(0.05, 0.16, 0.22, 0.46)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.84, 0.92, 0.98, 0.2)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+content_margin_left = 10
+content_margin_top = 10
+content_margin_right = 10
+content_margin_bottom = 10
 
 [node name="OnlineLobby" type="Control"]
 layout_mode = 3
@@ -9,7 +41,26 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_8xg8j")
+theme = ExtResource("2_theme")
+script = ExtResource("1_lobby")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+modulate = Color(0.28, 0.46, 0.53, 0.22)
+expand_mode = 1
+stretch_mode = 4
+mouse_filter = 2
+
+[node name="BackdropTint" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.03, 0.08, 0.1, 0.72)
 
 [node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 1
@@ -18,54 +69,112 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 24
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 22
 
-[node name="VBox" type="VBoxContainer" parent="Margin"]
+[node name="RootCard" type="PanelContainer" parent="Margin"]
 layout_mode = 2
-theme_override_constants/separation = 12
+custom_minimum_size = Vector2(1200, 760)
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_styles/panel = SubResource("1_card_style")
 
-[node name="Title" type="Label" parent="Margin/VBox"]
+[node name="CardMargin" type="MarginContainer" parent="Margin/RootCard"]
 layout_mode = 2
-text = "Online Lobby (EOS)"
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="Margin/RootCard/CardMargin"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
+layout_mode = 2
+text = "Online Lobby"
 horizontal_alignment = 1
+theme_override_font_sizes/font_size = 36
+theme_override_colors/font_color = Color(0.95, 0.98, 1, 1)
 
-[node name="Status" type="Label" parent="Margin/VBox"]
+[node name="Status" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
 layout_mode = 2
 text = "Initializing online services..."
 autowrap_mode = 2
+theme_override_font_sizes/font_size = 16
 
-[node name="Buttons" type="HBoxContainer" parent="Margin/VBox"]
+[node name="Buttons" type="GridContainer" parent="Margin/RootCard/CardMargin/VBox"]
+layout_mode = 2
+columns = 3
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 10
+
+[node name="LoginBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
+layout_mode = 2
+text = "Login"
+button_label = "Login"
+
+[node name="QuickBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
+layout_mode = 2
+text = "Quick Match"
+button_label = "Quick Match"
+
+[node name="PrivateBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
+layout_mode = 2
+text = "Private"
+button_label = "Private"
+
+[node name="ReadyBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
+layout_mode = 2
+text = "Ready"
+button_label = "Ready"
+
+[node name="StartBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
+layout_mode = 2
+text = "Start"
+button_label = "Start"
+
+[node name="BackBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
+layout_mode = 2
+text = "Back"
+button_label = "Back"
+
+[node name="RosterHeader" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
+layout_mode = 2
+text = "Players In Lobby"
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.91, 0.96, 1, 0.96)
+
+[node name="RosterScroll" type="ScrollContainer" parent="Margin/RootCard/CardMargin/VBox"]
+custom_minimum_size = Vector2(0, 320)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+theme_override_styles/panel = SubResource("2_roster_style")
+
+[node name="RosterList" type="VBoxContainer" parent="Margin/RootCard/CardMargin/VBox/RosterScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="PromptStrip" type="FlowContainer" parent="Margin/RootCard/CardMargin/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="LoginBtn" type="Button" parent="Margin/VBox/Buttons"]
+[node name="EmoteRow" type="HBoxContainer" parent="Margin/RootCard/CardMargin/VBox"]
 layout_mode = 2
-text = "Login"
+theme_override_constants/separation = 8
 
-[node name="QuickBtn" type="Button" parent="Margin/VBox/Buttons"]
+[node name="EmoteLabel" type="Label" parent="Margin/RootCard/CardMargin/VBox/EmoteRow"]
 layout_mode = 2
-text = "Quick Match"
+text = "Lobby Emotes"
+custom_minimum_size = Vector2(120, 0)
+theme_override_colors/font_color = Color(0.95, 0.97, 1, 0.92)
 
-[node name="PrivateBtn" type="Button" parent="Margin/VBox/Buttons"]
+[node name="EmoteButtons" type="FlowContainer" parent="Margin/RootCard/CardMargin/VBox/EmoteRow"]
 layout_mode = 2
-text = "Private"
-
-[node name="ReadyBtn" type="Button" parent="Margin/VBox/Buttons"]
-layout_mode = 2
-text = "Ready"
-
-[node name="StartBtn" type="Button" parent="Margin/VBox/Buttons"]
-layout_mode = 2
-text = "Start"
-
-[node name="BackBtn" type="Button" parent="Margin/VBox/Buttons"]
-layout_mode = 2
-text = "Back"
-
-[node name="Roster" type="ItemList" parent="Margin/VBox"]
-custom_minimum_size = Vector2(0, 260)
-layout_mode = 2
-allow_reselect = true
+size_flags_horizontal = 3
+theme_override_constants/separation = 6

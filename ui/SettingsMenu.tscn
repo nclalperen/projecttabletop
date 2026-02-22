@@ -1,6 +1,42 @@
-[gd_scene format=3 uid="uid://b7v4yq2x2gfu4"]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://ui/SettingsMenu.gd" id="1_f5w2f"]
+[ext_resource type="Theme" path="res://ui/themes/okey_theme_kenney.tres" id="2_theme"]
+[ext_resource type="PackedScene" path="res://ui/widgets/IconTextButton.tscn" id="3_btn"]
+
+[sub_resource type="StyleBoxFlat" id="1_panel_style"]
+bg_color = Color(0.09, 0.27, 0.33, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.89, 0.72, 0.37, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0, 0, 0, 0.32)
+shadow_size = 6
+content_margin_left = 14
+content_margin_top = 12
+content_margin_right = 14
+content_margin_bottom = 12
+
+[sub_resource type="StyleBoxFlat" id="2_scroll_style"]
+bg_color = Color(0.05, 0.16, 0.22, 0.42)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.86, 0.93, 0.98, 0.22)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+content_margin_left = 12
+content_margin_top = 10
+content_margin_right = 12
+content_margin_bottom = 10
 
 [node name="SettingsMenu" type="Control"]
 layout_mode = 3
@@ -9,7 +45,26 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("2_theme")
 script = ExtResource("1_f5w2f")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+modulate = Color(0.28, 0.47, 0.53, 0.22)
+expand_mode = 1
+stretch_mode = 4
+mouse_filter = 2
+
+[node name="BackdropTint" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.03, 0.08, 0.1, 0.72)
 
 [node name="Panel" type="Panel" parent="."]
 layout_mode = 1
@@ -18,12 +73,13 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -300.0
-offset_top = -200.0
-offset_right = 300.0
-offset_bottom = 200.0
+offset_left = -390.0
+offset_top = -280.0
+offset_right = 390.0
+offset_bottom = 280.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_styles/panel = SubResource("1_panel_style")
 
 [node name="MarginContainer" type="MarginContainer" parent="Panel"]
 layout_mode = 1
@@ -32,33 +88,37 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 10
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 18
 
 [node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
 [node name="Label" type="Label" parent="Panel/MarginContainer/VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "Game Settings"
 horizontal_alignment = 1
+theme_override_font_sizes/font_size = 34
+theme_override_colors/font_color = Color(0.95, 0.98, 1, 1)
 
 [node name="HSeparator" type="HSeparator" parent="Panel/MarginContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_constants/separation = 20
 
 [node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
+theme_override_styles/panel = SubResource("2_scroll_style")
 
 [node name="SettingsList" type="VBoxContainer" parent="Panel/MarginContainer/VBoxContainer/ScrollContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+theme_override_constants/separation = 8
 
 [node name="InitialOpenPoints" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList"]
 layout_mode = 2
@@ -130,19 +190,25 @@ step = 1.0
 value = 7.0
 rounded = true
 
+[node name="PromptStrip" type="FlowContainer" parent="Panel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
 [node name="HSeparator2" type="HSeparator" parent="Panel/MarginContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_constants/separation = 20
 
 [node name="ButtonContainer" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
 alignment = 1
+theme_override_constants/separation = 12
 
-[node name="SaveButton" type="Button" parent="Panel/MarginContainer/VBoxContainer/ButtonContainer"]
+[node name="SaveButton" parent="Panel/MarginContainer/VBoxContainer/ButtonContainer" instance=ExtResource("3_btn")]
 layout_mode = 2
 text = "Save"
+button_label = "Save"
 
-[node name="CancelButton" type="Button" parent="Panel/MarginContainer/VBoxContainer/ButtonContainer"]
+[node name="CancelButton" parent="Panel/MarginContainer/VBoxContainer/ButtonContainer" instance=ExtResource("3_btn")]
 layout_mode = 2
 text = "Cancel"
+button_label = "Cancel"

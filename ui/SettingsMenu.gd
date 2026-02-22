@@ -7,16 +7,31 @@ signal cancelled
 
 const UI_SETTINGS_SCRIPT: Script = preload("res://ui/services/UISettings.gd")
 const VISUAL_QUALITY_SCRIPT: Script = preload("res://ui/services/VisualQualityService.gd")
+const MENU_AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/MenuAudioService.gd")
+const PROMPT_BADGE_SCENE: PackedScene = preload("res://ui/widgets/InputPromptBadge.tscn")
+const KENNEY_ASSET_LOADER: Script = preload("res://ui/services/KenneyAssetLoader.gd")
 
+const FONT_MAIN_PATH := "res://Kenney_c0/kenney_ui-pack/Font/Kenney Future.ttf"
+const PANEL_BORDER_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/panel_border_grey_detail.png"
+const PANEL_FILL_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/panel_grey_dark.png"
+const PANEL_GRID_PATH := "res://Kenney_c0/kenney_ui-pack-adventure/PNG/Default/pattern_diagonal_transparent_small.png"
+const ICON_SAVE_PATH := "res://Kenney_c0/kenney_game-icons/PNG/White/1x/checkmark.png"
+const ICON_CANCEL_PATH := "res://Kenney_c0/kenney_game-icons/PNG/White/1x/return.png"
+const PROMPT_ENTER_PATH := "res://Kenney_c0/kenney_input-prompts-pixel-16/Tiles/tile_0133.png"
+const PROMPT_ESC_PATH := "res://Kenney_c0/kenney_input-prompts-pixel-16/Tiles/tile_0017.png"
+
+@onready var _background: TextureRect = $Background
+@onready var _panel: Panel = $Panel
 @onready var settings_list = $Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList
 @onready var initial_open_points = $Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/InitialOpenPoints/Value
 @onready var allow_five_pairs_open = $Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/AllowFivePairsOpen/Value
 @onready var turn_timer = $Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/TurnTimer/Value
 @onready var match_end_condition = $Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/MatchEndCondition/Value
 @onready var match_end_value = $Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/MatchEndValue/Value
+@onready var _prompt_strip: Container = $Panel/MarginContainer/VBoxContainer/PromptStrip
 
-@onready var save_button = $Panel/MarginContainer/VBoxContainer/ButtonContainer/SaveButton
-@onready var cancel_button = $Panel/MarginContainer/VBoxContainer/ButtonContainer/CancelButton
+@onready var save_button: Button = $Panel/MarginContainer/VBoxContainer/ButtonContainer/SaveButton
+@onready var cancel_button: Button = $Panel/MarginContainer/VBoxContainer/ButtonContainer/CancelButton
 
 var _config: RuleConfig
 var _ui_settings = null
@@ -28,36 +43,236 @@ var _ssao_quality_option: OptionButton = null
 var _ssr_enabled_check: CheckBox = null
 var _resolution_scale_spin: SpinBox = null
 var _postfx_strength_spin: SpinBox = null
+var _menu_audio = null
 
 func _ready():
+	if _menu_audio == null:
+		_menu_audio = MENU_AUDIO_SERVICE_SCRIPT.new()
+		_menu_audio.name = "MenuAudioService"
+		add_child(_menu_audio)
+
 	_ui_settings = UI_SETTINGS_SCRIPT.load_from_disk()
 	_ensure_visual_rows()
 	_ensure_audio_rows()
+	_apply_kenney_fonts()
+	_apply_form_skin()
+	_apply_background_pattern()
+	_apply_panel_shell()
+	_apply_button_icons()
+	_build_prompt_strip()
+	_bind_audio_feedback()
+	_apply_responsive_layout()
+
 	save_button.pressed.connect(_on_save_pressed)
 	cancel_button.pressed.connect(_on_cancel_pressed)
-	
+
 	match_end_condition.add_item("Rounds", 0)
 	match_end_condition.add_item("Target Score", 1)
 	if _config != null:
 		load_config()
 
+
+func _apply_button_icons() -> void:
+	_set_icon_button(save_button, _texture(ICON_SAVE_PATH), "Save", 0)
+	_set_icon_button(cancel_button, _texture(ICON_CANCEL_PATH), "Cancel", 1)
+
+
+func _set_icon_button(button: Button, texture: Texture2D, label_text: String, variant: int = 0) -> void:
+	if button == null:
+		return
+	button.text = label_text
+	button.icon = texture
+	if _has_property(button, "button_label"):
+		button.set("button_label", label_text)
+	if _has_property(button, "icon_texture"):
+		button.set("icon_texture", texture)
+	if _has_property(button, "style_variant"):
+		button.set("style_variant", variant)
+
+
+func _has_property(target: Object, property_name: String) -> bool:
+	for entry in target.get_property_list():
+		if String(entry.get("name", "")) == property_name:
+			return true
+	return false
+
+
+func _texture(path: String) -> Texture2D:
+	return KENNEY_ASSET_LOADER.texture(path)
+
+
+func _apply_kenney_fonts() -> void:
+	var main_font: FontFile = KENNEY_ASSET_LOADER.font(FONT_MAIN_PATH)
+	if main_font != null:
+		var title: Label = $Panel/MarginContainer/VBoxContainer/Label
+		title.add_theme_font_override("font", main_font)
+		title.add_theme_font_size_override("font_size", 46)
+		save_button.add_theme_font_override("font", main_font)
+		cancel_button.add_theme_font_override("font", main_font)
+	for label in settings_list.find_children("*", "Label", true, false):
+		var item: Label = label as Label
+		if item == null:
+			continue
+		var is_header: bool = item.name == "VisualLabel"
+		item.add_theme_font_size_override("font_size", 21 if is_header else 19)
+		item.add_theme_color_override("font_color", Color(0.94, 0.97, 1.0, 0.97) if is_header else Color(0.87, 0.94, 0.98, 0.96))
+
+
+func _apply_background_pattern() -> void:
+	if _background != null:
+		_background.texture = _texture(PANEL_GRID_PATH)
+		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		_background.stretch_mode = TextureRect.STRETCH_TILE
+		_background.modulate = Color(0.16, 0.25, 0.3, 0.74)
+
+
+func _apply_panel_shell() -> void:
+	if _panel == null:
+		return
+	var panel_tex: Texture2D = _texture(PANEL_FILL_PATH)
+	if panel_tex != null:
+		var panel_style := StyleBoxTexture.new()
+		panel_style.texture = panel_tex
+		panel_style.modulate_color = Color(0.55, 0.67, 0.76, 0.97)
+		panel_style.texture_margin_left = 12.0
+		panel_style.texture_margin_top = 12.0
+		panel_style.texture_margin_right = 12.0
+		panel_style.texture_margin_bottom = 12.0
+		panel_style.content_margin_left = 14.0
+		panel_style.content_margin_top = 12.0
+		panel_style.content_margin_right = 14.0
+		panel_style.content_margin_bottom = 12.0
+		_panel.add_theme_stylebox_override("panel", panel_style)
+
+	var border_tex: Texture2D = _texture(PANEL_BORDER_PATH)
+	if border_tex == null:
+		return
+	var border := _panel.get_node_or_null("KenneyBorder") as NinePatchRect
+	if border == null:
+		border = NinePatchRect.new()
+		border.name = "KenneyBorder"
+		border.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		border.draw_center = false
+		border.anchor_right = 1.0
+		border.anchor_bottom = 1.0
+		border.patch_margin_left = 12
+		border.patch_margin_top = 12
+		border.patch_margin_right = 12
+		border.patch_margin_bottom = 12
+		_panel.add_child(border)
+	border.texture = border_tex
+
+
+func _apply_form_skin() -> void:
+	var field_normal := StyleBoxFlat.new()
+	field_normal.bg_color = Color(0.08, 0.2, 0.26, 0.92)
+	field_normal.border_width_left = 2
+	field_normal.border_width_top = 2
+	field_normal.border_width_right = 2
+	field_normal.border_width_bottom = 2
+	field_normal.border_color = Color(0.88, 0.74, 0.45, 0.9)
+	field_normal.corner_radius_top_left = 10
+	field_normal.corner_radius_top_right = 10
+	field_normal.corner_radius_bottom_right = 10
+	field_normal.corner_radius_bottom_left = 10
+	field_normal.content_margin_left = 10
+	field_normal.content_margin_top = 6
+	field_normal.content_margin_right = 10
+	field_normal.content_margin_bottom = 6
+
+	var field_focus := field_normal.duplicate() as StyleBoxFlat
+	field_focus.border_color = Color(0.98, 0.88, 0.57, 1.0)
+	field_focus.shadow_color = Color(0, 0, 0, 0.25)
+	field_focus.shadow_size = 3
+
+	for node in settings_list.find_children("*", "OptionButton", true, false):
+		var opt: OptionButton = node as OptionButton
+		if opt == null:
+			continue
+		opt.custom_minimum_size = Vector2(220, 42)
+		opt.add_theme_stylebox_override("normal", field_normal)
+		opt.add_theme_stylebox_override("hover", field_focus)
+		opt.add_theme_stylebox_override("pressed", field_focus)
+		opt.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0, 1.0))
+		opt.add_theme_color_override("font_hover_color", Color(1.0, 0.97, 0.8, 1.0))
+		opt.add_theme_color_override("font_pressed_color", Color(1.0, 0.97, 0.8, 1.0))
+
+	for node in settings_list.find_children("*", "SpinBox", true, false):
+		var spin: SpinBox = node as SpinBox
+		if spin == null:
+			continue
+		spin.custom_minimum_size = Vector2(120, 40)
+		var line: LineEdit = spin.get_line_edit()
+		if line != null:
+			line.add_theme_stylebox_override("normal", field_normal)
+			line.add_theme_stylebox_override("focus", field_focus)
+			line.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0, 1.0))
+			line.add_theme_color_override("font_placeholder_color", Color(0.75, 0.85, 0.92, 0.75))
+			line.add_theme_font_size_override("font_size", 19)
+			line.alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	for node in settings_list.find_children("*", "CheckBox", true, false):
+		var check: CheckBox = node as CheckBox
+		if check == null:
+			continue
+		check.add_theme_color_override("font_color", Color(0.96, 0.97, 0.99, 0.96))
+		check.add_theme_color_override("font_hover_color", Color(1.0, 0.97, 0.8, 1.0))
+		check.add_theme_font_size_override("font_size", 18)
+		check.custom_minimum_size = Vector2(68, 40)
+
+
+func _build_prompt_strip() -> void:
+	for child in _prompt_strip.get_children():
+		child.queue_free()
+	var prompts: Array[Dictionary] = [
+		{"icon": _texture(PROMPT_ENTER_PATH), "text": "ENTER Save"},
+		{"icon": _texture(PROMPT_ESC_PATH), "text": "ESC Cancel"},
+	]
+	for entry in prompts:
+		var badge: Node = PROMPT_BADGE_SCENE.instantiate()
+		_prompt_strip.add_child(badge)
+		if badge.has_method("configure"):
+			badge.call("configure", entry.get("icon", null), String(entry.get("text", "")))
+
+
+func _bind_audio_feedback() -> void:
+	for button in [save_button, cancel_button]:
+		if button == null:
+			continue
+		button.mouse_entered.connect(_on_settings_button_hover.bind(button))
+	match_end_condition.item_selected.connect(func(_idx: int) -> void:
+		if _menu_audio != null:
+			_menu_audio.play_toggle()
+	)
+	allow_five_pairs_open.toggled.connect(func(_pressed: bool) -> void:
+		if _menu_audio != null:
+			_menu_audio.play_toggle()
+	)
+
+
+func _on_settings_button_hover(_button: Button) -> void:
+	if _menu_audio != null:
+		_menu_audio.play_hover()
+
+
 func set_config(config: RuleConfig):
 	_config = config
 	load_config()
 
+
 func load_config():
 	if not _config:
 		return
-	
+
 	initial_open_points.value = _config.open_min_points_initial
 	allow_five_pairs_open.button_pressed = _config.allow_open_by_five_pairs
 	turn_timer.value = _config.timer_seconds
-	
+
 	if _config.match_end_mode == "rounds":
 		match_end_condition.select(0)
 	else:
 		match_end_condition.select(1)
-	
+
 	match_end_value.value = _config.match_end_value
 	if _sfx_volume_spin != null and _ui_settings != null:
 		_sfx_volume_spin.value = round(float(_ui_settings.get("sfx_volume", 0.82)) * 100.0)
@@ -65,19 +280,20 @@ func load_config():
 		_music_volume_spin.value = round(float(_ui_settings.get("music_volume", 0.30)) * 100.0)
 	_sync_visual_controls_from_settings()
 
+
 func save_config():
 	if not _config:
 		return
-	
+
 	_config.open_min_points_initial = initial_open_points.value
 	_config.allow_open_by_five_pairs = allow_five_pairs_open.button_pressed
 	_config.timer_seconds = turn_timer.value
-	
+
 	if match_end_condition.selected == 0:
 		_config.match_end_mode = "rounds"
 	else:
 		_config.match_end_mode = "target_score"
-		
+
 	_config.match_end_value = match_end_value.value
 	if _ui_settings != null:
 		var sfx_volume: float = clampf(float(_sfx_volume_spin.value) / 100.0, 0.0, 1.0) if _sfx_volume_spin != null else 0.82
@@ -89,14 +305,25 @@ func save_config():
 		for key in visual_settings.keys():
 			_ui_settings[key] = visual_settings[key]
 
+
 func _on_save_pressed():
+	if _menu_audio != null:
+		_menu_audio.play_confirm()
 	save_config()
 	emit_signal("settings_changed", _config)
 	queue_free()
 
+
 func _on_cancel_pressed():
+	if _menu_audio != null:
+		_menu_audio.play_back()
 	emit_signal("cancelled")
 	queue_free()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		_apply_responsive_layout()
 
 
 func _ensure_audio_rows() -> void:
@@ -216,6 +443,7 @@ func _collect_visual_settings_from_controls() -> Dictionary:
 func _build_percent_row(label_text: String) -> Dictionary:
 	var row := HBoxContainer.new()
 	row.name = label_text.replace(" ", "")
+	row.add_theme_constant_override("separation", 12)
 	var lbl := Label.new()
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.text = label_text
@@ -227,7 +455,7 @@ func _build_percent_row(label_text: String) -> Dictionary:
 	spin.step = 1.0
 	spin.rounded = true
 	spin.value = 100.0
-	spin.custom_minimum_size = Vector2(100, 0)
+	spin.custom_minimum_size = Vector2(120, 0)
 	spin.suffix = "%"
 	row.add_child(spin)
 	return {"row": row, "spin": spin}
@@ -236,6 +464,7 @@ func _build_percent_row(label_text: String) -> Dictionary:
 func _build_option_row(label_text: String, items: Array) -> Dictionary:
 	var row := HBoxContainer.new()
 	row.name = label_text.replace(" ", "")
+	row.add_theme_constant_override("separation", 12)
 	var lbl := Label.new()
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.text = label_text
@@ -255,6 +484,7 @@ func _build_option_row(label_text: String, items: Array) -> Dictionary:
 func _build_toggle_row(label_text: String) -> Dictionary:
 	var row := HBoxContainer.new()
 	row.name = label_text.replace(" ", "")
+	row.add_theme_constant_override("separation", 12)
 	var lbl := Label.new()
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.text = label_text
@@ -284,3 +514,13 @@ func _select_option_by_id(opt: OptionButton, target) -> void:
 			return
 	if opt.get_item_count() > 0:
 		opt.select(0)
+
+
+func _apply_responsive_layout() -> void:
+	if _panel == null:
+		return
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var width: float = clampf(viewport_size.x - 64.0, 380.0, 930.0)
+	var height: float = clampf(viewport_size.y - 72.0, 440.0, 700.0)
+	_panel.size = Vector2(width, height)
+	_panel.position = (viewport_size - _panel.size) * 0.5

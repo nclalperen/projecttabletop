@@ -1,0 +1,78 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ui/widgets/LobbyPlayerChip.gd" id="1_chip"]
+
+[sub_resource type="StyleBoxFlat" id="1_chip_style"]
+bg_color = Color(0.07, 0.2, 0.26, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.94, 0.78, 0.43, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+shadow_color = Color(0, 0, 0, 0.2)
+shadow_size = 3
+content_margin_left = 10
+content_margin_top = 8
+content_margin_right = 10
+content_margin_bottom = 8
+
+[node name="LobbyPlayerChip" type="PanelContainer"]
+custom_minimum_size = Vector2(0, 74)
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("1_chip_style")
+script = ExtResource("1_chip")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+
+[node name="HBox" type="HBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Avatar" type="TextureRect" parent="Margin/HBox"]
+custom_minimum_size = Vector2(52, 52)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Info" type="VBoxContainer" parent="Margin/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Name" type="Label" parent="Margin/HBox/Info"]
+layout_mode = 2
+text = "Player"
+theme_override_font_sizes/font_size = 18
+
+[node name="Meta" type="Label" parent="Margin/HBox/Info"]
+layout_mode = 2
+text = "Seat 0 | OK"
+theme_override_colors/font_color = Color(0.75, 0.87, 0.93, 1)
+theme_override_font_sizes/font_size = 15
+
+[node name="Badges" type="HBoxContainer" parent="Margin/HBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="HostIcon" type="TextureRect" parent="Margin/HBox/Badges"]
+custom_minimum_size = Vector2(22, 22)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+visible = false
+
+[node name="ReadyIcon" type="TextureRect" parent="Margin/HBox/Badges"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ReadyLabel" type="Label" parent="Margin/HBox/Badges"]
+layout_mode = 2
+text = "Waiting"
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 15
