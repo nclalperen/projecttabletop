@@ -43,12 +43,23 @@ const TEST_SCRIPTS = [
 	"res://tests/test_match_end_rounds_mode.gd",
 	"res://tests/test_match_end_target_score_mode.gd",
 	"res://tests/test_api_envelope_translation.gd",
+	"res://tests/test_seat_view_adapter.gd",
+	"res://tests/test_state_codec_redaction.gd",
+	"res://tests/test_protocol_schema.gd",
+	"res://tests/test_online_service_backend_modes.gd",
+	"res://tests/test_lobby_service_model_contract.gd",
+	"res://tests/test_transport_envelope_runtime_guard.gd",
+	"res://tests/test_host_action_authority.gd",
+	"res://tests/test_reconnect_bot_takeover.gd",
+	"res://tests/test_client_controller_envelope_translation.gd",
 	"res://tests/test_ui_scene_contract.gd",
 	"res://tests/test_ui_gametable3d_scene_contract.gd",
 	"res://tests/test_ui_no_legacy_controls.gd",
 	"res://tests/test_ui_settings_visual.gd",
 	"res://tests/test_local_controller.gd",
 	"res://tests/test_legacy_paths_removed.gd",
+	"res://tests/test_table_geometry_constants.gd",
+	"res://tests/test_rack_slot_manager.gd",
 ]
 
 func _init() -> void:

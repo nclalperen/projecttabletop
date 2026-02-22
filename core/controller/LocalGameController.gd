@@ -1,13 +1,6 @@
-extends Node
+extends "res://core/controller/MatchControllerPort.gd"
 class_name LocalGameController
 
-signal state_changed(new_state)
-signal action_rejected(reason)
-signal action_applied(player_index, action_type)
-signal turn_advanced(current_player_index, phase)
-signal match_finished(winner_indices, final_scores, reason)
-
-var state
 var show_tips: bool = true
 
 func start_new_round(rule_config: RuleConfig, rng_seed: int, player_count: int = 4) -> void:

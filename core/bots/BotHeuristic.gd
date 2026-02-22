@@ -152,24 +152,118 @@ func _try_open(player, state):
 				return Action.new(Action.ActionType.OPEN_MELDS, {"melds": melds})
 			return null
 
+	var exhaustive_action = _try_open_exhaustive(player, state)
+	if exhaustive_action != null:
+		return exhaustive_action
+
 	return null
 
-func _should_open(points: int, state, player) -> bool:
-	if points >= 130:
-		return true
-	var penalty = _estimate_hand_penalty(state, player)
-	return penalty >= 60
+func _should_open(points: int, state, _player) -> bool:
+	var min_points: int = 101
+	if state != null and state.rule_config != null:
+		min_points = int(state.rule_config.open_min_points_initial)
+	if points < min_points:
+		return false
+	# Open as soon as legal; previous conservative gating made bots appear inert.
+	return true
 
-func _estimate_hand_penalty(state, player) -> int:
-	var sum = 0
-	for t in player.hand:
-		if state.okey_context.is_real_okey(t):
-			sum += 101
-		elif t.kind == t.Kind.FAKE_OKEY:
-			sum += int(state.okey_context.okey_number)
-		else:
-			sum += t.number
-	return sum
+func _try_open_exhaustive(player, state):
+	if player == null or state == null:
+		return null
+	var hand: Array = player.hand
+	if hand.size() < 3:
+		return null
+	var min_points: int = 101
+	if state.rule_config != null:
+		min_points = int(state.rule_config.open_min_points_initial)
+	var candidates: Array = _collect_open_candidates_all(hand, state.okey_context)
+	if candidates.is_empty():
+		return null
+	candidates.sort_custom(func(a, b): return int(a.get("points", 0)) > int(b.get("points", 0)))
+	var suffix_max: Array = []
+	suffix_max.resize(candidates.size() + 1)
+	suffix_max[candidates.size()] = 0
+	for i in range(candidates.size() - 1, -1, -1):
+		suffix_max[i] = int(suffix_max[i + 1]) + int(candidates[i].get("points", 0))
+	var picked: Array = []
+	if not _search_open_combo_all(candidates, 0, 0, 0, min_points, suffix_max, picked):
+		return null
+	var melds: Array = []
+	for entry in picked:
+		melds.append({"kind": int(entry.get("kind", -1)), "tile_ids": entry.get("tile_ids", []).duplicate()})
+	if melds.is_empty():
+		return null
+	return Action.new(Action.ActionType.OPEN_MELDS, {"melds": melds, "open_by_pairs": false})
+
+func _collect_open_candidates_all(hand: Array, okey_context) -> Array:
+	var out: Array = []
+	if hand.is_empty():
+		return out
+	var id_to_idx: Dictionary = {}
+	for i in range(hand.size()):
+		id_to_idx[int(hand[i].unique_id)] = i
+	var validator := MeldValidator.new()
+	for size in range(3, min(6, hand.size()) + 1):
+		var combos: Array = []
+		_collect_index_combos(hand.size(), size, 0, [], combos)
+		for combo in combos:
+			var tiles: Array = []
+			var tile_ids: Array = []
+			for idx in combo:
+				var t = hand[int(idx)]
+				tiles.append(t)
+				tile_ids.append(int(t.unique_id))
+			var run_res: Dictionary = validator.validate_run(tiles, okey_context)
+			if bool(run_res.get("ok", false)):
+				out.append({
+					"kind": Meld.Kind.RUN,
+					"tile_ids": tile_ids,
+					"points": int(run_res.get("points_value", 0)),
+					"mask": _ids_mask_for_open(tile_ids, id_to_idx),
+				})
+			var set_res: Dictionary = validator.validate_set(tiles, okey_context)
+			if bool(set_res.get("ok", false)):
+				out.append({
+					"kind": Meld.Kind.SET,
+					"tile_ids": tile_ids,
+					"points": int(set_res.get("points_value", 0)),
+					"mask": _ids_mask_for_open(tile_ids, id_to_idx),
+				})
+	return out
+
+func _ids_mask_for_open(tile_ids: Array, id_to_idx: Dictionary) -> int:
+	var mask: int = 0
+	for tid in tile_ids:
+		var idx: int = int(id_to_idx.get(int(tid), -1))
+		if idx >= 0 and idx < 31:
+			mask |= (1 << idx)
+	return mask
+
+func _search_open_combo_all(candidates: Array, index: int, used_mask: int, points: int, min_points: int, suffix_max: Array, out_picked: Array) -> bool:
+	if points >= min_points:
+		return true
+	if index >= candidates.size():
+		return false
+	if points + int(suffix_max[index]) < min_points:
+		return false
+	if _search_open_combo_all(candidates, index + 1, used_mask, points, min_points, suffix_max, out_picked):
+		return true
+	var cand: Dictionary = candidates[index]
+	var mask: int = int(cand.get("mask", 0))
+	if (used_mask & mask) == 0:
+		out_picked.append(cand)
+		if _search_open_combo_all(
+			candidates,
+			index + 1,
+			used_mask | mask,
+			points + int(cand.get("points", 0)),
+			min_points,
+			suffix_max,
+			out_picked
+		):
+			return true
+		out_picked.pop_back()
+	return false
 
 func _can_use_discard_tile(state, player, discard_tile) -> bool:
 	if not player.has_opened:

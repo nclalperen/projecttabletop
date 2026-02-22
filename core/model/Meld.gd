@@ -14,6 +14,7 @@ func _init(p_kind: int = Kind.RUN, p_tiles: Array = [], p_tiles_data: Array = []
 	tiles_data = p_tiles_data
 	owner_index = p_owner_index
 
+# Deprecated compatibility shim; retained for external/dynamic callers.
 func min_length() -> int:
 	if kind == Kind.PAIRS:
 		return 2

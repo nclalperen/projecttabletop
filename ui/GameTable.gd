@@ -1,72 +1,12 @@
 extends Control
 
 const OKEY_TILE_SCENE: PackedScene = preload("res://ui/widgets/OkeyTile.tscn")
-const RACK_SLOT_COUNT: int = 30
-const RACK_ROW_SLOTS: int = 15
-const STAGE_SLOT_COUNT: int = 24
-const STAGE_ROW_SLOTS: int = 12
-const DISCARD_ZONE_SIZE: Vector2 = Vector2(66, 90)
-const TOP_BAR_HEIGHT: float = 58.0
-const OUTER_MARGIN: float = 14.0
-const RACK_MIN_HEIGHT: float = 122.0
-const RACK_MAX_HEIGHT: float = 248.0
-const TABLE_MIN_HEIGHT: float = 340.0
-const TABLE_MAX_HEIGHT: float = 980.0
-const TABLE_SIZE_RATIO: float = 0.90
-const FELT_INSET_RATIO: float = 0.111
-const BOTTOM_RACK_GAP: float = 14.0
-const BOTTOM_PADDING: float = 18.0
-const SHOW_TABLE_RAILS: bool = false
-const SHOW_WALL_RING: bool = false
-const PERSPECTIVE_FAR_WIDTH_RATIO: float = 0.76
-const PERSPECTIVE_NEAR_WIDTH_RATIO: float = 0.95
-const PERSPECTIVE_TOP_Y_RATIO: float = 0.12
-const PERSPECTIVE_BOTTOM_Y_RATIO: float = 0.95
-
-# Geometry contract: keep these ratios fixed so board composition remains deterministic.
-const FELT_WIDTH_RATIO: float = 0.86
-const FELT_HEIGHT_RATIO: float = 0.86
-const FELT_MIN_WIDTH: float = 700.0
-const FELT_MIN_HEIGHT: float = 360.0
-const FELT_MIN_SIDE: float = 360.0
-const FELT_SIDE_INSET_MAX: float = 150.0
-const FELT_BOTTOM_INSET_MAX: float = 92.0
-const FELT_TOP_MARGIN_MIN: float = 12.0
-const FELT_BOTTOM_MARGIN_MIN: float = 12.0
-const FELT_VERTICAL_BIAS: float = 0.46
-const MELD_ISLAND_INSET_X: float = 14.0
-const MELD_ISLAND_INSET_TOP: float = 20.0
-const MELD_ISLAND_INSET_BOTTOM: float = 10.0
-const CENTER_ZONE_WIDTH_RATIO: float = 0.20
-const CENTER_ZONE_HEIGHT_RATIO: float = 0.15
-const CENTER_ZONE_MIN_WIDTH: float = 184.0
-const CENTER_ZONE_MAX_WIDTH: float = 286.0
-const CENTER_ZONE_MIN_HEIGHT: float = 70.0
-const CENTER_ZONE_MAX_HEIGHT: float = 104.0
-const CENTER_ZONE_ANCHOR_X: float = 0.58
-const CENTER_ZONE_ANCHOR_Y: float = 0.40
-const OPP_BADGE_SIDE_WIDTH_RATIO: float = 0.16
-const OPP_BADGE_SIDE_HEIGHT_RATIO: float = 0.138
-const OPP_BADGE_SIDE_MIN_WIDTH: float = 170.0
-const OPP_BADGE_SIDE_MAX_WIDTH: float = 238.0
-const OPP_BADGE_SIDE_MIN_HEIGHT: float = 72.0
-const OPP_BADGE_SIDE_MAX_HEIGHT: float = 106.0
-const OPP_BADGE_TOP_WIDTH_RATIO: float = 1.06
-const OPP_BADGE_TOP_HEIGHT_RATIO: float = 0.96
-const OPP_BADGE_SIDE_ANCHOR_T: float = 0.60
-const OPP_BADGE_TOP_MARGIN: float = 12.0
-const DISCARD_ZONE_MARGIN: float = 14.0
-const OPP_3D_SIDE_RACK_ROTATION_DEG: float = 28.0
-const CLOTH_TEXTURE_PATH: String = "res://ai agent docs/assets/cloth-texture.png"
-
-const OPP_COLORS: Array[Color] = [
-	Color(0.65, 0.22, 0.18),  # P1 - reddish
-	Color(0.18, 0.42, 0.65),  # P2 - blue
-	Color(0.55, 0.45, 0.18),  # P3 - amber
-]
-const AMBIENT_PULSE_SPEED: float = 1.35
-const AMBIENT_DRIFT_SPEED: float = 0.58
-const TABLE_GRAIN_LINES: int = 14
+const LOCAL_CONTROLLER_SCRIPT: Script = preload("res://core/controller/LocalGameController.gd")
+const GEO = preload("res://ui/game_table/TableGeometry.gd")
+const TILE_HELPERS = preload("res://ui/game_table/TileHelpers.gd")
+const RACK_SLOT_MANAGER = preload("res://ui/game_table/RackSlotManager.gd")
+const STAGE_MELD_LOGIC = preload("res://ui/game_table/StageMeldLogic.gd")
+const BOARD_RENDERER = preload("res://ui/game_table/BoardRenderer.gd")
 
 # ─── Scene node references ───
 @onready var _top_bar: PanelContainer = $TopBar
@@ -109,23 +49,23 @@ const TABLE_GRAIN_LINES: int = 14
 @onready var _btn_menu: Button = $ActionBar/MenuBtn
 
 # ─── Game logic ───
-var _controller: LocalGameController = LocalGameController.new()
+var _controller = LOCAL_CONTROLLER_SCRIPT.new()
+var _controller_injected_external: bool = false
 var _bot: BotHeuristic = BotHeuristic.new()
 var _bot_fallback: BotRandom = BotRandom.new(7007)
 var _rule_config: RuleConfig = null
-var _game_seed: int = 2001
+var _game_seed: int = -1
 var _player_count: int = 4
+var _slots = RACK_SLOT_MANAGER.new()
+var _stage_logic = STAGE_MELD_LOGIC.new()
 
 # ─── Rack state ───
 var _slot_controls: Array[Control] = []
-var _rack_slots: Array[int] = []
 var _stage_panel: Control = null
 var _stage_row1: HBoxContainer = null
 var _stage_row2: HBoxContainer = null
 var _stage_slot_controls: Array[Control] = []
-var _stage_slots: Array[int] = []
 var _tile_controls: Dictionary = {}
-var _last_tile_id: int = -1
 var _hand_zoom: float = 0.94
 var _slot_size: Vector2 = Vector2(52, 72)
 var _round_index: int = 0
@@ -143,26 +83,7 @@ var _rail_top: Panel = null
 var _rail_left: Panel = null
 var _rail_right: Panel = null
 var _rail_bottom: Panel = null
-var _wall_ring_layer: Control = null
-var _wall_stack_nodes: Array[Panel] = []
-var _board_layer: Node2D = null
-var _board_table_poly: Polygon2D = null
-var _board_table_border: Line2D = null
-var _board_table_spot_poly: Polygon2D = null
-var _board_table_vignette_top: Polygon2D = null
-var _board_table_vignette_bottom: Polygon2D = null
-var _board_table_vignette_left: Polygon2D = null
-var _board_table_vignette_right: Polygon2D = null
-var _table_grain_lines: Array[Line2D] = []
-var _board_shadow_poly: Polygon2D = null
-var _board_outer_poly: Polygon2D = null
-var _board_felt_poly: Polygon2D = null
-var _board_felt_warm_poly: Polygon2D = null
-var _board_felt_sheen_poly: Polygon2D = null
-var _board_felt_depth_poly: Polygon2D = null
-var _board_rim_glow: Line2D = null
-var _board_felt_border: Line2D = null
-var _board_inner_border: Line2D = null
+var _board = null
 var _ambient_time: float = 0.0
 var _draw_card_style: StyleBoxFlat = null
 var _indicator_card_style: StyleBoxFlat = null
@@ -202,14 +123,16 @@ func _ready() -> void:
 	if _presentation_mode != "3d" and get_parent() is SubViewport:
 		_presentation_mode = "3d"
 
-	if SHOW_TABLE_RAILS:
+	if GEO.SHOW_TABLE_RAILS:
 		_create_table_rails()
-	_create_board_geometry()
+	_board = BOARD_RENDERER.new()
+	_board.name = "BoardRenderer"
+	add_child(_board)
+	_board.configure(_table_area)
+	_board.create_board_geometry(GEO.SHOW_TABLE_RAILS, GEO.SHOW_WALL_RING)
 	_apply_felt_style()
 	_apply_art_direction()
 	_create_center_stack_layers()
-	if SHOW_WALL_RING:
-		_create_wall_ring()
 	_create_opponent_areas()
 	_create_my_discard_glow()
 	_create_rack_depth_shell()
@@ -220,9 +143,7 @@ func _ready() -> void:
 	_create_stage_area()
 	_create_round_controls()
 
-	_controller.state_changed.connect(_on_state_changed)
-	_controller.action_rejected.connect(_on_action_rejected)
-	_controller.action_applied.connect(_on_action_applied)
+	_bind_controller_signals()
 
 	_btn_new_round.pressed.connect(_start_round)
 	_btn_menu.pressed.connect(_return_to_main_menu)
@@ -260,7 +181,10 @@ func _ready() -> void:
 
 	get_viewport().size_changed.connect(_apply_responsive_layout)
 	_apply_responsive_layout()
-	_start_round()
+	if not _controller_injected_external:
+		_start_round()
+	else:
+		_render_all()
 
 func set_presentation_mode(mode: String) -> void:
 	_presentation_mode = mode.to_lower()
@@ -316,17 +240,28 @@ func _apply_presentation_mode() -> void:
 # OVERLAY API (used by GameTable3D for 2D overlay rendering)
 # ═══════════════════════════════════════════
 
-func get_controller() -> LocalGameController:
+func inject_controller(controller) -> void:
+	if controller == null:
+		return
+	_unbind_controller_signals()
+	_controller = controller
+	_controller_injected_external = true
+	_bind_controller_signals()
+	_action_in_flight = false
+	if is_inside_tree():
+		_render_all()
+
+func get_controller():
 	return _controller
 
 func get_hand_tiles() -> Array:
 	return _rack_hand()
 
 func get_rack_slots() -> Array[int]:
-	return _rack_slots
+	return _slots.rack_slots
 
 func get_stage_slots() -> Array[int]:
-	return _stage_slots
+	return _slots.stage_slots
 
 func overlay_draw_from_deck() -> Dictionary:
 	if not _is_my_turn() or _action_in_flight:
@@ -391,6 +326,7 @@ func overlay_end_play_then_discard(tile_id: int) -> Dictionary:
 		_action_in_flight = false
 	return discard_res
 
+# Deprecated compatibility shim; retained for external/dynamic callers.
 func overlay_end_play() -> Dictionary:
 	if not _is_my_turn() or _action_in_flight:
 		return {"ok": false, "reason": "not_my_turn"}
@@ -402,6 +338,7 @@ func overlay_end_play() -> Dictionary:
 		_action_in_flight = false
 	return res
 
+# Deprecated compatibility shim; retained for external/dynamic callers.
 func overlay_submit_staged() -> Dictionary:
 	if not _is_my_turn() or _action_in_flight:
 		return {"ok": false, "reason": "not_my_turn"}
@@ -409,14 +346,105 @@ func overlay_submit_staged() -> Dictionary:
 		return {"ok": false, "reason": _last_stage_error}
 	return {"ok": true}
 
-func overlay_move_rack_to_stage(from_slot: int, to_stage_slot: int) -> void:
+func overlay_move_rack_to_stage(from_slot: int, to_stage_slot: int) -> Dictionary:
+	if _action_in_flight:
+		return {"ok": false, "reason": "busy"}
+	if _controller.state == null:
+		return {"ok": false, "reason": "no_state"}
+	if not _is_my_turn():
+		return {"ok": false, "reason": "not_my_turn"}
+	if _controller.state.phase != GameState.Phase.TURN_PLAY:
+		return {"ok": false, "reason": "wrong_phase"}
+	if from_slot < 0 or from_slot >= _slots.rack_slots.size() or to_stage_slot < 0 or to_stage_slot >= _slots.stage_slots.size():
+		return {"ok": false, "reason": "invalid_slot"}
+	var tile_id: int = int(_slots.rack_slots[from_slot])
+	if tile_id == -1:
+		return {"ok": false, "reason": "empty_source"}
+	var rack_before: Array = _slots.rack_slots.duplicate()
+	var stage_before: Array = _slots.stage_slots.duplicate()
 	_move_rack_to_stage(from_slot, to_stage_slot)
+	if _slots.rack_slots == rack_before and _slots.stage_slots == stage_before:
+		return {"ok": false, "reason": "no_change"}
+	if _slots.stage_slots.find(tile_id) == -1:
+		return {"ok": false, "reason": "move_failed"}
+	return {"ok": true}
 
-func overlay_move_stage_to_rack(from_stage_slot: int, to_rack_slot: int) -> void:
+func overlay_move_stage_to_rack(from_stage_slot: int, to_rack_slot: int) -> Dictionary:
+	if _action_in_flight:
+		return {"ok": false, "reason": "busy"}
+	if _controller.state == null:
+		return {"ok": false, "reason": "no_state"}
+	if not _is_my_turn():
+		return {"ok": false, "reason": "not_my_turn"}
+	if _controller.state.phase != GameState.Phase.TURN_PLAY:
+		return {"ok": false, "reason": "wrong_phase"}
+	if from_stage_slot < 0 or from_stage_slot >= _slots.stage_slots.size() or to_rack_slot < 0 or to_rack_slot >= _slots.rack_slots.size():
+		return {"ok": false, "reason": "invalid_slot"}
+	var tile_id: int = int(_slots.stage_slots[from_stage_slot])
+	if tile_id == -1:
+		return {"ok": false, "reason": "empty_source"}
+	var rack_before: Array = _slots.rack_slots.duplicate()
+	var stage_before: Array = _slots.stage_slots.duplicate()
 	_move_stage_to_rack(from_stage_slot, to_rack_slot)
+	if _slots.rack_slots == rack_before and _slots.stage_slots == stage_before:
+		return {"ok": false, "reason": "no_change"}
+	if _slots.rack_slots.find(tile_id) == -1:
+		return {"ok": false, "reason": "move_failed"}
+	return {"ok": true}
 
-func overlay_move_slot(from_slot: int, to_slot: int) -> void:
+func overlay_move_slot(from_slot: int, to_slot: int) -> Dictionary:
+	if _action_in_flight:
+		return {"ok": false, "reason": "busy"}
+	if _controller.state == null:
+		return {"ok": false, "reason": "no_state"}
+	if not _is_my_turn():
+		return {"ok": false, "reason": "not_my_turn"}
+	if not _can_overlay_rack_reorder_phase(int(_controller.state.phase)):
+		return {"ok": false, "reason": "wrong_phase"}
+	if from_slot < 0 or from_slot >= _slots.rack_slots.size() or to_slot < 0 or to_slot >= _slots.rack_slots.size():
+		return {"ok": false, "reason": "invalid_slot"}
+	if from_slot == to_slot:
+		return {"ok": false, "reason": "no_change"}
+	var tile_id: int = int(_slots.rack_slots[from_slot])
+	if tile_id == -1:
+		return {"ok": false, "reason": "empty_source"}
+	var rack_before: Array = _slots.rack_slots.duplicate()
 	_move_slot(from_slot, to_slot)
+	if _slots.rack_slots == rack_before:
+		return {"ok": false, "reason": "no_change"}
+	if int(_slots.rack_slots[to_slot]) != tile_id:
+		return {"ok": false, "reason": "move_failed"}
+	return {"ok": true}
+
+func overlay_move_stage_slot(from_stage_slot: int, to_stage_slot: int) -> Dictionary:
+	if _action_in_flight:
+		return {"ok": false, "reason": "busy"}
+	if _controller.state == null:
+		return {"ok": false, "reason": "no_state"}
+	if not _is_my_turn():
+		return {"ok": false, "reason": "not_my_turn"}
+	if _controller.state.phase != GameState.Phase.TURN_PLAY:
+		return {"ok": false, "reason": "wrong_phase"}
+	if from_stage_slot < 0 or from_stage_slot >= _slots.stage_slots.size() or to_stage_slot < 0 or to_stage_slot >= _slots.stage_slots.size():
+		return {"ok": false, "reason": "invalid_slot"}
+	if from_stage_slot == to_stage_slot:
+		return {"ok": false, "reason": "no_change"}
+	var tile_id: int = int(_slots.stage_slots[from_stage_slot])
+	if tile_id == -1:
+		return {"ok": false, "reason": "empty_source"}
+	var stage_before: Array = _slots.stage_slots.duplicate()
+	_move_stage_slot(from_stage_slot, to_stage_slot)
+	if _slots.stage_slots == stage_before:
+		return {"ok": false, "reason": "no_change"}
+	if int(_slots.stage_slots[to_stage_slot]) != tile_id:
+		return {"ok": false, "reason": "move_failed"}
+	return {"ok": true}
+
+func _can_overlay_rack_reorder_phase(phase: int) -> bool:
+	return phase == GameState.Phase.STARTER_DISCARD \
+		or phase == GameState.Phase.TURN_DRAW \
+		or phase == GameState.Phase.TURN_PLAY \
+		or phase == GameState.Phase.TURN_DISCARD
 
 func overlay_add_to_meld(tile_ids: Array, meld_index: int) -> Dictionary:
 	if _action_in_flight:
@@ -429,16 +457,24 @@ func overlay_add_to_meld(tile_ids: Array, meld_index: int) -> Dictionary:
 	return result
 
 func overlay_new_round() -> void:
+	if _controller_injected_external:
+		var res: Dictionary = _controller.request_new_round()
+		if not bool(res.get("ok", false)):
+			_instructions.text = "Rejected: %s" % str(res.get("reason", "round restart unavailable"))
+		return
 	_start_round()
 
+# Deprecated compatibility shim; retained for external/dynamic callers.
 func overlay_return_to_menu() -> void:
 	_return_to_main_menu()
 
+# Deprecated compatibility shim; retained for external/dynamic callers.
 func get_my_discard_global_rect() -> Rect2:
 	if _my_discard == null:
 		return Rect2()
 	return _my_discard.get_global_rect()
 
+# Deprecated compatibility shim; retained for external/dynamic callers.
 func get_meld_island_global_rect() -> Rect2:
 	if _meld_island == null:
 		return Rect2()
@@ -447,6 +483,7 @@ func get_meld_island_global_rect() -> Rect2:
 func is_action_in_flight() -> bool:
 	return _action_in_flight
 
+# Deprecated compatibility shim; retained for external/dynamic callers.
 func get_instruction_text() -> String:
 	return _instructions.text if _instructions != null else ""
 
@@ -505,11 +542,9 @@ func _apply_felt_style() -> void:
 		var fs := StyleBoxEmpty.new()
 		(_melds_panel as Panel).add_theme_stylebox_override("panel", fs)
 	if _felt_cloth_texture == null:
-		_felt_cloth_texture = load(CLOTH_TEXTURE_PATH) as Texture2D
-	if _board_felt_poly != null and _felt_cloth_texture != null:
-		_board_felt_poly.texture = _felt_cloth_texture
-		_board_felt_poly.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-		_board_felt_poly.texture_scale = Vector2(2.0, 2.0)
+		_felt_cloth_texture = load(GEO.CLOTH_TEXTURE_PATH) as Texture2D
+	if _board != null and _felt_cloth_texture != null:
+		_board.apply_felt_texture(_felt_cloth_texture)
 
 func _apply_art_direction() -> void:
 	_style_top_bar()
@@ -723,331 +758,6 @@ func _create_rack_depth_shell() -> void:
 	_rack_depth_shell.add_theme_stylebox_override("panel", _rack_depth_shell_style)
 	add_child(_rack_depth_shell)
 
-func _create_board_geometry() -> void:
-	_board_layer = Node2D.new()
-	_board_layer.name = "BoardGeometry"
-	# Board polys render below gameplay widgets and above scene background.
-	_board_layer.z_index = -1
-	_table_area.add_child(_board_layer)
-	_table_area.move_child(_board_layer, 0)
-
-	_board_shadow_poly = Polygon2D.new()
-	_board_shadow_poly.color = Color(0, 0, 0, 0.22)
-	_board_layer.add_child(_board_shadow_poly)
-
-	_board_table_poly = Polygon2D.new()
-	_board_table_poly.color = Color(0.20, 0.12, 0.08, 0.32)
-	_board_layer.add_child(_board_table_poly)
-
-	_board_table_border = Line2D.new()
-	_board_table_border.width = 1.2
-	_board_table_border.default_color = Color(0.10, 0.06, 0.04, 0.24)
-	_board_table_border.antialiased = true
-	_board_layer.add_child(_board_table_border)
-
-	_board_table_spot_poly = Polygon2D.new()
-	_board_table_spot_poly.color = Color(1, 1, 1, 1)
-	_board_layer.add_child(_board_table_spot_poly)
-
-	_board_table_vignette_top = Polygon2D.new()
-	_board_table_vignette_top.color = Color(1, 1, 1, 1)
-	_board_layer.add_child(_board_table_vignette_top)
-
-	_board_table_vignette_bottom = Polygon2D.new()
-	_board_table_vignette_bottom.color = Color(1, 1, 1, 1)
-	_board_layer.add_child(_board_table_vignette_bottom)
-
-	_board_table_vignette_left = Polygon2D.new()
-	_board_table_vignette_left.color = Color(1, 1, 1, 1)
-	_board_layer.add_child(_board_table_vignette_left)
-
-	_board_table_vignette_right = Polygon2D.new()
-	_board_table_vignette_right.color = Color(1, 1, 1, 1)
-	_board_layer.add_child(_board_table_vignette_right)
-
-	_table_grain_lines.clear()
-	for i in range(TABLE_GRAIN_LINES):
-		var grain := Line2D.new()
-		grain.width = 1.0
-		grain.antialiased = true
-		grain.default_color = Color(0.07, 0.04, 0.02, 0.03 + float(i % 3) * 0.008)
-		_board_layer.add_child(grain)
-		_table_grain_lines.append(grain)
-
-	_board_outer_poly = Polygon2D.new()
-	_board_outer_poly.color = Color(0.33, 0.22, 0.13, 0.92)
-	_board_layer.add_child(_board_outer_poly)
-
-	_board_felt_poly = Polygon2D.new()
-	_board_felt_poly.color = Color(0.07, 0.36, 0.24, 0.99)
-	if _felt_cloth_texture != null:
-		_board_felt_poly.texture = _felt_cloth_texture
-		_board_felt_poly.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-		_board_felt_poly.texture_scale = Vector2(0.0034, 0.0034)
-	_board_layer.add_child(_board_felt_poly)
-
-	_board_felt_warm_poly = Polygon2D.new()
-	_board_felt_warm_poly.color = Color(1, 1, 1, 1)
-	_board_layer.add_child(_board_felt_warm_poly)
-
-	_board_felt_sheen_poly = Polygon2D.new()
-	_board_felt_sheen_poly.color = Color(1, 1, 1, 1)
-	_board_layer.add_child(_board_felt_sheen_poly)
-
-	_board_felt_depth_poly = Polygon2D.new()
-	_board_felt_depth_poly.color = Color(1, 1, 1, 1)
-	_board_layer.add_child(_board_felt_depth_poly)
-
-	_board_rim_glow = Line2D.new()
-	_board_rim_glow.width = 3.0
-	_board_rim_glow.default_color = Color(0.82, 0.93, 0.84, 0.14)
-	_board_rim_glow.antialiased = true
-	_board_layer.add_child(_board_rim_glow)
-
-	_board_felt_border = Line2D.new()
-	_board_felt_border.width = 1.8
-	_board_felt_border.default_color = Color(0.72, 0.90, 0.76, 0.62)
-	_board_felt_border.antialiased = true
-	_board_layer.add_child(_board_felt_border)
-
-	_board_inner_border = Line2D.new()
-	_board_inner_border.width = 0.9
-	_board_inner_border.default_color = Color(0.84, 0.95, 0.86, 0.16)
-	_board_inner_border.antialiased = true
-	_board_layer.add_child(_board_inner_border)
-
-func _layout_table_backdrop(table_w: float, table_h: float) -> void:
-	if _board_table_poly == null or _board_table_border == null:
-		return
-	var inset: float = 0.5
-	var tl: Vector2 = Vector2(inset, inset)
-	var tr: Vector2 = Vector2(table_w - inset, inset)
-	var br: Vector2 = Vector2(table_w - inset, table_h - inset)
-	var bl: Vector2 = Vector2(inset, table_h - inset)
-	_board_table_poly.polygon = PackedVector2Array([tl, tr, br, bl])
-	_board_table_border.points = PackedVector2Array([tl, tr, br, bl, tl])
-
-	var fade_h: float = clamp(table_h * 0.09, 42.0, 92.0)
-	var fade_w: float = clamp(table_w * 0.065, 56.0, 128.0)
-
-	if _board_table_spot_poly != null:
-		var spot_tl: Vector2 = Vector2(table_w * 0.24, table_h * 0.14)
-		var spot_tr: Vector2 = Vector2(table_w * 0.74, table_h * 0.16)
-		var spot_br: Vector2 = Vector2(table_w * 0.88, table_h * 0.84)
-		var spot_bl: Vector2 = Vector2(table_w * 0.12, table_h * 0.86)
-		_board_table_spot_poly.polygon = PackedVector2Array([spot_tl, spot_tr, spot_br, spot_bl])
-		_board_table_spot_poly.vertex_colors = PackedColorArray([
-			Color(0.84, 0.60, 0.34, 0.10),
-			Color(0.80, 0.56, 0.31, 0.09),
-			Color(0.28, 0.20, 0.14, 0.01),
-			Color(0.30, 0.22, 0.16, 0.02),
-		])
-
-	if _board_table_vignette_top != null:
-		var inner_top_l: Vector2 = Vector2(inset, inset + fade_h)
-		var inner_top_r: Vector2 = Vector2(table_w - inset, inset + fade_h)
-		_board_table_vignette_top.polygon = PackedVector2Array([tl, tr, inner_top_r, inner_top_l])
-		_board_table_vignette_top.vertex_colors = PackedColorArray([
-			Color(0.02, 0.01, 0.01, 0.19),
-			Color(0.02, 0.01, 0.01, 0.17),
-			Color(0.02, 0.01, 0.01, 0.00),
-			Color(0.02, 0.01, 0.01, 0.00),
-		])
-
-	if _board_table_vignette_bottom != null:
-		var inner_bot_l: Vector2 = Vector2(inset, table_h - inset - fade_h)
-		var inner_bot_r: Vector2 = Vector2(table_w - inset, table_h - inset - fade_h)
-		_board_table_vignette_bottom.polygon = PackedVector2Array([inner_bot_l, inner_bot_r, br, bl])
-		_board_table_vignette_bottom.vertex_colors = PackedColorArray([
-			Color(0.02, 0.01, 0.01, 0.00),
-			Color(0.02, 0.01, 0.01, 0.00),
-			Color(0.02, 0.01, 0.01, 0.18),
-			Color(0.02, 0.01, 0.01, 0.20),
-		])
-
-	if _board_table_vignette_left != null:
-		var inner_left_t: Vector2 = Vector2(inset + fade_w, inset)
-		var inner_left_b: Vector2 = Vector2(inset + fade_w, table_h - inset)
-		_board_table_vignette_left.polygon = PackedVector2Array([tl, inner_left_t, inner_left_b, bl])
-		_board_table_vignette_left.vertex_colors = PackedColorArray([
-			Color(0.02, 0.01, 0.01, 0.16),
-			Color(0.02, 0.01, 0.01, 0.00),
-			Color(0.02, 0.01, 0.01, 0.00),
-			Color(0.02, 0.01, 0.01, 0.17),
-		])
-
-	if _board_table_vignette_right != null:
-		var inner_right_t: Vector2 = Vector2(table_w - inset - fade_w, inset)
-		var inner_right_b: Vector2 = Vector2(table_w - inset - fade_w, table_h - inset)
-		_board_table_vignette_right.polygon = PackedVector2Array([inner_right_t, tr, br, inner_right_b])
-		_board_table_vignette_right.vertex_colors = PackedColorArray([
-			Color(0.02, 0.01, 0.01, 0.00),
-			Color(0.02, 0.01, 0.01, 0.16),
-			Color(0.02, 0.01, 0.01, 0.18),
-			Color(0.02, 0.01, 0.01, 0.00),
-		])
-
-	if not _table_grain_lines.is_empty():
-		var usable_top: float = inset + 6.0
-		var usable_bottom: float = table_h - inset - 6.0
-		for i in range(_table_grain_lines.size()):
-			var g: Line2D = _table_grain_lines[i]
-			if g == null:
-				continue
-			var t: float = float(i + 1) / float(_table_grain_lines.size() + 1)
-			var y: float = lerpf(usable_top, usable_bottom, t) + sin(float(i) * 1.93) * 1.4
-			var x_l: float = inset + 8.0 + sin(float(i) * 1.21) * 2.8
-			var x_r: float = table_w - inset - 8.0 + cos(float(i) * 1.67) * 2.4
-			g.points = PackedVector2Array([Vector2(x_l, y), Vector2(x_r, y + sin(float(i) * 0.73) * 1.1)])
-
-func _layout_board_geometry(top_left: Vector2, top_right: Vector2, bottom_right: Vector2, bottom_left: Vector2) -> void:
-	if _board_layer == null or _board_outer_poly == null or _board_felt_poly == null:
-		return
-	var top_expand: float = 13.0
-	var side_expand_far: float = 22.0
-	var side_expand_near: float = 28.0
-	var bottom_expand: float = 18.0
-
-	var outer_tl: Vector2 = Vector2(top_left.x - side_expand_far, top_left.y - top_expand)
-	var outer_tr: Vector2 = Vector2(top_right.x + side_expand_far, top_right.y - top_expand)
-	var outer_br: Vector2 = Vector2(bottom_right.x + side_expand_near, bottom_right.y + bottom_expand)
-	var outer_bl: Vector2 = Vector2(bottom_left.x - side_expand_near, bottom_left.y + bottom_expand)
-
-	if _board_shadow_poly != null:
-		var shadow_off := Vector2(22.0, 20.0)
-		var sh_tl: Vector2 = outer_tl + shadow_off + Vector2(0, -2.0)
-		var sh_tr: Vector2 = outer_tr + shadow_off + Vector2(4.0, 0.0)
-		var sh_br: Vector2 = outer_br + shadow_off + Vector2(10.0, 6.0)
-		var sh_bl: Vector2 = outer_bl + shadow_off + Vector2(-6.0, 5.0)
-		_board_shadow_poly.polygon = PackedVector2Array([sh_tl, sh_tr, sh_br, sh_bl])
-
-	_board_outer_poly.polygon = PackedVector2Array([outer_tl, outer_tr, outer_br, outer_bl])
-	_board_felt_poly.polygon = PackedVector2Array([top_left, top_right, bottom_right, bottom_left])
-
-	if _board_felt_warm_poly != null:
-		var warm_tl: Vector2 = top_left + Vector2(12.0, 10.0)
-		var warm_tr: Vector2 = top_right + Vector2(-12.0, 10.0)
-		var warm_br: Vector2 = bottom_right + Vector2(-14.0, -16.0)
-		var warm_bl: Vector2 = bottom_left + Vector2(14.0, -16.0)
-		_board_felt_warm_poly.polygon = PackedVector2Array([warm_tl, warm_tr, warm_br, warm_bl])
-		_board_felt_warm_poly.vertex_colors = PackedColorArray([
-			Color(0.78, 0.68, 0.44, 0.06),
-			Color(0.76, 0.66, 0.42, 0.06),
-			Color(0.18, 0.22, 0.14, 0.02),
-			Color(0.18, 0.22, 0.14, 0.02),
-		])
-
-	if _board_felt_sheen_poly != null:
-		var sheen_tl: Vector2 = top_left + Vector2(12.0, 10.0)
-		var sheen_tr: Vector2 = top_right + Vector2(-12.0, 10.0)
-		var sheen_br: Vector2 = bottom_right + Vector2(-16.0, -20.0)
-		var sheen_bl: Vector2 = bottom_left + Vector2(16.0, -20.0)
-		_board_felt_sheen_poly.polygon = PackedVector2Array([sheen_tl, sheen_tr, sheen_br, sheen_bl])
-		_board_felt_sheen_poly.vertex_colors = PackedColorArray([
-			Color(0.78, 0.90, 0.74, 0.10),
-			Color(0.74, 0.88, 0.72, 0.10),
-			Color(0.24, 0.38, 0.28, 0.03),
-			Color(0.23, 0.36, 0.27, 0.03),
-		])
-
-	if _board_felt_depth_poly != null:
-		var depth_tl: Vector2 = top_left + Vector2(8.0, 10.0)
-		var depth_tr: Vector2 = top_right + Vector2(-8.0, 10.0)
-		var depth_br: Vector2 = bottom_right + Vector2(-10.0, -10.0)
-		var depth_bl: Vector2 = bottom_left + Vector2(10.0, -10.0)
-		_board_felt_depth_poly.polygon = PackedVector2Array([depth_tl, depth_tr, depth_br, depth_bl])
-		_board_felt_depth_poly.vertex_colors = PackedColorArray([
-			Color(0.03, 0.12, 0.08, 0.00),
-			Color(0.03, 0.12, 0.08, 0.00),
-			Color(0.01, 0.05, 0.03, 0.17),
-			Color(0.01, 0.05, 0.03, 0.17),
-		])
-
-	if _board_rim_glow != null:
-		_board_rim_glow.points = PackedVector2Array([top_left, top_right, bottom_right, bottom_left, top_left])
-
-	_board_felt_border.points = PackedVector2Array([top_left, top_right, bottom_right, bottom_left, top_left])
-
-	var inner_tl: Vector2 = top_left + Vector2(16.0, 12.0)
-	var inner_tr: Vector2 = top_right + Vector2(-16.0, 12.0)
-	var inner_br: Vector2 = bottom_right + Vector2(-18.0, -13.0)
-	var inner_bl: Vector2 = bottom_left + Vector2(18.0, -13.0)
-	_board_inner_border.points = PackedVector2Array([inner_tl, inner_tr, inner_br, inner_bl, inner_tl])
-
-func _create_wall_ring() -> void:
-	_wall_ring_layer = Control.new()
-	_wall_ring_layer.name = "WallRing"
-	_wall_ring_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_wall_ring_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_wall_ring_layer.z_index = 3
-	_meld_island.add_child(_wall_ring_layer)
-	_wall_stack_nodes.clear()
-	for i in range(53):
-		var stack_panel := Panel.new()
-		stack_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		stack_panel.z_index = 3
-		var s := StyleBoxFlat.new()
-		s.bg_color = Color(0.94, 0.91, 0.84, 0.36)
-		s.border_width_left = 1
-		s.border_width_top = 1
-		s.border_width_right = 1
-		s.border_width_bottom = 2
-		s.border_color = Color(0.77, 0.70, 0.58, 0.52)
-		s.corner_radius_top_left = 3
-		s.corner_radius_top_right = 3
-		s.corner_radius_bottom_left = 3
-		s.corner_radius_bottom_right = 3
-		stack_panel.add_theme_stylebox_override("panel", s)
-		_wall_ring_layer.add_child(stack_panel)
-		_wall_stack_nodes.append(stack_panel)
-
-func _layout_wall_ring() -> void:
-	if _wall_ring_layer == null:
-		return
-	if not SHOW_WALL_RING:
-		_wall_ring_layer.visible = false
-		return
-	var island_w: float = max(220.0, _meld_island.size.x)
-	var island_h: float = max(180.0, _meld_island.size.y)
-	var outer_w: float = clamp(island_w * 0.44, 300.0, 560.0)
-	var outer_h: float = clamp(island_h * 0.48, 200.0, 340.0)
-	var cx: float = island_w * 0.47
-	var cy: float = island_h * 0.40
-	var left: float = cx - outer_w * 0.5
-	var top: float = cy - outer_h * 0.5
-	var stack_w: float = clamp(_slot_size.x * 0.22, 9.0, 15.0)
-	var stack_h: float = clamp(_slot_size.y * 0.36, 16.0, 26.0)
-	# Perspective-like split: far side shorter, near side longer.
-	var top_n: int = 11
-	var right_n: int = 14
-	var bottom_n: int = 16
-	var left_n: int = 12
-	var far_inset: float = clamp(outer_w * 0.12, 22.0, 44.0)
-	var side_inset: float = clamp(outer_w * 0.05, 8.0, 20.0)
-	var idx: int = 0
-	for i in range(top_n):
-		var t: float = 0.0 if top_n <= 1 else float(i) / float(top_n - 1)
-		var x: float = left + far_inset + t * (outer_w - far_inset * 2.0 - stack_w)
-		_set_rect_pixels(_wall_stack_nodes[idx], x, top, stack_w, stack_h)
-		idx += 1
-	for i in range(right_n):
-		var t: float = 0.0 if right_n <= 1 else float(i) / float(right_n - 1)
-		var y: float = top + t * (outer_h - stack_w)
-		var x: float = left + outer_w - stack_h - lerpf(0.0, side_inset, t)
-		_set_rect_pixels(_wall_stack_nodes[idx], x, y, stack_h, stack_w)
-		idx += 1
-	for i in range(bottom_n):
-		var t: float = 0.0 if bottom_n <= 1 else float(i) / float(bottom_n - 1)
-		var x: float = left + (1.0 - t) * (outer_w - stack_w)
-		_set_rect_pixels(_wall_stack_nodes[idx], x, top + outer_h - stack_h, stack_w, stack_h)
-		idx += 1
-	for i in range(left_n):
-		var t: float = 0.0 if left_n <= 1 else float(i) / float(left_n - 1)
-		var y: float = top + (1.0 - t) * (outer_h - stack_w)
-		var x: float = left + lerpf(0.0, side_inset, t)
-		_set_rect_pixels(_wall_stack_nodes[idx], x, y, stack_h, stack_w)
-		idx += 1
-
 func configure_game(rule_config: RuleConfig, game_seed: int, player_count: int) -> void:
 	_rule_config = rule_config
 	_game_seed = game_seed
@@ -1179,13 +889,13 @@ func _create_opponent_areas() -> void:
 			rack_face.size_flags_vertical = Control.SIZE_FILL
 			rack_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			var face_style := StyleBoxFlat.new()
-			face_style.bg_color = OPP_COLORS[i].darkened(0.84)
+			face_style.bg_color = GEO.OPP_COLORS[i].darkened(0.84)
 			face_style.bg_color.a = 0.42
 			face_style.border_width_left = 1
 			face_style.border_width_top = 1
 			face_style.border_width_right = 1
 			face_style.border_width_bottom = 2
-			face_style.border_color = OPP_COLORS[i].lightened(0.16)
+			face_style.border_color = GEO.OPP_COLORS[i].lightened(0.16)
 			face_style.border_color.a = 0.45
 			face_style.corner_radius_top_left = 6
 			face_style.corner_radius_top_right = 6
@@ -1227,7 +937,8 @@ func _create_opponent_areas() -> void:
 					back.custom_minimum_size = Vector2(10, 13)
 					back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 					back.add_theme_stylebox_override("panel", back_style.duplicate())
-					var depth_alpha: float = 0.54 + (1.0 - abs(float(j - tile_count / 2)) / max(1.0, tile_count * 0.5)) * 0.34
+					var center_j: float = (float(tile_count) - 1.0) * 0.5
+					var depth_alpha: float = 0.54 + (1.0 - abs(float(j) - center_j) / max(1.0, float(tile_count) * 0.5)) * 0.34
 					back.modulate = Color(1, 1, 1, clamp(depth_alpha, 0.46, 0.96))
 					rack_backs.add_child(back)
 
@@ -1372,12 +1083,12 @@ func _create_discard_prompt() -> void:
 func _apply_opp_rack_style(panel: PanelContainer, opp_idx: int) -> void:
 	var s := StyleBoxFlat.new()
 	var is_3d: bool = _presentation_mode == "3d"
-	s.bg_color = Color(0, 0, 0, 0) if is_3d else OPP_COLORS[opp_idx].darkened(0.72)
+	s.bg_color = Color(0, 0, 0, 0) if is_3d else GEO.OPP_COLORS[opp_idx].darkened(0.72)
 	s.border_width_left = 0 if is_3d else 2
 	s.border_width_top = 0 if is_3d else 2
 	s.border_width_right = 0 if is_3d else 2
 	s.border_width_bottom = 0 if is_3d else 4
-	s.border_color = OPP_COLORS[opp_idx].darkened(0.08) if is_3d else OPP_COLORS[opp_idx].lightened(0.14)
+	s.border_color = GEO.OPP_COLORS[opp_idx].darkened(0.08) if is_3d else GEO.OPP_COLORS[opp_idx].lightened(0.14)
 	s.border_color.a = 0.0 if is_3d else 0.64
 	s.shadow_color = Color(0, 0, 0, 0.0) if is_3d else Color(0, 0, 0, 0.24)
 	s.shadow_size = 0 if is_3d else 5
@@ -1416,10 +1127,12 @@ func _set_anchors(node: Control, a: Array) -> void:
 
 func _start_round() -> void:
 	var cfg: RuleConfig = _rule_config if _rule_config != null else RuleConfig.new()
-	var round_seed: int = _compute_round_seed()
+	var round_seed: int = GEO.compute_round_seed(_game_seed, _round_index)
+	if _controller_injected_external:
+		return
 	_controller.start_new_round(cfg, round_seed, _player_count)
 	_round_index += 1
-	_last_tile_id = -1
+	_slots.last_tile_id = -1
 	_clear_stage_slots()
 	_action_in_flight = false
 	_render_all()
@@ -1464,42 +1177,14 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
+	_update_ambient_fx(delta)
+
+func _update_ambient_fx(delta: float) -> void:
 	_ambient_time += delta
-	_update_ambient_fx()
-
-func _update_ambient_fx() -> void:
-	var pulse_fast: float = 0.5 + 0.5 * sin(_ambient_time * AMBIENT_PULSE_SPEED)
-	var pulse_slow: float = 0.5 + 0.5 * sin(_ambient_time * AMBIENT_DRIFT_SPEED + 0.9)
-	var pulse_micro: float = 0.5 + 0.5 * sin(_ambient_time * 2.35 + 0.4)
-
-	if _board_table_spot_poly != null:
-		_board_table_spot_poly.self_modulate = Color(1, 1, 1, 0.84 + pulse_slow * 0.14)
-	if _board_table_vignette_top != null:
-		_board_table_vignette_top.self_modulate = Color(1, 1, 1, 0.90 + (1.0 - pulse_slow) * 0.10)
-	if _board_table_vignette_bottom != null:
-		_board_table_vignette_bottom.self_modulate = Color(1, 1, 1, 0.88 + pulse_micro * 0.12)
-	if _board_table_vignette_left != null:
-		_board_table_vignette_left.self_modulate = Color(1, 1, 1, 0.88 + pulse_fast * 0.12)
-	if _board_table_vignette_right != null:
-		_board_table_vignette_right.self_modulate = Color(1, 1, 1, 0.88 + (1.0 - pulse_fast) * 0.12)
-	if not _table_grain_lines.is_empty():
-		for i in range(_table_grain_lines.size()):
-			var g: Line2D = _table_grain_lines[i]
-			if g == null:
-				continue
-			var g_wave: float = 0.5 + 0.5 * sin(_ambient_time * (0.34 + float(i) * 0.025) + float(i) * 0.91)
-			var c: Color = g.default_color
-			c.a = 0.016 + g_wave * 0.040
-			g.default_color = c
-
-	if _board_felt_warm_poly != null:
-		_board_felt_warm_poly.self_modulate = Color(1, 1, 1, 0.88 + pulse_slow * 0.10)
-	if _board_felt_sheen_poly != null:
-		_board_felt_sheen_poly.self_modulate = Color(1, 1, 1, 0.86 + pulse_fast * 0.12)
-	if _board_felt_depth_poly != null:
-		_board_felt_depth_poly.self_modulate = Color(1, 1, 1, 0.92 + (1.0 - pulse_slow) * 0.08)
-	if _board_rim_glow != null:
-		_board_rim_glow.default_color = Color(0.82, 0.93, 0.84, 0.10 + pulse_fast * 0.06)
+	if _board != null:
+		_board.tick_ambient(delta)
+	var pulse_fast: float = 0.5 + 0.5 * sin(_ambient_time * GEO.AMBIENT_PULSE_SPEED)
+	var pulse_slow: float = 0.5 + 0.5 * sin(_ambient_time * GEO.AMBIENT_DRIFT_SPEED + 0.9)
 	if _rack_contact_shadow != null:
 		_rack_contact_shadow.modulate = Color(1, 1, 1, 0.86 + pulse_slow * 0.12)
 
@@ -1685,13 +1370,9 @@ func _render_hud() -> void:
 	_open_meter_bottom.text = "Open: %d/101" % pts
 	_open_meter.visible = _is_my_turn() and state.phase == GameState.Phase.TURN_PLAY
 	_meld_hint.visible = _is_my_turn() and state.phase == GameState.Phase.TURN_PLAY and _controller.state.table_melds.is_empty() and not _has_staged_tiles()
-	if _wall_ring_layer != null:
-		_wall_ring_layer.visible = SHOW_WALL_RING
-		if SHOW_WALL_RING:
-			var ring_alpha: float = 0.82 if state.table_melds.is_empty() else 0.22
-			for stack_panel in _wall_stack_nodes:
-				if stack_panel != null:
-					stack_panel.modulate = Color(1, 1, 1, ring_alpha)
+	if _board != null:
+		var ring_alpha: float = 0.82 if state.table_melds.is_empty() else 0.22
+		_board.set_wall_ring_state(GEO.SHOW_WALL_RING, ring_alpha)
 	if _stage_panel != null:
 		# No explicit staging panel UI: pending tiles are rendered directly on felt.
 		# Keep it visible only while interactive or when it already contains tiles.
@@ -1844,8 +1525,8 @@ func _render_rack() -> void:
 	for tile in hand:
 		by_id[tile.unique_id] = tile
 
-	for slot_index in range(_rack_slots.size()):
-		var tile_id: int = _rack_slots[slot_index]
+	for slot_index in range(_slots.rack_slots.size()):
+		var tile_id: int = _slots.rack_slots[slot_index]
 		if tile_id == -1 or not by_id.has(tile_id):
 			continue
 		var tile_ctrl: OkeyTile = OKEY_TILE_SCENE.instantiate()
@@ -1857,8 +1538,8 @@ func _render_rack() -> void:
 		tile_ctrl.drag_ended.connect(func(ctrl, pos: Vector2): _on_tile_drag_ended(ctrl, pos))
 		_slot_controls[slot_index].add_child(tile_ctrl)
 		_tile_controls[tile_id] = tile_ctrl
-	for slot_index in range(_stage_slots.size()):
-		var tile_id: int = _stage_slots[slot_index]
+	for slot_index in range(_slots.stage_slots.size()):
+		var tile_id: int = _slots.stage_slots[slot_index]
 		if tile_id == -1 or not by_id.has(tile_id):
 			continue
 		var tile_ctrl: OkeyTile = OKEY_TILE_SCENE.instantiate()
@@ -1871,17 +1552,17 @@ func _render_rack() -> void:
 		_stage_slot_controls[slot_index].add_child(tile_ctrl)
 		_tile_controls[tile_id] = tile_ctrl
 
-	if _last_tile_id == -1 and hand.size() > 0:
-		_last_tile_id = hand[0].unique_id
+	if _slots.last_tile_id == -1 and hand.size() > 0:
+		_slots.last_tile_id = hand[0].unique_id
 	_apply_selection_and_required()
 
 func _on_tile_clicked(tile_ctrl: OkeyTile) -> void:
 	var tile_id: int = int(tile_ctrl.tile_data.unique_id)
-	_last_tile_id = tile_id
+	_slots.last_tile_id = tile_id
 	_apply_selection_and_required()
 
 func _on_tile_drag_started(tile_ctrl: OkeyTile) -> void:
-	_last_tile_id = int(tile_ctrl.tile_data.unique_id)
+	_slots.last_tile_id = int(tile_ctrl.tile_data.unique_id)
 
 func _on_tile_drag_ended(tile_ctrl: OkeyTile, global_pos: Vector2) -> void:
 	if _controller.state == null:
@@ -1891,8 +1572,8 @@ func _on_tile_drag_ended(tile_ctrl: OkeyTile, global_pos: Vector2) -> void:
 		return
 
 	var tile_id: int = int(tile_ctrl.tile_data.unique_id)
-	var from_slot: int = _rack_slots.find(tile_id)
-	var from_stage_slot: int = _stage_slots.find(tile_id)
+	var from_slot: int = _slots.rack_slots.find(tile_id)
+	var from_stage_slot: int = _slots.stage_slots.find(tile_id)
 	var phase: int = _controller.state.phase
 	var on_discard_zone: bool = _my_discard.get_global_rect().has_point(global_pos)
 	var on_rack_zone: bool = _rack_panel.get_global_rect().has_point(global_pos)
@@ -2015,230 +1696,54 @@ func _add_to_meld(tile_ids: Array, meld_index: int) -> void:
 
 func _submit_staged_melds() -> bool:
 	_last_stage_error = ""
-	if _controller.state == null:
-		_last_stage_error = "No game state"
-		return false
-	var player = _controller.state.players[0]
-	var staged_ids: Array = _all_staged_tile_ids()
-	if staged_ids.is_empty():
-		_last_stage_error = "No staged tiles"
-		return false
-
-	# Opening turn: staged groups must form opening melds and consume all staged tiles.
-	# Keep submission atomic from UI perspective: no partial open + partial layoff batches.
-	if not bool(player.has_opened):
-		var open_melds: Array = _build_melds_from_stage_slots()
-		if open_melds.is_empty():
-			_last_stage_error = "Staged groups are invalid (check color/sequence/group gaps)"
-			return false
-		var open_by_pairs: bool = true
-		for meld_dict in open_melds:
-			if int(meld_dict.get("kind", -1)) != Meld.Kind.PAIRS:
-				open_by_pairs = false
-				break
-		var used_ids_open: Dictionary = {}
-		for m in open_melds:
-			for tid in m.get("tile_ids", []):
-				used_ids_open[int(tid)] = true
-		var leftover_after_open: Array = []
-		for tid in staged_ids:
-			if not used_ids_open.has(int(tid)):
-				leftover_after_open.append(int(tid))
-		if not leftover_after_open.is_empty():
-			_last_stage_error = "Opening stage has extra tiles. Move extras back to rack or complete valid groups."
-			return false
-
-		_action_in_flight = true
-		var open_action: Action = Action.new(Action.ActionType.OPEN_MELDS, {"melds": open_melds, "open_by_pairs": open_by_pairs})
-		var open_result: Dictionary = _controller.apply_action_if_valid(0, open_action)
-		if not bool(open_result.get("ok", false)):
-			_action_in_flight = false
-			_last_stage_error = str(open_result.get("reason", "Staged melds rejected"))
-			return false
-		_clear_stage_slots()
-		return true
-
-	# Already opened by pairs: new meld creation is blocked by rules.
-	if bool(player.opened_by_pairs):
-		_last_stage_error = "Opened by pairs: add tiles directly onto table melds instead of staging."
-		return false
-
-	# Already opened by melds: stage can create NEW melds only, and all staged tiles
-	# must be part of valid contiguous groups. Layoffs are done by direct drag to meld clusters.
-	var new_melds: Array = _build_new_melds_from_stage_slots_opened()
-	if new_melds.is_empty():
-		_last_stage_error = "No valid new melds in staging"
-		return false
-
-	var used_ids: Dictionary = {}
-	for m in new_melds:
-		for tid in m.get("tile_ids", []):
-			used_ids[int(tid)] = true
-	for tid in staged_ids:
-		if not used_ids.has(int(tid)):
-			_last_stage_error = "Staging has orphan tiles. Use contiguous groups for new melds."
-			return false
-
 	_action_in_flight = true
-	var new_action: Action = Action.new(Action.ActionType.OPEN_MELDS, {"melds": new_melds, "open_by_pairs": false})
-	var new_result: Dictionary = _controller.apply_action_if_valid(0, new_action)
-	if not bool(new_result.get("ok", false)):
+	var result: Dictionary = _stage_logic.submit_staged_melds(
+		_controller,
+		_controller.state,
+		_rack_hand(),
+		_slots,
+		GEO.STAGE_ROW_SLOTS,
+		Callable(self, "_pair_key_for_tile")
+	)
+	if not bool(result.get("ok", false)):
 		_action_in_flight = false
-		_last_stage_error = str(new_result.get("reason", "New melds rejected"))
+		_last_stage_error = str(result.get("reason", "Staged melds rejected"))
 		return false
-
-	_clear_stage_slots()
 	return true
 
 func _all_staged_tile_ids() -> Array:
-	var out: Array = []
-	for tid in _stage_slots:
-		var tile_id: int = int(tid)
-		if tile_id != -1:
-			out.append(tile_id)
-	return out
+	return _slots.all_staged_tile_ids()
 
 func _build_new_melds_from_stage_slots_opened() -> Array:
-	# For opened players, only contiguous groups of 3+ can become NEW table melds.
-	# Singles and pairs are handled as layoffs via ADD_TO_MELD.
-	if _controller.state == null:
-		return []
-	var hand_by_id: Dictionary = {}
-	for tile in _rack_hand():
-		hand_by_id[int(tile.unique_id)] = tile
-	var validator: MeldValidator = MeldValidator.new()
-	var out: Array = []
-	for row_idx in range(2):
-		var start_idx: int = row_idx * STAGE_ROW_SLOTS
-		var end_idx: int = start_idx + STAGE_ROW_SLOTS
-		var current: Array[int] = []
-		for i in range(start_idx, end_idx):
-			var tid: int = int(_stage_slots[i])
-			if tid == -1:
-				if current.size() >= 3:
-					var meld_dict: Dictionary = _validate_new_meld_candidate(current, hand_by_id, validator)
-					if not meld_dict.is_empty():
-						out.append(meld_dict)
-				current = []
-				continue
-			current.append(tid)
-		if current.size() >= 3:
-			var tail_meld: Dictionary = _validate_new_meld_candidate(current, hand_by_id, validator)
-			if not tail_meld.is_empty():
-				out.append(tail_meld)
-	return out
-
-func _validate_new_meld_candidate(ids: Array, hand_by_id: Dictionary, validator: MeldValidator) -> Dictionary:
-	var tiles: Array = []
-	for tid in ids:
-		if not hand_by_id.has(int(tid)):
-			return {}
-		tiles.append(hand_by_id[int(tid)])
-	var run_res: Dictionary = validator.validate_run(tiles, _controller.state.okey_context)
-	if bool(run_res.get("ok", false)):
-		return {"kind": Meld.Kind.RUN, "tile_ids": ids.duplicate()}
-	var set_res: Dictionary = validator.validate_set(tiles, _controller.state.okey_context)
-	if bool(set_res.get("ok", false)):
-		return {"kind": Meld.Kind.SET, "tile_ids": ids.duplicate()}
-	return {}
+	return _stage_logic.build_new_melds_from_stage_slots_opened(
+		_controller.state,
+		_rack_hand(),
+		_slots.stage_slots,
+		GEO.STAGE_ROW_SLOTS
+	)
 
 func _build_melds_from_stage_slots() -> Array:
-	if _controller.state == null:
-		return []
-	var hand_by_id: Dictionary = {}
-	for tile in _rack_hand():
-		hand_by_id[int(tile.unique_id)] = tile
-	var groups: Array = []
-	for row_idx in range(2):
-		var start_idx: int = row_idx * STAGE_ROW_SLOTS
-		var end_idx: int = start_idx + STAGE_ROW_SLOTS
-		var current: Array[int] = []
-		for i in range(start_idx, end_idx):
-			var tid: int = int(_stage_slots[i])
-			if tid == -1:
-				if not current.is_empty():
-					groups.append(current)
-					current = []
-				continue
-			current.append(tid)
-		if not current.is_empty():
-			groups.append(current)
-	if groups.is_empty():
-		return []
-
-	var validator: MeldValidator = MeldValidator.new()
-	var out: Array = []
-	for g in groups:
-		var ids: Array = g
-		var tiles: Array = []
-		for tid in ids:
-			if not hand_by_id.has(int(tid)):
-				return []
-			tiles.append(hand_by_id[int(tid)])
-		if ids.size() < 2:
-			continue
-		if ids.size() == 2:
-			var pair_chunks: Array = _pair_melds(ids, tiles)
-			if pair_chunks.is_empty():
-				return []
-			for pair_meld in pair_chunks:
-				out.append(pair_meld)
-			continue
-		var run_res: Dictionary = validator.validate_run(tiles, _controller.state.okey_context)
-		if bool(run_res.get("ok", false)):
-			out.append({"kind": Meld.Kind.RUN, "tile_ids": ids})
-			continue
-		var set_res: Dictionary = validator.validate_set(tiles, _controller.state.okey_context)
-		if bool(set_res.get("ok", false)):
-			out.append({"kind": Meld.Kind.SET, "tile_ids": ids})
-			continue
-		if ids.size() % 2 == 0:
-			var pair_melds: Array = _pair_melds(ids, tiles)
-			if not pair_melds.is_empty():
-				for m in pair_melds:
-					out.append(m)
-				continue
-		return []
-	if out.is_empty():
-		return []
-	return out
+	return _stage_logic.build_melds_from_stage_slots(
+		_controller.state,
+		_rack_hand(),
+		_slots.stage_slots,
+		GEO.STAGE_ROW_SLOTS,
+		Callable(self, "_pair_key_for_tile")
+	)
 
 func _has_staged_tiles() -> bool:
-	for tid in _stage_slots:
-		if int(tid) != -1:
-			return true
-	return false
+	return _slots.has_staged_tiles()
 
 func _restore_staged_to_rack() -> void:
-	for i in range(_stage_slots.size()):
-		var tid: int = int(_stage_slots[i])
-		if tid == -1:
-			continue
-		var empty_idx: int = _rack_slots.find(-1)
-		if empty_idx != -1:
-			_rack_slots[empty_idx] = tid
-		_stage_slots[i] = -1
+	_slots.restore_staged_to_rack()
 	_render_rack()
 
 func _clear_stage_slots() -> void:
-	for i in range(_stage_slots.size()):
-		_stage_slots[i] = -1
+	_slots.clear_stage_slots()
 
 # ═══════════════════════════════════════════
 # MELD BUILDING & DISPLAY
 # ═══════════════════════════════════════════
-
-func _pair_melds(ids: Array, tiles: Array) -> Array:
-	if ids.size() < 2 or ids.size() % 2 != 0:
-		return []
-	var out: Array = []
-	for i in range(0, ids.size(), 2):
-		var a = tiles[i]
-		var b = tiles[i + 1]
-		if _pair_key_for_tile(a) != _pair_key_for_tile(b):
-			return []
-		out.append({"kind": Meld.Kind.PAIRS, "tile_ids": [ids[i], ids[i + 1]]})
-	return out
 
 func _render_melds() -> void:
 	for node in _meld_clusters:
@@ -2253,7 +1758,7 @@ func _render_melds() -> void:
 
 	var max_w: float = max(200.0, _meld_island.size.x - 16.0)
 	var max_h: float = max(120.0, _meld_island.size.y - _pending_band_height() - 10.0)
-	var zones: Dictionary = _build_meld_owner_zones(max_w, max_h)
+	var zones: Dictionary = GEO.build_meld_owner_zones(max_w, max_h, _pending_band_height())
 	var by_owner := {0: [], 1: [], 2: [], 3: []}
 	for i in range(_controller.state.table_melds.size()):
 		var meld = _controller.state.table_melds[i]
@@ -2361,43 +1866,16 @@ func _meld_owner_for_render(meld: Meld) -> int:
 		return 2
 	return meld_owner
 
-func _build_meld_owner_zones(max_w: float, max_h: float) -> Dictionary:
-	var pad: float = 8.0
-	var far_inset: float = clamp(max_w * 0.22, 120.0, 240.0)
-	var near_inset: float = clamp(max_w * 0.06, 28.0, 84.0)
-	var top_h: float = clamp(max_h * 0.14, 58.0, 92.0)
-	var mid_h: float = clamp(max_h * 0.12, 56.0, 90.0)
-	var bottom_h: float = clamp(max_h * 0.15, 62.0, 98.0)
-	var center_top_w: float = max(180.0, max_w - far_inset * 2.0)
-	var center_bottom_w: float = max(220.0, max_w - near_inset * 2.0)
-	var left_w: float = clamp(max_w * 0.16, 96.0, 160.0)
-
-	var zones := {}
-	# P2 (top opponent lane: narrow/far due to perspective)
-	zones[2] = Rect2((max_w - center_top_w) * 0.5, pad, center_top_w, top_h)
-	# P3 (left opponent lane)
-	zones[3] = Rect2(near_inset * 0.42, max_h * 0.44 - mid_h * 0.5, left_w, mid_h)
-	# P1 (right opponent lane)
-	zones[1] = Rect2(max_w - left_w - near_inset * 0.42, max_h * 0.44 - mid_h * 0.5, left_w, mid_h)
-	# P0 (bottom player lane: wider/near)
-	var bottom_y: float = max_h - bottom_h - _pending_band_height() - 14.0
-	bottom_y = clamp(bottom_y, top_h + 18.0, max_h - bottom_h - 8.0)
-	zones[0] = Rect2((max_w - center_bottom_w) * 0.5, bottom_y, center_bottom_w, bottom_h)
-	return zones
 
 # ═══════════════════════════════════════════
 # RACK SLOT MANAGEMENT
 # ═══════════════════════════════════════════
 
 func _init_rack_slots() -> void:
-	_rack_slots.clear()
-	for _i in range(RACK_SLOT_COUNT):
-		_rack_slots.append(-1)
+	_slots.init_rack_slots(GEO.RACK_SLOT_COUNT)
 
 func _init_stage_slots() -> void:
-	_stage_slots.clear()
-	for _i in range(STAGE_SLOT_COUNT):
-		_stage_slots.append(-1)
+	_slots.init_stage_slots(GEO.STAGE_SLOT_COUNT)
 
 func _create_stage_area() -> void:
 	_stage_panel = Control.new()
@@ -2424,7 +1902,7 @@ func _create_stage_area() -> void:
 func _ensure_stage_slot_controls() -> void:
 	if _stage_panel == null or _stage_row1 == null or _stage_row2 == null:
 		return
-	if _stage_slot_controls.size() == STAGE_SLOT_COUNT:
+	if _stage_slot_controls.size() == GEO.STAGE_SLOT_COUNT:
 		for slot in _stage_slot_controls:
 			slot.custom_minimum_size = _slot_size
 		return
@@ -2433,7 +1911,7 @@ func _ensure_stage_slot_controls() -> void:
 	for child in _stage_row2.get_children():
 		child.queue_free()
 	_stage_slot_controls.clear()
-	for i in range(STAGE_SLOT_COUNT):
+	for i in range(GEO.STAGE_SLOT_COUNT):
 		var slot_panel := PanelContainer.new()
 		slot_panel.custom_minimum_size = _slot_size
 		slot_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2457,7 +1935,7 @@ func _ensure_stage_slot_controls() -> void:
 		slot_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		slot_bg.modulate = Color(1, 1, 1, 0.0)
 		slot_panel.add_child(slot_bg)
-		if i < STAGE_ROW_SLOTS:
+		if i < GEO.STAGE_ROW_SLOTS:
 			_stage_row1.add_child(slot_panel)
 		else:
 			_stage_row2.add_child(slot_panel)
@@ -2465,7 +1943,7 @@ func _ensure_stage_slot_controls() -> void:
 	_layout_pending_rows()
 
 func _ensure_slot_controls() -> void:
-	if _slot_controls.size() == RACK_SLOT_COUNT:
+	if _slot_controls.size() == GEO.RACK_SLOT_COUNT:
 		for slot in _slot_controls:
 			slot.custom_minimum_size = _slot_size
 		return
@@ -2476,7 +1954,7 @@ func _ensure_slot_controls() -> void:
 		child.queue_free()
 	_slot_controls.clear()
 
-	for i in range(RACK_SLOT_COUNT):
+	for i in range(GEO.RACK_SLOT_COUNT):
 		var slot_panel := PanelContainer.new()
 		slot_panel.custom_minimum_size = _slot_size
 		slot_panel.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -2497,7 +1975,7 @@ func _ensure_slot_controls() -> void:
 		slot_bg.modulate = Color(1, 1, 1, 0.04)
 		slot_panel.add_child(slot_bg)
 
-		if i < RACK_ROW_SLOTS:
+		if i < GEO.RACK_ROW_SLOTS:
 			_row1.add_child(slot_panel)
 		else:
 			_row2.add_child(slot_panel)
@@ -2511,29 +1989,7 @@ func _rack_hand() -> Array:
 	return _controller.state.players[0].hand
 
 func _sync_slots_with_hand(hand: Array) -> void:
-	var in_hand: Dictionary = {}
-	for tile in hand:
-		in_hand[tile.unique_id] = true
-	for i in range(_rack_slots.size()):
-		var tile_id: int = _rack_slots[i]
-		if tile_id != -1 and not in_hand.has(tile_id):
-			_rack_slots[i] = -1
-	for i in range(_stage_slots.size()):
-		var tile_id: int = _stage_slots[i]
-		if tile_id != -1 and not in_hand.has(tile_id):
-			_stage_slots[i] = -1
-	for tile in hand:
-		if _rack_slots.has(tile.unique_id) or _stage_slots.has(tile.unique_id):
-			continue
-		var empty_idx: int = _rack_slots.find(-1)
-		if empty_idx == -1:
-			empty_idx = _stage_slots.find(-1)
-			if empty_idx != -1:
-				_stage_slots[empty_idx] = tile.unique_id
-			continue
-		if empty_idx == -1:
-			break
-		_rack_slots[empty_idx] = tile.unique_id
+	_slots.sync_slots_with_hand(hand)
 
 func _apply_selection_and_required() -> void:
 	var required_id: int = -1
@@ -2541,7 +1997,7 @@ func _apply_selection_and_required() -> void:
 		required_id = _controller.state.turn_required_use_tile_id
 	for tile_id in _tile_controls.keys():
 		var tile_ctrl: OkeyTile = _tile_controls[tile_id]
-		var selected: bool = int(tile_id) == _last_tile_id
+		var selected: bool = int(tile_id) == _slots.last_tile_id
 		if required_id != -1 and int(tile_id) == required_id:
 			selected = true
 		tile_ctrl.set_selected(selected)
@@ -2583,12 +2039,12 @@ func _find_drop_slot(global_pos: Vector2) -> int:
 	if row1_rect.grow(10.0).has_point(global_pos):
 		return _rack_slot_index_from_row_point(global_pos, row1_rect, 0)
 	if row2_rect.grow(10.0).has_point(global_pos):
-		return _rack_slot_index_from_row_point(global_pos, row2_rect, RACK_ROW_SLOTS)
+		return _rack_slot_index_from_row_point(global_pos, row2_rect, GEO.RACK_ROW_SLOTS)
 	var row1_cy: float = _row1.get_global_rect().get_center().y
 	var row2_cy: float = _row2.get_global_rect().get_center().y
 	var use_row2: bool = absf(global_pos.y - row2_cy) < absf(global_pos.y - row1_cy)
-	var start_i: int = RACK_ROW_SLOTS if use_row2 else 0
-	var stop_i: int = RACK_SLOT_COUNT if use_row2 else RACK_ROW_SLOTS
+	var start_i: int = GEO.RACK_ROW_SLOTS if use_row2 else 0
+	var stop_i: int = GEO.RACK_SLOT_COUNT if use_row2 else GEO.RACK_ROW_SLOTS
 	var best_i: int = start_i
 	var best_d: float = INF
 	for i in range(start_i, stop_i):
@@ -2603,7 +2059,7 @@ func _rack_slot_index_from_row_point(global_pos: Vector2, row_rect: Rect2, row_s
 	var cell_w: float = _slot_size.x + sep
 	var local_x: float = clamp(global_pos.x - row_rect.position.x, 0.0, row_rect.size.x)
 	var col: int = int(floor(local_x / max(1.0, cell_w)))
-	col = clamp(col, 0, RACK_ROW_SLOTS - 1)
+	col = clamp(col, 0, GEO.RACK_ROW_SLOTS - 1)
 	return row_start + col
 
 func _find_stage_drop_slot(global_pos: Vector2) -> int:
@@ -2615,7 +2071,7 @@ func _find_stage_drop_slot(global_pos: Vector2) -> int:
 	if row1_rect.grow(hit_pad).has_point(global_pos):
 		return _stage_slot_index_from_row_point(global_pos, row1_rect, 0)
 	if row2_rect.grow(hit_pad).has_point(global_pos):
-		return _stage_slot_index_from_row_point(global_pos, row2_rect, STAGE_ROW_SLOTS)
+		return _stage_slot_index_from_row_point(global_pos, row2_rect, GEO.STAGE_ROW_SLOTS)
 	var best_i: int = -1
 	var best_d: float = INF
 	for i in range(_stage_slot_controls.size()):
@@ -2637,95 +2093,35 @@ func _stage_slot_index_from_row_point(global_pos: Vector2, row_rect: Rect2, row_
 	var cell_w: float = _slot_size.x + sep
 	var local_x: float = clamp(global_pos.x - row_rect.position.x, 0.0, row_rect.size.x)
 	var col: int = int(floor(local_x / max(1.0, cell_w)))
-	col = clamp(col, 0, STAGE_ROW_SLOTS - 1)
+	col = clamp(col, 0, GEO.STAGE_ROW_SLOTS - 1)
 	return row_start + col
 
 func _nearest_empty_stage_slot(preferred_slot: int) -> int:
-	if preferred_slot < 0 or preferred_slot >= _stage_slots.size():
-		preferred_slot = 0
-	if _stage_slots[preferred_slot] == -1:
-		return preferred_slot
-	var start: int = 0
-	var stop: int = STAGE_ROW_SLOTS
-	if preferred_slot >= STAGE_ROW_SLOTS:
-		start = STAGE_ROW_SLOTS
-		stop = STAGE_SLOT_COUNT
-	for radius in range(1, STAGE_ROW_SLOTS):
-		var right: int = preferred_slot + radius
-		if right >= start and right < stop and _stage_slots[right] == -1:
-			return right
-		var left: int = preferred_slot - radius
-		if left >= start and left < stop and _stage_slots[left] == -1:
-			return left
-	for i in range(_stage_slots.size()):
-		if _stage_slots[i] == -1:
-			return i
-	return -1
+	return _slots.nearest_empty_stage_slot(preferred_slot, GEO.STAGE_ROW_SLOTS, GEO.STAGE_SLOT_COUNT)
 
 func _move_slot(from_slot: int, to_slot: int) -> void:
-	if from_slot < 0 or from_slot >= _rack_slots.size():
-		return
-	if to_slot < 0 or to_slot >= _rack_slots.size():
-		return
-	var tile_id: int = _rack_slots[from_slot]
-	if tile_id == -1:
-		return
-	# Swap behavior prevents row cascade/overflow while still allowing free placement.
-	var other_id: int = _rack_slots[to_slot]
-	_rack_slots[to_slot] = tile_id
-	_rack_slots[from_slot] = other_id
-	_last_tile_id = tile_id
-	_render_rack()
+	if _slots.move_slot(from_slot, to_slot):
+		_render_rack()
 
 func _move_rack_to_stage(from_slot: int, to_stage_slot: int) -> void:
-	if from_slot < 0 or from_slot >= _rack_slots.size():
-		return
-	if to_stage_slot < 0 or to_stage_slot >= _stage_slots.size():
-		return
-	var tile_id: int = _rack_slots[from_slot]
-	if tile_id == -1:
-		return
-	var stage_slot: int = _nearest_empty_stage_slot(to_stage_slot)
-	if stage_slot == -1:
-		return
-	_stage_slots[stage_slot] = tile_id
-	_rack_slots[from_slot] = -1
-	_last_tile_id = tile_id
-	_render_rack()
+	if _slots.move_rack_to_stage(from_slot, to_stage_slot, GEO.STAGE_ROW_SLOTS, GEO.STAGE_SLOT_COUNT):
+		_render_rack()
 
 func _move_stage_to_rack(from_stage_slot: int, to_slot: int) -> void:
-	if from_stage_slot < 0 or from_stage_slot >= _stage_slots.size():
-		return
-	if to_slot < 0 or to_slot >= _rack_slots.size():
-		return
-	var tile_id: int = _stage_slots[from_stage_slot]
-	if tile_id == -1:
-		return
-	var other_id: int = _rack_slots[to_slot]
-	_rack_slots[to_slot] = tile_id
-	_stage_slots[from_stage_slot] = other_id
-	_last_tile_id = tile_id
-	_render_rack()
+	if _slots.move_stage_to_rack(from_stage_slot, to_slot):
+		_render_rack()
 
 func _move_stage_slot(from_slot: int, to_slot: int) -> void:
-	if from_slot < 0 or from_slot >= _stage_slots.size():
-		return
-	if to_slot < 0 or to_slot >= _stage_slots.size():
-		return
-	var tile_id: int = _stage_slots[from_slot]
-	if tile_id == -1:
-		return
-	var other_id: int = _stage_slots[to_slot]
-	_stage_slots[to_slot] = tile_id
-	_stage_slots[from_slot] = other_id
-	_last_tile_id = tile_id
-	_render_rack()
+	if _slots.move_stage_slot(from_slot, to_slot):
+		_render_rack()
 
 # ═══════════════════════════════════════════
 # BOT TURNS
 # ═══════════════════════════════════════════
 
 func _maybe_auto_bot_turn() -> void:
+	if _controller_injected_external:
+		return
 	if _bot_loop_running:
 		return
 	if _controller.state == null:
@@ -2781,12 +2177,35 @@ func _maybe_auto_bot_turn() -> void:
 				break
 	_bot_loop_running = false
 
+func _bind_controller_signals() -> void:
+	if _controller == null:
+		return
+	if not _controller.state_changed.is_connected(_on_state_changed):
+		_controller.state_changed.connect(_on_state_changed)
+	if not _controller.action_rejected.is_connected(_on_action_rejected):
+		_controller.action_rejected.connect(_on_action_rejected)
+	if not _controller.action_applied.is_connected(_on_action_applied):
+		_controller.action_applied.connect(_on_action_applied)
+
+func _unbind_controller_signals() -> void:
+	if _controller == null:
+		return
+	if _controller.state_changed.is_connected(_on_state_changed):
+		_controller.state_changed.disconnect(_on_state_changed)
+	if _controller.action_rejected.is_connected(_on_action_rejected):
+		_controller.action_rejected.disconnect(_on_action_rejected)
+	if _controller.action_applied.is_connected(_on_action_applied):
+		_controller.action_applied.disconnect(_on_action_applied)
+
 # ═══════════════════════════════════════════
 # ROUND END DIALOG
 # ═══════════════════════════════════════════
 
 func _show_round_end_dialog() -> void:
 	if _controller.state == null:
+		return
+	# Headless test/probe runs have no real window; avoid popup warnings there.
+	if DisplayServer.get_name() == "headless":
 		return
 	if _round_dialog == null:
 		_round_dialog = AcceptDialog.new()
@@ -2837,20 +2256,20 @@ func _render_round_controls() -> void:
 
 func _apply_responsive_layout() -> void:
 	var vp: Vector2 = get_viewport_rect().size
-	var margin: float = OUTER_MARGIN
-	var content_top: float = 8.0 if _presentation_mode == "3d" else TOP_BAR_HEIGHT + 8.0
+	var margin: float = GEO.OUTER_MARGIN
+	var content_top: float = 8.0 if _presentation_mode == "3d" else GEO.TOP_BAR_HEIGHT + 8.0
 	var tile_gap: float = 4.0
 	var usable_w: float = max(960.0, vp.x - margin * 2.0)
 	# Keep rack readable on desktop while preserving two-row capacity.
-	var tile_w: float = clamp((usable_w * 0.54 - 30.0 - float(RACK_ROW_SLOTS - 1) * tile_gap) / float(RACK_ROW_SLOTS), 36.0, 56.0)
+	var tile_w: float = clamp((usable_w * 0.54 - 30.0 - float(GEO.RACK_ROW_SLOTS - 1) * tile_gap) / float(GEO.RACK_ROW_SLOTS), 36.0, 56.0)
 	var tile_h: float = clamp(tile_w * 1.34, 58.0, 86.0)
 	_slot_size = Vector2(tile_w, tile_h)
 
-	var rack_w: float = float(RACK_ROW_SLOTS) * tile_w + float(RACK_ROW_SLOTS - 1) * tile_gap + 34.0
+	var rack_w: float = float(GEO.RACK_ROW_SLOTS) * tile_w + float(GEO.RACK_ROW_SLOTS - 1) * tile_gap + 34.0
 	rack_w = min(rack_w, vp.x - margin * 2.0)
-	var rack_h: float = clamp(tile_h * 2.0 + 14.0, RACK_MIN_HEIGHT, RACK_MAX_HEIGHT)
+	var rack_h: float = clamp(tile_h * 2.0 + 14.0, GEO.RACK_MIN_HEIGHT, GEO.RACK_MAX_HEIGHT)
 	var rack_x: float = (vp.x - rack_w) * 0.5
-	var rack_y: float = vp.y - rack_h - BOTTOM_PADDING
+	var rack_y: float = vp.y - rack_h - GEO.BOTTOM_PADDING
 	if _presentation_mode == "3d":
 		rack_y -= 82.0
 	_set_rect_pixels(_rack_panel, rack_x, rack_y, rack_w, rack_h)
@@ -2900,54 +2319,58 @@ func _apply_responsive_layout() -> void:
 	var table_h: float
 	if _presentation_mode == "3d":
 		# In 3D mode, rack is in the overlay — table fills the full viewport
-		table_h = clamp(vp.y - content_top - 8.0, TABLE_MIN_HEIGHT, TABLE_MAX_HEIGHT)
+		table_h = clamp(vp.y - content_top - 8.0, GEO.TABLE_MIN_HEIGHT, GEO.TABLE_MAX_HEIGHT)
 	else:
-		table_h = clamp(rack_y - content_top - BOTTOM_RACK_GAP, TABLE_MIN_HEIGHT, TABLE_MAX_HEIGHT)
+		table_h = clamp(rack_y - content_top - GEO.BOTTOM_RACK_GAP, GEO.TABLE_MIN_HEIGHT, GEO.TABLE_MAX_HEIGHT)
 	_set_rect_pixels(_table_area, table_x, table_y, table_w, table_h)
-	_layout_table_backdrop(table_w, table_h)
+	if _board != null:
+		_board.layout_table_backdrop(table_w, table_h)
 
 	# Pseudo-3D board geometry: all anchors derive from this felt frame.
-	var felt_w: float = clamp(table_w * FELT_WIDTH_RATIO, FELT_MIN_WIDTH, table_w - FELT_SIDE_INSET_MAX)
-	var felt_h: float = clamp(table_h * FELT_HEIGHT_RATIO, FELT_MIN_HEIGHT, table_h - FELT_BOTTOM_INSET_MAX)
+	var felt_w: float = clamp(table_w * GEO.FELT_WIDTH_RATIO, GEO.FELT_MIN_WIDTH, table_w - GEO.FELT_SIDE_INSET_MAX)
+	var felt_h: float = clamp(table_h * GEO.FELT_HEIGHT_RATIO, GEO.FELT_MIN_HEIGHT, table_h - GEO.FELT_BOTTOM_INSET_MAX)
 	# Keep felt square in both 2D and 3D presentations.
-	var felt_side_max_w: float = max(320.0, table_w - FELT_SIDE_INSET_MAX)
-	var felt_side_max_h: float = max(320.0, table_h - FELT_BOTTOM_INSET_MAX)
+	var felt_side_max_w: float = max(320.0, table_w - GEO.FELT_SIDE_INSET_MAX)
+	var felt_side_max_h: float = max(320.0, table_h - GEO.FELT_BOTTOM_INSET_MAX)
 	var felt_side: float = clamp(
-		min(table_w * FELT_WIDTH_RATIO, table_h * FELT_HEIGHT_RATIO),
-		FELT_MIN_SIDE,
+		min(table_w * GEO.FELT_WIDTH_RATIO, table_h * GEO.FELT_HEIGHT_RATIO),
+		GEO.FELT_MIN_SIDE,
 		min(felt_side_max_w, felt_side_max_h)
 	)
 	felt_w = felt_side
 	felt_h = felt_side
 	var felt_x: float = (table_w - felt_w) * 0.5
-	var felt_y_span: float = max(FELT_TOP_MARGIN_MIN, table_h - felt_h - FELT_BOTTOM_MARGIN_MIN)
-	var felt_y: float = lerpf(FELT_TOP_MARGIN_MIN, felt_y_span, FELT_VERTICAL_BIAS)
+	var felt_y_span: float = max(GEO.FELT_TOP_MARGIN_MIN, table_h - felt_h - GEO.FELT_BOTTOM_MARGIN_MIN)
+	var felt_y: float = lerpf(GEO.FELT_TOP_MARGIN_MIN, felt_y_span, GEO.FELT_VERTICAL_BIAS)
 	_set_rect_pixels(_melds_panel, felt_x, felt_y, felt_w, felt_h)
 	_set_rect_pixels(
 		_meld_island,
-		MELD_ISLAND_INSET_X,
-		MELD_ISLAND_INSET_TOP,
-		felt_w - MELD_ISLAND_INSET_X * 2.0,
-		felt_h - MELD_ISLAND_INSET_TOP - MELD_ISLAND_INSET_BOTTOM
+		GEO.MELD_ISLAND_INSET_X,
+		GEO.MELD_ISLAND_INSET_TOP,
+		felt_w - GEO.MELD_ISLAND_INSET_X * 2.0,
+		felt_h - GEO.MELD_ISLAND_INSET_TOP - GEO.MELD_ISLAND_INSET_BOTTOM
 	)
 
 	# Projected board footprint used for all table-space anchors.
-	var board_proj: Dictionary = _project_board_footprint(felt_x, felt_y, felt_w, felt_h)
+	var board_proj: Dictionary = GEO.project_board_footprint(felt_x, felt_y, felt_w, felt_h)
 	var top_left: Vector2 = board_proj.get("top_left", Vector2())
 	var top_right: Vector2 = board_proj.get("top_right", Vector2())
 	var bottom_left: Vector2 = board_proj.get("bottom_left", Vector2())
 	var bottom_right: Vector2 = board_proj.get("bottom_right", Vector2())
 	var proj_top_w: float = float(board_proj.get("top_width", 0.0))
 	var proj_bottom_w: float = float(board_proj.get("bottom_width", 0.0))
-	_layout_board_geometry(top_left, top_right, bottom_right, bottom_left)
+	if _board != null:
+		_board.layout_board_geometry(top_left, top_right, bottom_right, bottom_left)
 
-	_layout_wall_ring()
+	if _board != null:
+		_board.set_slot_size(_slot_size)
+		_board.layout_wall_ring()
 	if _stage_panel != null:
 		_stage_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 		_layout_pending_rows()
 
 	# Pseudo-3D table rails around the felt (camera-tilt illusion).
-	if SHOW_TABLE_RAILS and _rail_top != null and _rail_left != null and _rail_right != null and _rail_bottom != null:
+	if GEO.SHOW_TABLE_RAILS and _rail_top != null and _rail_left != null and _rail_right != null and _rail_bottom != null:
 		var side_w: float = clamp(felt_w * 0.016, 8.0, 14.0)
 		var top_h: float = clamp(felt_h * 0.018, 8.0, 14.0)
 		var bottom_h: float = clamp(felt_h * 0.016, 6.0, 12.0)
@@ -2964,7 +2387,7 @@ func _apply_responsive_layout() -> void:
 		_rail_top.visible = false
 		_rail_bottom.visible = true
 
-	var anchors: Dictionary = _build_table_anchor_contract(top_left, top_right, bottom_left, bottom_right, felt_w, felt_h)
+	var anchors: Dictionary = GEO.build_table_anchor_contract(top_left, top_right, bottom_left, bottom_right, felt_w, felt_h, _presentation_mode)
 	var center_size: Vector2 = anchors.get("center_size", Vector2())
 	var center_anchor: Vector2 = anchors.get("center_anchor", Vector2())
 	_set_rect_pixels(
@@ -2984,9 +2407,9 @@ func _apply_responsive_layout() -> void:
 		if _presentation_mode == "3d":
 			rack_panel.pivot_offset = rack_panel.size * 0.5
 			if i == 0:
-				rack_panel.rotation_degrees = OPP_3D_SIDE_RACK_ROTATION_DEG # east player
+				rack_panel.rotation_degrees = GEO.OPP_3D_SIDE_RACK_ROTATION_DEG # east player
 			elif i == 2:
-				rack_panel.rotation_degrees = -OPP_3D_SIDE_RACK_ROTATION_DEG # west player
+				rack_panel.rotation_degrees = -GEO.OPP_3D_SIDE_RACK_ROTATION_DEG # west player
 			else:
 				rack_panel.rotation_degrees = 0.0 # north player
 		else:
@@ -3023,104 +2446,6 @@ func _apply_responsive_layout() -> void:
 	if _controller.state != null:
 		_render_all()
 
-func _project_board_footprint(felt_x: float, felt_y: float, felt_w: float, felt_h: float) -> Dictionary:
-	var proj_top_y: float = felt_y + felt_h * PERSPECTIVE_TOP_Y_RATIO
-	var proj_bottom_y: float = felt_y + felt_h * PERSPECTIVE_BOTTOM_Y_RATIO
-	var proj_top_w: float = felt_w * PERSPECTIVE_FAR_WIDTH_RATIO
-	var proj_bottom_w: float = felt_w * PERSPECTIVE_NEAR_WIDTH_RATIO
-	var proj_top_x: float = felt_x + (felt_w - proj_top_w) * 0.5
-	var proj_bottom_x: float = felt_x + (felt_w - proj_bottom_w) * 0.5
-	return {
-		"top_left": Vector2(proj_top_x, proj_top_y),
-		"top_right": Vector2(proj_top_x + proj_top_w, proj_top_y),
-		"bottom_left": Vector2(proj_bottom_x, proj_bottom_y),
-		"bottom_right": Vector2(proj_bottom_x + proj_bottom_w, proj_bottom_y),
-		"top_width": proj_top_w,
-		"bottom_width": proj_bottom_w,
-	}
-
-func _build_table_anchor_contract(
-	top_left: Vector2,
-	top_right: Vector2,
-	bottom_left: Vector2,
-	bottom_right: Vector2,
-	felt_w: float,
-	felt_h: float
-) -> Dictionary:
-	var center_w: float = clamp(felt_w * CENTER_ZONE_WIDTH_RATIO, CENTER_ZONE_MIN_WIDTH, CENTER_ZONE_MAX_WIDTH)
-	var center_h: float = clamp(felt_h * CENTER_ZONE_HEIGHT_RATIO, CENTER_ZONE_MIN_HEIGHT, CENTER_ZONE_MAX_HEIGHT)
-	if _presentation_mode == "3d":
-		center_w *= 0.84
-		center_h *= 0.82
-	var center_anchor: Vector2 = Vector2(
-		lerpf(top_left.x, top_right.x, CENTER_ZONE_ANCHOR_X),
-		lerpf(top_left.y, bottom_left.y, CENTER_ZONE_ANCHOR_Y - 0.02) if _presentation_mode == "3d" else lerpf(top_left.y, bottom_left.y, CENTER_ZONE_ANCHOR_Y)
-	)
-
-	var side_badge_w: float = clamp(felt_w * OPP_BADGE_SIDE_WIDTH_RATIO, OPP_BADGE_SIDE_MIN_WIDTH, OPP_BADGE_SIDE_MAX_WIDTH)
-	var side_badge_h: float = clamp(felt_h * OPP_BADGE_SIDE_HEIGHT_RATIO, OPP_BADGE_SIDE_MIN_HEIGHT, OPP_BADGE_SIDE_MAX_HEIGHT)
-	var top_badge_w: float = side_badge_w * OPP_BADGE_TOP_WIDTH_RATIO
-	var top_badge_h: float = side_badge_h * OPP_BADGE_TOP_HEIGHT_RATIO
-	var top_badge_y: float = top_left.y + OPP_BADGE_TOP_MARGIN
-	if _presentation_mode == "3d":
-		side_badge_w = clamp(side_badge_w * 1.04, 152.0, 214.0)
-		side_badge_h = clamp(side_badge_h * 0.52, 42.0, 60.0)
-		top_badge_w = clamp(top_badge_w * 1.02, 220.0, 300.0)
-		top_badge_h = clamp(top_badge_h * 0.70, 42.0, 58.0)
-		top_badge_y += 10.0
-
-	var opp_rack_rects: Array = [
-		Rect2(
-			lerpf(top_right.x, bottom_right.x, OPP_BADGE_SIDE_ANCHOR_T) - side_badge_w * 0.5,
-			lerpf(top_right.y, bottom_right.y, OPP_BADGE_SIDE_ANCHOR_T) - side_badge_h * 0.5,
-			side_badge_w,
-			side_badge_h
-		), # right
-		Rect2(
-			(top_left.x + top_right.x) * 0.5 - top_badge_w * 0.5,
-			top_badge_y,
-			top_badge_w,
-			top_badge_h
-		), # top
-		Rect2(
-			lerpf(top_left.x, bottom_left.x, OPP_BADGE_SIDE_ANCHOR_T) - side_badge_w * 0.5,
-			lerpf(top_left.y, bottom_left.y, OPP_BADGE_SIDE_ANCHOR_T) - side_badge_h * 0.5,
-			side_badge_w,
-			side_badge_h
-		), # left
-	]
-
-	var discard_size: Vector2 = DISCARD_ZONE_SIZE
-	if _presentation_mode == "3d":
-		discard_size *= 0.80
-
-	var opp_discard_rects: Array = [
-		Rect2(top_left.x + DISCARD_ZONE_MARGIN, top_left.y + DISCARD_ZONE_MARGIN, discard_size.x, discard_size.y), # top-left (P2)
-		Rect2(top_right.x - discard_size.x - DISCARD_ZONE_MARGIN, top_right.y + DISCARD_ZONE_MARGIN, discard_size.x, discard_size.y), # top-right (P1)
-		Rect2(bottom_left.x + DISCARD_ZONE_MARGIN, bottom_left.y - discard_size.y - DISCARD_ZONE_MARGIN, discard_size.x, discard_size.y), # bottom-left (P3)
-	]
-
-	var my_discard_local := Rect2(
-		bottom_right.x - discard_size.x - DISCARD_ZONE_MARGIN,
-		bottom_right.y - discard_size.y - DISCARD_ZONE_MARGIN,
-		discard_size.x,
-		discard_size.y
-	)
-
-	return {
-		"center_size": Vector2(center_w, center_h),
-		"center_anchor": center_anchor,
-		"opp_rack_rects": opp_rack_rects,
-		"opp_discard_rects": opp_discard_rects,
-		"my_discard_local": my_discard_local,
-	}
-
-func _compute_round_seed() -> int:
-	# Preserve deterministic progression when a fixed seed is provided.
-	# For random-mode seeds (<0), derive from wall clock plus round index.
-	if _game_seed < 0:
-		return int(Time.get_unix_time_from_system()) + _round_index
-	return _game_seed + _round_index
 
 func _pending_band_height() -> float:
 	return _slot_size.y * 2.0 + 18.0
@@ -3128,7 +2453,7 @@ func _pending_band_height() -> float:
 func _layout_pending_rows() -> void:
 	if _stage_panel == null or _stage_row1 == null or _stage_row2 == null:
 		return
-	var row_w: float = float(STAGE_ROW_SLOTS) * _slot_size.x + float(STAGE_ROW_SLOTS - 1) * 4.0
+	var row_w: float = float(GEO.STAGE_ROW_SLOTS) * _slot_size.x + float(GEO.STAGE_ROW_SLOTS - 1) * 4.0
 	var x: float = (_meld_island.size.x - row_w) * 0.5
 	var total_h: float = _slot_size.y * 2.0 + 4.0
 	# Keep pending rows near the lower felt half (closer to player's rack), without a visible panel.
@@ -3140,8 +2465,8 @@ func _layout_pending_rows() -> void:
 	_update_stage_slot_visuals()
 
 func _first_empty_stage_slot() -> int:
-	for i in range(_stage_slots.size()):
-		if int(_stage_slots[i]) == -1:
+	for i in range(_slots.stage_slots.size()):
+		if int(_slots.stage_slots[i]) == -1:
 			return i
 	return -1
 
@@ -3185,86 +2510,32 @@ func _set_rect_pixels(node: Control, x: float, y: float, w: float, h: float) -> 
 # ═══════════════════════════════════════════
 
 func _instruction_for_state() -> String:
-	if _controller.state == null:
-		return "Starting round..."
-	if not _is_my_turn():
-		return "Waiting for bots..."
-	match _controller.state.phase:
-		GameState.Phase.STARTER_DISCARD:
-			return "Starter: drag one tile to your corner discard slot"
-		GameState.Phase.TURN_DRAW:
-			return "Tap deck to draw, or previous player's corner discard if you can use it"
-		GameState.Phase.TURN_PLAY:
-			return "Drag tiles onto the felt to build melds. Drag to your discard corner to end turn."
-		GameState.Phase.TURN_DISCARD:
-			return "Drag one tile to your corner discard slot"
-		GameState.Phase.ROUND_END:
-			return "Round ended"
-		_:
-			return "Play"
+	return TILE_HELPERS.instruction_for_state(_controller.state, _is_my_turn())
 
 func _phase_name(phase: int) -> String:
-	match phase:
-		GameState.Phase.SETUP: return "Setup"
-		GameState.Phase.STARTER_DISCARD: return "Start"
-		GameState.Phase.TURN_DRAW: return "Draw"
-		GameState.Phase.TURN_PLAY: return "Play"
-		GameState.Phase.TURN_DISCARD: return "Discard"
-		GameState.Phase.ROUND_END: return "End"
-		_: return "-"
+	return TILE_HELPERS.phase_name(phase)
 
 func _tile_label(tile) -> String:
-	if tile == null:
-		return "-"
-	if int(tile.kind) != int(Tile.Kind.NORMAL):
-		return "F-%d" % int(tile.number)
-	return "%s-%d" % [_color_letter(int(tile.color)), int(tile.number)]
+	return TILE_HELPERS.tile_label(tile)
 
 func _tile_color(tile) -> Color:
-	if tile == null:
-		return Color(0.95, 0.95, 0.95)
-	match int(tile.color):
-		Tile.TileColor.RED: return Color(0.85, 0.12, 0.1)
-		Tile.TileColor.BLUE: return Color(0.1, 0.4, 0.75)
-		Tile.TileColor.BLACK: return Color(0.12, 0.12, 0.15)
-		Tile.TileColor.YELLOW: return Color(0.8, 0.6, 0.05)
-		_: return Color(0.95, 0.95, 0.95)
+	return TILE_HELPERS.tile_color(tile)
 
 func _color_letter(color_value: int) -> String:
-	match color_value:
-		Tile.TileColor.RED: return "R"
-		Tile.TileColor.BLUE: return "B"
-		Tile.TileColor.BLACK: return "K"
-		Tile.TileColor.YELLOW: return "Y"
-		_: return "?"
+	return TILE_HELPERS.color_letter(color_value)
 
 func _pair_key_for_tile(tile) -> String:
-	if _controller.state != null and _controller.state.okey_context != null and int(tile.kind) == int(Tile.Kind.FAKE_OKEY):
-		return "%d-%d" % [int(_controller.state.okey_context.okey_color), int(_controller.state.okey_context.okey_number)]
-	return "%d-%d" % [int(tile.color), int(tile.number)]
+	var ctx = _controller.state.okey_context if _controller.state != null else null
+	return TILE_HELPERS.pair_key_for_tile(tile, ctx)
 
 func _is_primary_tap(event: InputEvent) -> bool:
-	if event is InputEventMouseButton:
-		var mb: InputEventMouseButton = event as InputEventMouseButton
-		return mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT
-	if event is InputEventScreenTouch:
-		var st: InputEventScreenTouch = event as InputEventScreenTouch
-		return st.pressed
-	return false
+	return TILE_HELPERS.is_primary_tap(event)
 
 func _is_my_turn() -> bool:
-	return _controller.state != null and int(_controller.state.current_player_index) == 0
+	return TILE_HELPERS.is_my_turn(_controller.state)
 
 func _is_tile_in_my_hand(tile_id: int) -> bool:
-	for tile in _rack_hand():
-		if int(tile.unique_id) == tile_id:
-			return true
-	return false
+	return TILE_HELPERS.is_tile_in_hand(_rack_hand(), tile_id)
 
 func _prev_player(player_index: int) -> int:
-	if _controller.state == null:
-		return 0
-	var count: int = _controller.state.players.size()
-	if count <= 0:
-		return 0
-	return (player_index - 1 + count) % count
+	return TILE_HELPERS.prev_player(_controller.state, player_index)

@@ -28,6 +28,10 @@ window/size/window_height=1080
 
 project/assembly_name="New Game Project"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/epic-online-services-godot/plugin.cfg")
+
 [physics]
 
 3d/physics_engine="Jolt Physics"
@@ -35,4 +39,4 @@ project/assembly_name="New Game Project"
 [rendering]
 
 rendering_device/driver.windows="d3d12"
-renderer/rendering_method="mobile"
+textures/vram_compression/import_etc2_astc=true

@@ -22,3 +22,9 @@
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Project-generated captures/temp probes
+ai agent docs/screenshots/auto/
+tests/_tmp_*.gd
+tests/_tmp_*.gd.uid
+dev/.tmp_*

@@ -15,6 +15,7 @@ func _init(p_indicator_tile: Tile) -> void:
 func is_real_okey(tile: Tile) -> bool:
 	return tile.kind == Tile.Kind.NORMAL and tile.color == okey_color and tile.number == okey_number
 
+# Deprecated compatibility shim; retained for external/dynamic callers.
 func interpret_fake_okey(tile: Tile) -> Tile:
 	if tile.kind != Tile.Kind.FAKE_OKEY:
 		return tile

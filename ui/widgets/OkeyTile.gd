@@ -40,7 +40,7 @@ const TILE_COLORS = {
 	0: Color(0.85, 0.12, 0.1),    # Red
 	1: Color(0.1, 0.4, 0.75),     # Blue
 	2: Color(0.12, 0.12, 0.15),   # Black
-	3: Color(0.8, 0.6, 0.05),     # Yellow/Orange
+	3: Color(0.45, 0.29, 0.03),   # Yellow/Orange (high-contrast amber)
 }
 
 func _ready() -> void:
@@ -133,8 +133,12 @@ func _update_visuals() -> void:
 	var text_color = TILE_COLORS.get(tile_data.color, Color.WHITE)
 	_number.add_theme_color_override("font_color", text_color)
 	_number.add_theme_font_size_override("font_size", 21)
-	_number.add_theme_color_override("font_outline_color", Color(0.1, 0.1, 0.1, 0.12))
-	_number.add_theme_constant_override("outline_size", 1)
+	if int(tile_data.color) == 3:
+		_number.add_theme_color_override("font_outline_color", Color(0.07, 0.05, 0.02, 0.50))
+		_number.add_theme_constant_override("outline_size", 3)
+	else:
+		_number.add_theme_color_override("font_outline_color", Color(0.1, 0.1, 0.1, 0.12))
+		_number.add_theme_constant_override("outline_size", 1)
 
 	# Update body style for false okey
 	if tile_data.kind != 0:
@@ -286,6 +290,7 @@ func _end_drag(global_pos: Vector2) -> void:
 	modulate.a = 1.0
 	drag_ended.emit(self, global_pos)
 
+# Deprecated compatibility shim; retained for external/dynamic callers.
 func animate_deal(delay: float) -> void:
 	modulate.a = 0
 	position.y += 50
@@ -294,6 +299,7 @@ func animate_deal(delay: float) -> void:
 	tween.tween_property(self, "modulate:a", 1.0, 0.2)
 	tween.parallel().tween_property(self, "position:y", position.y - 50, 0.3).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 
+# Deprecated compatibility shim; retained for external/dynamic callers.
 func animate_select() -> void:
 	var tween = create_tween()
 	tween.tween_property(self, "position:y", position.y - 8, 0.1).set_ease(Tween.EASE_OUT)
