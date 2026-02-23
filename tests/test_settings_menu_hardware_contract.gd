@@ -1,6 +1,7 @@
 extends RefCounted
 
 const SETTINGS_SCENE_PATH: String = "res://ui/SettingsMenu.tscn"
+const DISPLAY_SETTINGS_SCRIPT: Script = preload("res://ui/services/DisplaySettingsService.gd")
 const REQUIRED_PATHS: PackedStringArray = [
 	"Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/ShadowQuality/Value",
 	"Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/DisplayMonitor/Value",
@@ -35,6 +36,22 @@ func run() -> bool:
 			push_error("SettingsMenu missing expected hardware control path: %s" % path)
 			root.free()
 			return false
+
+	var mode_opt: OptionButton = root.get_node("Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/DisplayMode/Value")
+	var res_opt: OptionButton = root.get_node("Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/DisplayResolution/Value")
+	var refresh_opt: OptionButton = root.get_node("Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/DisplayRefreshRate/Value")
+	root.call("_select_option_by_id", mode_opt, DISPLAY_SETTINGS_SCRIPT.MODE_BORDERLESS)
+	root.call("_refresh_display_control_enabled_state")
+	if not res_opt.disabled or not refresh_opt.disabled:
+		push_error("Display resolution/refresh should be disabled in borderless mode")
+		root.free()
+		return false
+	root.call("_select_option_by_id", mode_opt, DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED)
+	root.call("_refresh_display_control_enabled_state")
+	if res_opt.disabled or refresh_opt.disabled:
+		push_error("Display resolution/refresh should be enabled in windowed mode")
+		root.free()
+		return false
 
 	root.free()
 	return true

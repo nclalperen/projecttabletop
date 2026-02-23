@@ -7,6 +7,7 @@ func run() -> bool:
 	return (
 		_test_defaults_and_sanitize()
 		and _test_monitor_and_resolution_listing()
+		and _test_exclusive_mode_policy()
 		and _test_apply_headless_contract()
 	)
 
@@ -74,5 +75,23 @@ func _test_apply_headless_contract() -> bool:
 		return false
 	if DISPLAY_SETTINGS_SCRIPT.is_headless() and String(result.get("code", "")) != "headless_noop":
 		push_error("Display apply_safe should return headless_noop in headless mode")
+		return false
+	return true
+
+
+func _test_exclusive_mode_policy() -> bool:
+	var mobile_mode: String = DISPLAY_SETTINGS_SCRIPT.safe_mode_for_platform(
+		DISPLAY_SETTINGS_SCRIPT.MODE_EXCLUSIVE,
+		"Android"
+	)
+	if mobile_mode != DISPLAY_SETTINGS_SCRIPT.MODE_BORDERLESS:
+		push_error("Exclusive mode should fallback to borderless on non-desktop platforms")
+		return false
+	var desktop_mode: String = DISPLAY_SETTINGS_SCRIPT.safe_mode_for_platform(
+		DISPLAY_SETTINGS_SCRIPT.MODE_EXCLUSIVE,
+		"Windows"
+	)
+	if desktop_mode != DISPLAY_SETTINGS_SCRIPT.MODE_EXCLUSIVE:
+		push_error("Exclusive mode should remain available on desktop platforms")
 		return false
 	return true
