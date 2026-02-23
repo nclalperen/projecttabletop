@@ -48,6 +48,7 @@ const TEST_SCRIPTS = [
 	"res://tests/test_seat_view_adapter.gd",
 	"res://tests/test_state_codec_redaction.gd",
 	"res://tests/test_protocol_schema.gd",
+	"res://tests/test_eos_gdextension_mapping.gd",
 	"res://tests/test_online_service_backend_modes.gd",
 	"res://tests/test_lobby_service_model_contract.gd",
 	"res://tests/test_online_lobby_flow.gd",
