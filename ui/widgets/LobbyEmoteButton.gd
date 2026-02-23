@@ -54,10 +54,13 @@ func _apply_skin() -> void:
 	var texture: Texture2D = ASSET_REGISTRY.texture(BUTTON_GOLD_ID)
 	if texture == null:
 		return
-	add_theme_stylebox_override("normal", _style_from(texture, Color(0.95, 0.95, 0.95, 1.0)))
-	add_theme_stylebox_override("hover", _style_from(texture, Color(1.04, 1.04, 1.04, 1.0)))
-	add_theme_stylebox_override("pressed", _style_from(texture, Color(0.9, 0.9, 0.9, 1.0)))
-	add_theme_stylebox_override("disabled", _style_from(texture, Color(0.55, 0.55, 0.55, 0.92)))
+	add_theme_stylebox_override("normal", _style_from(texture, Color(0.96, 0.88, 0.7, 1.0)))
+	add_theme_stylebox_override("hover", _style_from(texture, Color(1.0, 0.94, 0.76, 1.0)))
+	add_theme_stylebox_override("pressed", _style_from(texture, Color(0.88, 0.79, 0.63, 1.0)))
+	add_theme_stylebox_override("disabled", _style_from(texture, Color(0.56, 0.5, 0.43, 0.92)))
+	add_theme_color_override("icon_normal_color", Color(0.25, 0.18, 0.11, 1.0))
+	add_theme_color_override("icon_hover_color", Color(0.23, 0.16, 0.1, 1.0))
+	add_theme_color_override("icon_pressed_color", Color(0.2, 0.14, 0.08, 1.0))
 
 
 func _style_from(texture: Texture2D, tint: Color) -> StyleBoxTexture:

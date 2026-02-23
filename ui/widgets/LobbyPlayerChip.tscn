@@ -3,12 +3,12 @@
 [ext_resource type="Script" path="res://ui/widgets/LobbyPlayerChip.gd" id="1_chip"]
 
 [sub_resource type="StyleBoxFlat" id="1_chip_style"]
-bg_color = Color(0.07, 0.2, 0.26, 0.9)
+bg_color = Color(0.24, 0.19, 0.14, 0.92)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.94, 0.78, 0.43, 1)
+border_color = Color(0.9, 0.75, 0.5, 1)
 corner_radius_top_left = 12
 corner_radius_top_right = 12
 corner_radius_bottom_right = 12
@@ -51,7 +51,7 @@ theme_override_font_sizes/font_size = 18
 [node name="Meta" type="Label" parent="Margin/HBox/Info"]
 layout_mode = 2
 text = "Seat 0 | OK"
-theme_override_colors/font_color = Color(0.75, 0.87, 0.93, 1)
+theme_override_colors/font_color = Color(0.84, 0.78, 0.69, 1)
 theme_override_font_sizes/font_size = 15
 
 [node name="Badges" type="HBoxContainer" parent="Margin/HBox"]

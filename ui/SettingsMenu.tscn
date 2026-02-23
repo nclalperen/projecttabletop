@@ -5,12 +5,12 @@
 [ext_resource type="PackedScene" path="res://ui/widgets/IconTextButton.tscn" id="3_btn"]
 
 [sub_resource type="StyleBoxFlat" id="1_panel_style"]
-bg_color = Color(0.09, 0.27, 0.33, 0.95)
+bg_color = Color(0.23, 0.19, 0.14, 0.96)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.89, 0.72, 0.37, 1)
+border_color = Color(0.9, 0.75, 0.5, 1)
 corner_radius_top_left = 14
 corner_radius_top_right = 14
 corner_radius_bottom_right = 14
@@ -23,12 +23,12 @@ content_margin_right = 14
 content_margin_bottom = 12
 
 [sub_resource type="StyleBoxFlat" id="2_scroll_style"]
-bg_color = Color(0.05, 0.16, 0.22, 0.42)
+bg_color = Color(0.16, 0.13, 0.1, 0.6)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.86, 0.93, 0.98, 0.22)
+border_color = Color(0.9, 0.78, 0.58, 0.28)
 corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
@@ -53,7 +53,7 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-modulate = Color(0.28, 0.47, 0.53, 0.22)
+modulate = Color(0.27, 0.24, 0.16, 0.22)
 expand_mode = 1
 stretch_mode = 4
 mouse_filter = 2
@@ -64,7 +64,7 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
-color = Color(0.03, 0.08, 0.1, 0.72)
+color = Color(0.07, 0.06, 0.04, 0.68)
 
 [node name="Panel" type="Panel" parent="."]
 layout_mode = 1
@@ -103,7 +103,7 @@ size_flags_horizontal = 4
 text = "Game Settings"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 34
-theme_override_colors/font_color = Color(0.95, 0.98, 1, 1)
+theme_override_colors/font_color = Color(0.96, 0.9, 0.78, 1)
 
 [node name="HSeparator" type="HSeparator" parent="Panel/MarginContainer/VBoxContainer"]
 layout_mode = 2

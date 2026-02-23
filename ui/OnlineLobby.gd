@@ -14,7 +14,6 @@ const EMOTE_BUTTON_SCENE: PackedScene = preload("res://ui/widgets/LobbyEmoteButt
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
 
-const FONT_MAIN_ID: StringName = ASSET_IDS.UI_FONT_KENNEY_FUTURE
 const PANEL_BORDER_ID: StringName = ASSET_IDS.UI_PANEL_BORDER_GREY_DETAIL
 const PANEL_FILL_ID: StringName = ASSET_IDS.UI_PANEL_GREY_DARK
 const PANEL_GRID_ID: StringName = ASSET_IDS.UI_PANEL_PATTERN_DIAGONAL_TRANSPARENT_SMALL
@@ -160,26 +159,17 @@ func _texture(id: StringName) -> Texture2D:
 
 
 func _apply_kenney_fonts() -> void:
-	var main_font: FontFile = ASSET_REGISTRY.font(FONT_MAIN_ID)
-	if main_font != null:
-		var title: Label = $Margin/RootCard/CardMargin/VBox/Title
-		title.add_theme_font_override("font", main_font)
-		title.add_theme_font_size_override("font_size", 42)
-		if _roster_header != null:
-			_roster_header.add_theme_font_override("font", main_font)
-		if _emote_label != null:
-			_emote_label.add_theme_font_override("font", main_font)
-		for button in [_login_btn, _quick_btn, _private_btn, _ready_btn, _start_btn, _back_btn]:
-			if button != null:
-				button.add_theme_font_override("font", main_font)
+	var title: Label = $Margin/RootCard/CardMargin/VBox/Title
+	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_color_override("font_color", Color(0.97, 0.91, 0.79, 1.0))
 	_status_label.add_theme_font_size_override("font_size", 20)
-	_status_label.add_theme_color_override("font_color", Color(0.91, 0.96, 0.99, 0.95))
+	_status_label.add_theme_color_override("font_color", Color(0.92, 0.87, 0.78, 0.95))
 	if _roster_header != null:
 		_roster_header.add_theme_font_size_override("font_size", 22)
-		_roster_header.add_theme_color_override("font_color", Color(0.91, 0.96, 0.99, 0.95))
+		_roster_header.add_theme_color_override("font_color", Color(0.95, 0.88, 0.76, 0.95))
 	if _emote_label != null:
 		_emote_label.add_theme_font_size_override("font_size", 18)
-		_emote_label.add_theme_color_override("font_color", Color(0.91, 0.96, 0.99, 0.92))
+		_emote_label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.76, 0.94))
 
 
 func _apply_background_pattern() -> void:
@@ -187,7 +177,7 @@ func _apply_background_pattern() -> void:
 		_background.texture = _texture(PANEL_GRID_ID)
 		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		_background.stretch_mode = TextureRect.STRETCH_TILE
-		_background.modulate = Color(0.16, 0.25, 0.3, 0.74)
+		_background.modulate = Color(0.19, 0.2, 0.14, 0.88)
 
 
 func _apply_panel_shell() -> void:
@@ -197,7 +187,7 @@ func _apply_panel_shell() -> void:
 	if panel_tex != null:
 		var panel_style := StyleBoxTexture.new()
 		panel_style.texture = panel_tex
-		panel_style.modulate_color = Color(0.54, 0.66, 0.76, 0.96)
+		panel_style.modulate_color = Color(0.33, 0.28, 0.22, 0.97)
 		panel_style.texture_margin_left = 12.0
 		panel_style.texture_margin_top = 12.0
 		panel_style.texture_margin_right = 12.0
@@ -225,6 +215,7 @@ func _apply_panel_shell() -> void:
 		border.patch_margin_bottom = 12
 		_root_card.add_child(border)
 	border.texture = border_tex
+	border.modulate = Color(0.92, 0.8, 0.59, 0.92)
 
 
 func _bind_button_feedback() -> void:

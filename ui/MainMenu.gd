@@ -23,7 +23,6 @@ const ICON_BUTTON_SCENE: PackedScene = preload("res://ui/widgets/IconTextButton.
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
 
-const FONT_MAIN_ID: StringName = ASSET_IDS.UI_FONT_KENNEY_FUTURE
 const PANEL_BORDER_ID: StringName = ASSET_IDS.UI_PANEL_BORDER_GREY_DETAIL
 const PANEL_FILL_ID: StringName = ASSET_IDS.UI_PANEL_GREY_DARK
 const PANEL_GRID_ID: StringName = ASSET_IDS.UI_PANEL_PATTERN_DIAGONAL_TRANSPARENT_SMALL
@@ -161,7 +160,7 @@ func _apply_background_pattern() -> void:
 		_background.texture = _texture(PANEL_GRID_ID)
 		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		_background.stretch_mode = TextureRect.STRETCH_TILE
-		_background.modulate = Color(0.16, 0.25, 0.3, 0.76)
+		_background.modulate = Color(0.2, 0.2, 0.14, 0.86)
 
 
 func _apply_panel_shell() -> void:
@@ -171,7 +170,7 @@ func _apply_panel_shell() -> void:
 	if panel_tex != null:
 		var panel_style := StyleBoxTexture.new()
 		panel_style.texture = panel_tex
-		panel_style.modulate_color = Color(0.56, 0.67, 0.76, 0.97)
+		panel_style.modulate_color = Color(0.34, 0.29, 0.22, 0.97)
 		panel_style.texture_margin_left = 12.0
 		panel_style.texture_margin_top = 12.0
 		panel_style.texture_margin_right = 12.0
@@ -199,15 +198,16 @@ func _apply_panel_shell() -> void:
 		border.patch_margin_bottom = 12
 		_menu_card.add_child(border)
 	border.texture = border_tex
+	border.modulate = Color(0.92, 0.8, 0.59, 0.94)
 
 
 func _apply_meta_chip_icons() -> void:
 	if _players_chip_icon != null:
 		_players_chip_icon.texture = _texture(ICON_ONLINE_ID)
-		_players_chip_icon.modulate = Color(1.0, 0.93, 0.62, 1.0)
+		_players_chip_icon.modulate = Color(0.98, 0.86, 0.58, 1.0)
 	if _timer_chip_icon != null:
 		_timer_chip_icon.texture = _texture(ICON_TIMER_ID)
-		_timer_chip_icon.modulate = Color(1.0, 0.93, 0.62, 1.0)
+		_timer_chip_icon.modulate = Color(0.98, 0.86, 0.58, 1.0)
 	_update_online_chip_icon()
 
 
@@ -219,25 +219,24 @@ func _update_online_chip_icon() -> void:
 
 
 func _apply_kenney_fonts() -> void:
-	var main_font: FontFile = ASSET_REGISTRY.font(FONT_MAIN_ID)
-	if main_font != null:
-		var title: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Title
-		var subtitle: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Subtitle
-		title.add_theme_font_override("font", main_font)
-		subtitle.add_theme_font_override("font", main_font)
-		for button in _button_list():
-			if button != null:
-				button.add_theme_font_override("font", main_font)
+	var title: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Title
+	var subtitle: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Subtitle
 	var subtitle_label: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Subtitle
 	var version: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Version
 	var summary: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/SettingsSummary
-	subtitle_label.add_theme_font_size_override("font_size", 18)
+	title.add_theme_font_size_override("font_size", 58)
+	title.add_theme_color_override("font_color", Color(0.96, 0.9, 0.78, 1.0))
+	subtitle.add_theme_font_size_override("font_size", 28)
+	subtitle.add_theme_color_override("font_color", Color(0.89, 0.84, 0.74, 0.96))
+	subtitle_label.add_theme_font_size_override("font_size", 20)
 	version.add_theme_font_size_override("font_size", 13)
+	version.add_theme_color_override("font_color", Color(0.8, 0.75, 0.65, 0.86))
 	summary.add_theme_font_size_override("font_size", 15)
+	summary.add_theme_color_override("font_color", Color(0.89, 0.86, 0.79, 0.93))
 	for chip in [_players_chip, _timer_chip, _online_chip]:
 		if chip != null:
 			chip.add_theme_font_size_override("font_size", 15)
-			chip.add_theme_color_override("font_color", Color(0.92, 0.97, 1.0, 0.96))
+			chip.add_theme_color_override("font_color", Color(0.95, 0.89, 0.77, 0.98))
 
 
 func _on_start_pressed() -> void:

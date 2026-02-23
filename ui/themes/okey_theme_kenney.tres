@@ -1,12 +1,12 @@
 [gd_resource type="Theme" load_steps=7 format=3]
 
 [sub_resource type="StyleBoxFlat" id="1_button_normal"]
-bg_color = Color(0.89, 0.72, 0.37, 1)
+bg_color = Color(0.92, 0.83, 0.65, 1)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.98, 0.9, 0.62, 1)
+border_color = Color(0.91, 0.77, 0.5, 1)
 corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
@@ -19,12 +19,12 @@ content_margin_right = 12
 content_margin_bottom = 8
 
 [sub_resource type="StyleBoxFlat" id="2_button_hover"]
-bg_color = Color(0.54, 0.77, 0.86, 1)
+bg_color = Color(0.98, 0.9, 0.72, 1)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.92, 0.86, 0.68, 1)
+border_color = Color(0.95, 0.82, 0.58, 1)
 corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
@@ -37,12 +37,12 @@ content_margin_right = 12
 content_margin_bottom = 8
 
 [sub_resource type="StyleBoxFlat" id="3_button_pressed"]
-bg_color = Color(0.82, 0.62, 0.29, 1)
+bg_color = Color(0.81, 0.67, 0.48, 1)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.98, 0.88, 0.57, 1)
+border_color = Color(0.88, 0.72, 0.45, 1)
 corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
@@ -53,12 +53,12 @@ content_margin_right = 12
 content_margin_bottom = 8
 
 [sub_resource type="StyleBoxFlat" id="4_button_disabled"]
-bg_color = Color(0.25, 0.3, 0.34, 0.85)
+bg_color = Color(0.32, 0.28, 0.23, 0.85)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.5, 0.56, 0.58, 0.65)
+border_color = Color(0.56, 0.5, 0.42, 0.65)
 corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
@@ -69,12 +69,12 @@ content_margin_right = 12
 content_margin_bottom = 8
 
 [sub_resource type="StyleBoxFlat" id="5_panel_style"]
-bg_color = Color(0.07, 0.2, 0.26, 0.94)
+bg_color = Color(0.23, 0.19, 0.14, 0.94)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.93, 0.76, 0.4, 0.95)
+border_color = Color(0.9, 0.75, 0.5, 0.95)
 corner_radius_top_left = 14
 corner_radius_top_right = 14
 corner_radius_bottom_right = 14
@@ -92,7 +92,7 @@ border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(1, 0.88, 0.56, 0.95)
+border_color = Color(1, 0.9, 0.62, 0.95)
 corner_radius_top_left = 12
 corner_radius_top_right = 12
 corner_radius_bottom_right = 12
@@ -100,14 +100,14 @@ corner_radius_bottom_left = 12
 
 [resource]
 default_font_size = 19
-Label/colors/font_color = Color(0.93, 0.97, 1, 0.98)
+Label/colors/font_color = Color(0.94, 0.89, 0.79, 0.98)
 Label/colors/font_shadow_color = Color(0, 0, 0, 0.35)
 Label/constants/shadow_offset_x = 1
 Label/constants/shadow_offset_y = 1
-Button/colors/font_color = Color(0.09, 0.2, 0.23, 1)
-Button/colors/font_hover_color = Color(0.07, 0.19, 0.22, 1)
-Button/colors/font_pressed_color = Color(0.06, 0.17, 0.21, 1)
-Button/colors/font_disabled_color = Color(0.73, 0.8, 0.82, 0.7)
+Button/colors/font_color = Color(0.2, 0.15, 0.1, 1)
+Button/colors/font_hover_color = Color(0.18, 0.13, 0.09, 1)
+Button/colors/font_pressed_color = Color(0.16, 0.12, 0.08, 1)
+Button/colors/font_disabled_color = Color(0.72, 0.67, 0.6, 0.7)
 Button/styles/normal = SubResource("1_button_normal")
 Button/styles/hover = SubResource("2_button_hover")
 Button/styles/pressed = SubResource("3_button_pressed")

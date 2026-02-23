@@ -12,7 +12,6 @@ const PROMPT_BADGE_SCENE: PackedScene = preload("res://ui/widgets/InputPromptBad
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
 
-const FONT_MAIN_ID: StringName = ASSET_IDS.UI_FONT_KENNEY_FUTURE
 const PANEL_BORDER_ID: StringName = ASSET_IDS.UI_PANEL_BORDER_GREY_DETAIL
 const PANEL_FILL_ID: StringName = ASSET_IDS.UI_PANEL_GREY_DARK
 const PANEL_GRID_ID: StringName = ASSET_IDS.UI_PANEL_PATTERN_DIAGONAL_TRANSPARENT_SMALL
@@ -103,20 +102,16 @@ func _texture(id: StringName) -> Texture2D:
 
 
 func _apply_kenney_fonts() -> void:
-	var main_font: FontFile = ASSET_REGISTRY.font(FONT_MAIN_ID)
-	if main_font != null:
-		var title: Label = $Panel/MarginContainer/VBoxContainer/Label
-		title.add_theme_font_override("font", main_font)
-		title.add_theme_font_size_override("font_size", 46)
-		save_button.add_theme_font_override("font", main_font)
-		cancel_button.add_theme_font_override("font", main_font)
+	var title: Label = $Panel/MarginContainer/VBoxContainer/Label
+	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_color_override("font_color", Color(0.96, 0.9, 0.79, 1.0))
 	for label in settings_list.find_children("*", "Label", true, false):
 		var item: Label = label as Label
 		if item == null:
 			continue
 		var is_header: bool = item.name == "VisualLabel"
 		item.add_theme_font_size_override("font_size", 21 if is_header else 19)
-		item.add_theme_color_override("font_color", Color(0.94, 0.97, 1.0, 0.97) if is_header else Color(0.87, 0.94, 0.98, 0.96))
+		item.add_theme_color_override("font_color", Color(0.95, 0.88, 0.76, 0.98) if is_header else Color(0.9, 0.85, 0.76, 0.97))
 
 
 func _apply_background_pattern() -> void:
@@ -124,7 +119,7 @@ func _apply_background_pattern() -> void:
 		_background.texture = _texture(PANEL_GRID_ID)
 		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		_background.stretch_mode = TextureRect.STRETCH_TILE
-		_background.modulate = Color(0.16, 0.25, 0.3, 0.74)
+		_background.modulate = Color(0.2, 0.2, 0.14, 0.86)
 
 
 func _apply_panel_shell() -> void:
@@ -134,7 +129,7 @@ func _apply_panel_shell() -> void:
 	if panel_tex != null:
 		var panel_style := StyleBoxTexture.new()
 		panel_style.texture = panel_tex
-		panel_style.modulate_color = Color(0.55, 0.67, 0.76, 0.97)
+		panel_style.modulate_color = Color(0.34, 0.29, 0.22, 0.97)
 		panel_style.texture_margin_left = 12.0
 		panel_style.texture_margin_top = 12.0
 		panel_style.texture_margin_right = 12.0
@@ -162,16 +157,17 @@ func _apply_panel_shell() -> void:
 		border.patch_margin_bottom = 12
 		_panel.add_child(border)
 	border.texture = border_tex
+	border.modulate = Color(0.92, 0.8, 0.59, 0.92)
 
 
 func _apply_form_skin() -> void:
 	var field_normal := StyleBoxFlat.new()
-	field_normal.bg_color = Color(0.08, 0.2, 0.26, 0.92)
+	field_normal.bg_color = Color(0.25, 0.2, 0.15, 0.94)
 	field_normal.border_width_left = 2
 	field_normal.border_width_top = 2
 	field_normal.border_width_right = 2
 	field_normal.border_width_bottom = 2
-	field_normal.border_color = Color(0.88, 0.74, 0.45, 0.9)
+	field_normal.border_color = Color(0.9, 0.77, 0.51, 0.92)
 	field_normal.corner_radius_top_left = 10
 	field_normal.corner_radius_top_right = 10
 	field_normal.corner_radius_bottom_right = 10
@@ -182,7 +178,7 @@ func _apply_form_skin() -> void:
 	field_normal.content_margin_bottom = 6
 
 	var field_focus := field_normal.duplicate() as StyleBoxFlat
-	field_focus.border_color = Color(0.98, 0.88, 0.57, 1.0)
+	field_focus.border_color = Color(0.98, 0.89, 0.61, 1.0)
 	field_focus.shadow_color = Color(0, 0, 0, 0.25)
 	field_focus.shadow_size = 3
 
@@ -194,9 +190,9 @@ func _apply_form_skin() -> void:
 		opt.add_theme_stylebox_override("normal", field_normal)
 		opt.add_theme_stylebox_override("hover", field_focus)
 		opt.add_theme_stylebox_override("pressed", field_focus)
-		opt.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0, 1.0))
-		opt.add_theme_color_override("font_hover_color", Color(1.0, 0.97, 0.8, 1.0))
-		opt.add_theme_color_override("font_pressed_color", Color(1.0, 0.97, 0.8, 1.0))
+		opt.add_theme_color_override("font_color", Color(0.95, 0.9, 0.82, 1.0))
+		opt.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.83, 1.0))
+		opt.add_theme_color_override("font_pressed_color", Color(1.0, 0.95, 0.83, 1.0))
 
 	for node in settings_list.find_children("*", "SpinBox", true, false):
 		var spin: SpinBox = node as SpinBox
@@ -207,8 +203,8 @@ func _apply_form_skin() -> void:
 		if line != null:
 			line.add_theme_stylebox_override("normal", field_normal)
 			line.add_theme_stylebox_override("focus", field_focus)
-			line.add_theme_color_override("font_color", Color(0.95, 0.98, 1.0, 1.0))
-			line.add_theme_color_override("font_placeholder_color", Color(0.75, 0.85, 0.92, 0.75))
+			line.add_theme_color_override("font_color", Color(0.95, 0.9, 0.82, 1.0))
+			line.add_theme_color_override("font_placeholder_color", Color(0.76, 0.69, 0.57, 0.76))
 			line.add_theme_font_size_override("font_size", 19)
 			line.alignment = HORIZONTAL_ALIGNMENT_CENTER
 
@@ -216,8 +212,8 @@ func _apply_form_skin() -> void:
 		var check: CheckBox = node as CheckBox
 		if check == null:
 			continue
-		check.add_theme_color_override("font_color", Color(0.96, 0.97, 0.99, 0.96))
-		check.add_theme_color_override("font_hover_color", Color(1.0, 0.97, 0.8, 1.0))
+		check.add_theme_color_override("font_color", Color(0.95, 0.9, 0.82, 0.97))
+		check.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.83, 1.0))
 		check.add_theme_font_size_override("font_size", 18)
 		check.custom_minimum_size = Vector2(68, 40)
 
