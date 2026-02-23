@@ -212,8 +212,7 @@ static func apply_safe(settings: Dictionary) -> Dictionary:
 		return {"ok": true, "code": "headless_noop", "applied": sanitized}
 
 	var safe: Dictionary = sanitized.duplicate(true)
-	if str(safe.get("display_mode", MODE_WINDOWED)) == MODE_EXCLUSIVE and not DESKTOP_PLATFORMS.has(OS.get_name()):
-		safe["display_mode"] = MODE_BORDERLESS
+	safe["display_mode"] = safe_mode_for_platform(str(safe.get("display_mode", MODE_WINDOWED)))
 
 	var result: Dictionary = apply(safe)
 	if not bool(result.get("ok", false)):
@@ -228,6 +227,16 @@ static func apply_safe(settings: Dictionary) -> Dictionary:
 			result["applied"] = safe
 			return result
 	return result
+
+
+static func safe_mode_for_platform(requested_mode: String, platform_name: String = "") -> String:
+	var mode: String = requested_mode.to_lower()
+	if not PackedStringArray([MODE_WINDOWED, MODE_BORDERLESS, MODE_EXCLUSIVE]).has(mode):
+		mode = MODE_WINDOWED
+	var platform: String = platform_name if platform_name != "" else OS.get_name()
+	if mode == MODE_EXCLUSIVE and not DESKTOP_PLATFORMS.has(platform):
+		return MODE_BORDERLESS
+	return mode
 
 
 static func _sanitize_monitor_index(index: int) -> int:

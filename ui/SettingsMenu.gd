@@ -305,7 +305,6 @@ func _bind_audio_feedback() -> void:
 		_aa_mode_option,
 		_ssao_quality_option,
 		_shadow_quality_option,
-		_display_mode_option,
 		_display_resolution_option,
 		_display_refresh_option,
 		_display_vsync_option,
@@ -319,6 +318,9 @@ func _bind_audio_feedback() -> void:
 	if _display_monitor_option != null:
 		if not _display_monitor_option.item_selected.is_connected(_on_display_monitor_selected):
 			_display_monitor_option.item_selected.connect(_on_display_monitor_selected)
+	if _display_mode_option != null:
+		if not _display_mode_option.item_selected.is_connected(_on_display_mode_selected):
+			_display_mode_option.item_selected.connect(_on_display_mode_selected)
 
 
 func _on_settings_button_hover(_button: Button) -> void:
@@ -344,6 +346,11 @@ func _on_visual_toggle_changed(_pressed: bool) -> void:
 
 func _on_display_monitor_selected(_idx: int) -> void:
 	_rebuild_resolution_and_refresh_options_for_selected_monitor()
+	_play_toggle_feedback()
+	_update_display_mode_hints()
+
+
+func _on_display_mode_selected(_idx: int) -> void:
 	_play_toggle_feedback()
 	_update_display_mode_hints()
 
@@ -698,6 +705,9 @@ func _collect_display_settings_from_controls() -> Dictionary:
 
 
 func _update_display_mode_hints() -> void:
+	_refresh_display_control_enabled_state()
+	if _preview_active:
+		return
 	var mode: String = str(_selected_option_id(_display_mode_option, DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED))
 	match mode:
 		DISPLAY_SETTINGS_SCRIPT.MODE_BORDERLESS:
@@ -705,8 +715,18 @@ func _update_display_mode_hints() -> void:
 		DISPLAY_SETTINGS_SCRIPT.MODE_EXCLUSIVE:
 			_set_status_text("Exclusive may fallback to borderless on unsupported displays.")
 		_:
-			if not _preview_active:
-				_set_status_text("Windowed mode applies selected resolution.")
+			_set_status_text("Windowed mode applies selected resolution.")
+
+
+func _refresh_display_control_enabled_state() -> void:
+	var mode: String = str(_selected_option_id(_display_mode_option, DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED))
+	var borderless: bool = mode == DISPLAY_SETTINGS_SCRIPT.MODE_BORDERLESS
+	if _display_resolution_option != null:
+		_display_resolution_option.disabled = borderless
+		_display_resolution_option.tooltip_text = "Unavailable in borderless mode." if borderless else ""
+	if _display_refresh_option != null:
+		_display_refresh_option.disabled = borderless
+		_display_refresh_option.tooltip_text = "Unavailable in borderless mode." if borderless else ""
 
 
 func _build_percent_row(label_text: String) -> Dictionary:
@@ -867,11 +887,12 @@ func _start_display_preview(candidate: Dictionary, previous_runtime: Dictionary)
 	_update_preview_dialog_text()
 	_preview_dialog.popup_centered(Vector2i(520, 170))
 	_preview_timer.start()
+	var apply_code: String = String(apply_res.get("code", "applied"))
 	var applied_mode: String = str(_preview_candidate_display.get("display_mode", DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED))
 	if applied_mode == DISPLAY_SETTINGS_SCRIPT.MODE_BORDERLESS:
-		_set_status_text("Previewing borderless mode. Resolution follows monitor native size.")
+		_set_status_text("Previewing borderless mode (%s). Resolution follows monitor native size." % apply_code)
 	else:
-		_set_status_text("Previewing display settings. Confirm to keep them.")
+		_set_status_text("Previewing display settings (%s). Confirm to keep them." % apply_code)
 
 
 func _cancel_display_preview(status_text: String) -> void:
