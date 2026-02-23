@@ -46,60 +46,60 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 
 [node name="MenuCard" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(640, 600)
+custom_minimum_size = Vector2(660, 640)
 
 [node name="MarginContainer" type="MarginContainer" parent="CenterContainer/MenuCard"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_constants/margin_left = 26
-theme_override_constants/margin_top = 22
-theme_override_constants/margin_right = 26
-theme_override_constants/margin_bottom = 22
+theme_override_constants/margin_left = 34
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 34
+theme_override_constants/margin_bottom = 24
 
 [node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/MenuCard/MarginContainer"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 alignment = 1
-theme_override_constants/separation = 10
+theme_override_constants/separation = 12
 
 [node name="Title" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
 text = "Okey 101"
 horizontal_alignment = 1
-custom_minimum_size = Vector2(0, 92)
+custom_minimum_size = Vector2(0, 98)
 theme_override_font_sizes/font_size = 56
 theme_override_colors/font_color = Color(0.96, 0.9, 0.78, 1)
 
 [node name="Subtitle" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
 text = "Classic Turkish Table"
 horizontal_alignment = 1
-custom_minimum_size = Vector2(0, 32)
-theme_override_font_sizes/font_size = 18
+custom_minimum_size = Vector2(0, 36)
+theme_override_font_sizes/font_size = 22
 theme_override_colors/font_color = Color(0.9, 0.85, 0.75, 0.95)
 
 [node name="Version" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
 text = "v0.1.0"
 horizontal_alignment = 1
-custom_minimum_size = Vector2(0, 20)
+custom_minimum_size = Vector2(0, 22)
 theme_override_font_sizes/font_size = 14
 modulate = Color(0.86, 0.93, 0.95, 0.82)
 
 [node name="SettingsSummary" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
 text = "101-Okey"
 horizontal_alignment = 1
-custom_minimum_size = Vector2(0, 24)
+custom_minimum_size = Vector2(0, 30)
 theme_override_font_sizes/font_size = 16
 autowrap_mode = 2
 
 [node name="MetaChips" type="HBoxContainer" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 28)
+custom_minimum_size = Vector2(0, 32)
 size_flags_horizontal = 4
 alignment = 1
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="PlayersChipIcon" type="TextureRect" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips"]
-custom_minimum_size = Vector2(20, 20)
+custom_minimum_size = Vector2(22, 22)
 expand_mode = 1
 stretch_mode = 5
 
@@ -108,7 +108,7 @@ text = "4 Players"
 theme_override_font_sizes/font_size = 14
 
 [node name="TimerChipIcon" type="TextureRect" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips"]
-custom_minimum_size = Vector2(20, 20)
+custom_minimum_size = Vector2(22, 22)
 expand_mode = 1
 stretch_mode = 5
 
@@ -117,7 +117,7 @@ text = "45s Turn"
 theme_override_font_sizes/font_size = 14
 
 [node name="OnlineChipIcon" type="TextureRect" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips"]
-custom_minimum_size = Vector2(20, 20)
+custom_minimum_size = Vector2(22, 22)
 expand_mode = 1
 stretch_mode = 5
 
@@ -126,11 +126,11 @@ text = "Online: Checking"
 theme_override_font_sizes/font_size = 14
 
 [node name="Spacer1" type="Control" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 14)
+custom_minimum_size = Vector2(0, 18)
 
 [node name="Buttons" type="VBoxContainer" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
 custom_minimum_size = Vector2(0, 0)
-separation = 12
+separation = 14
 
 [node name="StartButton" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons" instance=ExtResource("4")]
 text = "Start Game"

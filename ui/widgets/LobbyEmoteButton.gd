@@ -22,8 +22,8 @@ const BUTTON_GOLD_ID: StringName = ASSET_IDS.UI_BUTTON_RECT_GOLD
 		icon = value
 
 func _ready() -> void:
-	if custom_minimum_size.x < 56.0 or custom_minimum_size.y < 56.0:
-		custom_minimum_size = Vector2(56.0, 56.0)
+	if custom_minimum_size.x < 54.0 or custom_minimum_size.y < 54.0:
+		custom_minimum_size = Vector2(54.0, 54.0)
 	alignment = HORIZONTAL_ALIGNMENT_CENTER
 	icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	expand_icon = false
@@ -58,9 +58,9 @@ func _apply_skin() -> void:
 	add_theme_stylebox_override("hover", _style_from(texture, Color(1.0, 0.94, 0.76, 1.0)))
 	add_theme_stylebox_override("pressed", _style_from(texture, Color(0.88, 0.79, 0.63, 1.0)))
 	add_theme_stylebox_override("disabled", _style_from(texture, Color(0.56, 0.5, 0.43, 0.92)))
-	add_theme_color_override("icon_normal_color", Color(0.25, 0.18, 0.11, 1.0))
-	add_theme_color_override("icon_hover_color", Color(0.23, 0.16, 0.1, 1.0))
-	add_theme_color_override("icon_pressed_color", Color(0.2, 0.14, 0.08, 1.0))
+	add_theme_color_override("icon_normal_color", Color(0.24, 0.17, 0.1, 1.0))
+	add_theme_color_override("icon_hover_color", Color(0.2, 0.14, 0.08, 1.0))
+	add_theme_color_override("icon_pressed_color", Color(0.17, 0.12, 0.07, 1.0))
 
 
 func _style_from(texture: Texture2D, tint: Color) -> StyleBoxTexture:

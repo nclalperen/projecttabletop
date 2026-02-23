@@ -103,14 +103,14 @@ func _texture(id: StringName) -> Texture2D:
 
 func _apply_kenney_fonts() -> void:
 	var title: Label = $Panel/MarginContainer/VBoxContainer/Label
-	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_font_size_override("font_size", 40)
 	title.add_theme_color_override("font_color", Color(0.96, 0.9, 0.79, 1.0))
 	for label in settings_list.find_children("*", "Label", true, false):
 		var item: Label = label as Label
 		if item == null:
 			continue
 		var is_header: bool = item.name == "VisualLabel"
-		item.add_theme_font_size_override("font_size", 21 if is_header else 19)
+		item.add_theme_font_size_override("font_size", 20 if is_header else 18)
 		item.add_theme_color_override("font_color", Color(0.95, 0.88, 0.76, 0.98) if is_header else Color(0.9, 0.85, 0.76, 0.97))
 
 
@@ -119,7 +119,7 @@ func _apply_background_pattern() -> void:
 		_background.texture = _texture(PANEL_GRID_ID)
 		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		_background.stretch_mode = TextureRect.STRETCH_TILE
-		_background.modulate = Color(0.2, 0.2, 0.14, 0.86)
+		_background.modulate = Color(0.18, 0.16, 0.11, 0.9)
 
 
 func _apply_panel_shell() -> void:
@@ -162,12 +162,12 @@ func _apply_panel_shell() -> void:
 
 func _apply_form_skin() -> void:
 	var field_normal := StyleBoxFlat.new()
-	field_normal.bg_color = Color(0.25, 0.2, 0.15, 0.94)
+	field_normal.bg_color = Color(0.27, 0.22, 0.16, 0.96)
 	field_normal.border_width_left = 2
 	field_normal.border_width_top = 2
 	field_normal.border_width_right = 2
 	field_normal.border_width_bottom = 2
-	field_normal.border_color = Color(0.9, 0.77, 0.51, 0.92)
+	field_normal.border_color = Color(0.9, 0.78, 0.55, 0.95)
 	field_normal.corner_radius_top_left = 10
 	field_normal.corner_radius_top_right = 10
 	field_normal.corner_radius_bottom_right = 10
@@ -178,7 +178,7 @@ func _apply_form_skin() -> void:
 	field_normal.content_margin_bottom = 6
 
 	var field_focus := field_normal.duplicate() as StyleBoxFlat
-	field_focus.border_color = Color(0.98, 0.89, 0.61, 1.0)
+	field_focus.border_color = Color(0.98, 0.9, 0.66, 1.0)
 	field_focus.shadow_color = Color(0, 0, 0, 0.25)
 	field_focus.shadow_size = 3
 
@@ -206,6 +206,7 @@ func _apply_form_skin() -> void:
 			line.add_theme_color_override("font_color", Color(0.95, 0.9, 0.82, 1.0))
 			line.add_theme_color_override("font_placeholder_color", Color(0.76, 0.69, 0.57, 0.76))
 			line.add_theme_font_size_override("font_size", 19)
+			line.add_theme_constant_override("minimum_character_width", 6)
 			line.alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 	for node in settings_list.find_children("*", "CheckBox", true, false):
@@ -440,7 +441,7 @@ func _collect_visual_settings_from_controls() -> Dictionary:
 func _build_percent_row(label_text: String) -> Dictionary:
 	var row := HBoxContainer.new()
 	row.name = label_text.replace(" ", "")
-	row.add_theme_constant_override("separation", 12)
+	row.add_theme_constant_override("separation", 14)
 	var lbl := Label.new()
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.text = label_text
@@ -452,7 +453,7 @@ func _build_percent_row(label_text: String) -> Dictionary:
 	spin.step = 1.0
 	spin.rounded = true
 	spin.value = 100.0
-	spin.custom_minimum_size = Vector2(120, 0)
+	spin.custom_minimum_size = Vector2(138, 0)
 	spin.suffix = "%"
 	row.add_child(spin)
 	return {"row": row, "spin": spin}
@@ -461,14 +462,14 @@ func _build_percent_row(label_text: String) -> Dictionary:
 func _build_option_row(label_text: String, items: Array) -> Dictionary:
 	var row := HBoxContainer.new()
 	row.name = label_text.replace(" ", "")
-	row.add_theme_constant_override("separation", 12)
+	row.add_theme_constant_override("separation", 14)
 	var lbl := Label.new()
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.text = label_text
 	row.add_child(lbl)
 
 	var option := OptionButton.new()
-	option.custom_minimum_size = Vector2(160, 0)
+	option.custom_minimum_size = Vector2(220, 0)
 	for item in items:
 		var i_label: String = str(item.get("label", "Option"))
 		var i_id = item.get("id", i_label.to_lower())
@@ -481,7 +482,7 @@ func _build_option_row(label_text: String, items: Array) -> Dictionary:
 func _build_toggle_row(label_text: String) -> Dictionary:
 	var row := HBoxContainer.new()
 	row.name = label_text.replace(" ", "")
-	row.add_theme_constant_override("separation", 12)
+	row.add_theme_constant_override("separation", 14)
 	var lbl := Label.new()
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.text = label_text
@@ -517,7 +518,7 @@ func _apply_responsive_layout() -> void:
 	if _panel == null:
 		return
 	var viewport_size: Vector2 = get_viewport_rect().size
-	var width: float = clampf(viewport_size.x - 64.0, 380.0, 930.0)
-	var height: float = clampf(viewport_size.y - 72.0, 440.0, 700.0)
+	var width: float = clampf(viewport_size.x - 74.0, 460.0, 980.0)
+	var height: float = clampf(viewport_size.y - 84.0, 500.0, 760.0)
 	_panel.size = Vector2(width, height)
 	_panel.position = (viewport_size - _panel.size) * 0.5

@@ -42,8 +42,10 @@ const EMOTE_DATA: Array[Dictionary] = [
 @onready var _status_label: Label = $Margin/RootCard/CardMargin/VBox/Status
 @onready var _background: TextureRect = $Background
 @onready var _root_card: PanelContainer = $Margin/RootCard
+@onready var _card_margin: MarginContainer = $Margin/RootCard/CardMargin
 @onready var _buttons_grid: GridContainer = $Margin/RootCard/CardMargin/VBox/Buttons
 @onready var _roster_header: Label = $Margin/RootCard/CardMargin/VBox/RosterHeader
+@onready var _roster_scroll: ScrollContainer = $Margin/RootCard/CardMargin/VBox/RosterScroll
 @onready var _roster_list: VBoxContainer = $Margin/RootCard/CardMargin/VBox/RosterScroll/RosterList
 @onready var _login_btn: Button = $Margin/RootCard/CardMargin/VBox/Buttons/LoginBtn
 @onready var _quick_btn: Button = $Margin/RootCard/CardMargin/VBox/Buttons/QuickBtn
@@ -52,6 +54,7 @@ const EMOTE_DATA: Array[Dictionary] = [
 @onready var _start_btn: Button = $Margin/RootCard/CardMargin/VBox/Buttons/StartBtn
 @onready var _back_btn: Button = $Margin/RootCard/CardMargin/VBox/Buttons/BackBtn
 @onready var _prompt_strip: FlowContainer = $Margin/RootCard/CardMargin/VBox/PromptStrip
+@onready var _emote_row: HBoxContainer = $Margin/RootCard/CardMargin/VBox/EmoteRow
 @onready var _emote_label: Label = $Margin/RootCard/CardMargin/VBox/EmoteRow/EmoteLabel
 @onready var _emote_buttons_box: FlowContainer = $Margin/RootCard/CardMargin/VBox/EmoteRow/EmoteButtons
 
@@ -160,15 +163,15 @@ func _texture(id: StringName) -> Texture2D:
 
 func _apply_kenney_fonts() -> void:
 	var title: Label = $Margin/RootCard/CardMargin/VBox/Title
-	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_font_size_override("font_size", 42)
 	title.add_theme_color_override("font_color", Color(0.97, 0.91, 0.79, 1.0))
-	_status_label.add_theme_font_size_override("font_size", 20)
+	_status_label.add_theme_font_size_override("font_size", 18)
 	_status_label.add_theme_color_override("font_color", Color(0.92, 0.87, 0.78, 0.95))
 	if _roster_header != null:
-		_roster_header.add_theme_font_size_override("font_size", 22)
+		_roster_header.add_theme_font_size_override("font_size", 21)
 		_roster_header.add_theme_color_override("font_color", Color(0.95, 0.88, 0.76, 0.95))
 	if _emote_label != null:
-		_emote_label.add_theme_font_size_override("font_size", 18)
+		_emote_label.add_theme_font_size_override("font_size", 17)
 		_emote_label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.76, 0.94))
 
 
@@ -177,7 +180,7 @@ func _apply_background_pattern() -> void:
 		_background.texture = _texture(PANEL_GRID_ID)
 		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		_background.stretch_mode = TextureRect.STRETCH_TILE
-		_background.modulate = Color(0.19, 0.2, 0.14, 0.88)
+		_background.modulate = Color(0.18, 0.16, 0.11, 0.9)
 
 
 func _apply_panel_shell() -> void:
@@ -234,7 +237,7 @@ func _on_lobby_button_hover(_button: Button) -> void:
 
 func _on_lobby_button_down(button: Button) -> void:
 	if button != null:
-		button.scale = Vector2(1.03, 1.03)
+		button.scale = Vector2(1.02, 1.02)
 
 
 func _on_lobby_button_up(button: Button) -> void:
@@ -711,12 +714,29 @@ func _apply_responsive_layout() -> void:
 		return
 	var viewport_size: Vector2 = get_viewport_rect().size
 	var viewport_width: float = viewport_size.x
+	var compact: bool = viewport_width < 980.0
 	if viewport_width < 760.0:
 		_buttons_grid.columns = 1
 	elif viewport_width < 1080.0:
 		_buttons_grid.columns = 2
 	else:
 		_buttons_grid.columns = 3
-	var width: float = clampf(viewport_size.x - 64.0, 460.0, 1480.0)
-	var height: float = clampf(viewport_size.y - 72.0, 460.0, 930.0)
+	var width_pad: float = 74.0 if viewport_width >= 1366.0 else 40.0
+	var height_pad: float = 70.0 if viewport_size.y >= 768.0 else 40.0
+	var width: float = clampf(viewport_size.x - width_pad, 520.0, 1480.0)
+	var height: float = clampf(viewport_size.y - height_pad, 500.0, 900.0)
 	_root_card.custom_minimum_size = Vector2(width, height)
+	if _roster_scroll != null:
+		_roster_scroll.custom_minimum_size.y = clampf(viewport_size.y * 0.32, 180.0, 330.0)
+	if _card_margin != null:
+		var card_margin: int = 14 if compact else 24
+		_card_margin.add_theme_constant_override("margin_left", card_margin)
+		_card_margin.add_theme_constant_override("margin_top", card_margin)
+		_card_margin.add_theme_constant_override("margin_right", card_margin)
+		_card_margin.add_theme_constant_override("margin_bottom", card_margin)
+	if _prompt_strip != null:
+		_prompt_strip.add_theme_constant_override("separation", 8 if compact else 10)
+	if _emote_row != null:
+		_emote_row.add_theme_constant_override("separation", 8 if compact else 10)
+	if _emote_label != null:
+		_emote_label.visible = not (compact and _buttons_grid.columns == 1)

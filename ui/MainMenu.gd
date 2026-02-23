@@ -111,7 +111,7 @@ func _on_menu_button_hover(_button: Button) -> void:
 
 func _on_menu_button_down(button: Button) -> void:
 	if button != null:
-		button.scale = Vector2(1.03, 1.03)
+		button.scale = Vector2(1.02, 1.02)
 
 
 func _on_menu_button_up(button: Button) -> void:
@@ -160,7 +160,7 @@ func _apply_background_pattern() -> void:
 		_background.texture = _texture(PANEL_GRID_ID)
 		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		_background.stretch_mode = TextureRect.STRETCH_TILE
-		_background.modulate = Color(0.2, 0.2, 0.14, 0.86)
+		_background.modulate = Color(0.18, 0.16, 0.11, 0.9)
 
 
 func _apply_panel_shell() -> void:
@@ -221,21 +221,19 @@ func _update_online_chip_icon() -> void:
 func _apply_kenney_fonts() -> void:
 	var title: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Title
 	var subtitle: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Subtitle
-	var subtitle_label: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Subtitle
 	var version: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Version
 	var summary: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/SettingsSummary
-	title.add_theme_font_size_override("font_size", 58)
+	title.add_theme_font_size_override("font_size", 56)
 	title.add_theme_color_override("font_color", Color(0.96, 0.9, 0.78, 1.0))
-	subtitle.add_theme_font_size_override("font_size", 28)
-	subtitle.add_theme_color_override("font_color", Color(0.89, 0.84, 0.74, 0.96))
-	subtitle_label.add_theme_font_size_override("font_size", 20)
-	version.add_theme_font_size_override("font_size", 13)
-	version.add_theme_color_override("font_color", Color(0.8, 0.75, 0.65, 0.86))
-	summary.add_theme_font_size_override("font_size", 15)
-	summary.add_theme_color_override("font_color", Color(0.89, 0.86, 0.79, 0.93))
+	subtitle.add_theme_font_size_override("font_size", 23)
+	subtitle.add_theme_color_override("font_color", Color(0.9, 0.85, 0.75, 0.97))
+	version.add_theme_font_size_override("font_size", 15)
+	version.add_theme_color_override("font_color", Color(0.82, 0.77, 0.67, 0.88))
+	summary.add_theme_font_size_override("font_size", 17)
+	summary.add_theme_color_override("font_color", Color(0.91, 0.87, 0.79, 0.95))
 	for chip in [_players_chip, _timer_chip, _online_chip]:
 		if chip != null:
-			chip.add_theme_font_size_override("font_size", 15)
+			chip.add_theme_font_size_override("font_size", 16)
 			chip.add_theme_color_override("font_color", Color(0.95, 0.89, 0.77, 0.98))
 
 
@@ -383,6 +381,8 @@ func _apply_responsive_layout() -> void:
 	if _menu_card == null:
 		return
 	var viewport_size: Vector2 = get_viewport_rect().size
-	var width: float = clampf(viewport_size.x - 80.0, 380.0, 760.0)
-	var height: float = clampf(viewport_size.y - 96.0, 520.0, 760.0)
+	var width_pad: float = 84.0 if viewport_size.x >= 1366.0 else 46.0
+	var height_pad: float = 98.0 if viewport_size.y >= 768.0 else 52.0
+	var width: float = clampf(viewport_size.x - width_pad * 2.0, 420.0, 820.0)
+	var height: float = clampf(viewport_size.y - height_pad * 2.0, 540.0, 820.0)
 	_menu_card.custom_minimum_size = Vector2(width, height)

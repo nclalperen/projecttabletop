@@ -32,14 +32,14 @@ func set_member(member: Dictionary, owner_puid: String, local_puid: String) -> v
 		display_name = "%s (You)" % puid
 	_name_label.modulate = Color(0.99, 0.91, 0.74, 1.0) if puid == local_puid else Color(0.94, 0.88, 0.78, 1.0)
 	_name_label.text = display_name
-	_meta_label.text = "Seat %d \u00b7 %s" % [seat, status]
+	_meta_label.text = "Seat %d | %s" % [seat, status]
 	_avatar.texture = _avatar_for_index(seat)
 	_host_icon.texture = _texture(ICON_HOST_ID)
 	_host_icon.visible = puid == owner_puid
 	_ready_icon.texture = _texture(ICON_READY_ID) if ready else _texture(ICON_WAITING_ID)
 	_ready_icon.modulate = Color(0.98, 0.88, 0.66, 1.0) if ready else Color(0.92, 0.78, 0.49, 0.95)
 	_ready_label.text = "Ready" if ready else "Waiting"
-	_ready_label.modulate = Color(0.75, 0.86, 0.64) if ready else Color(0.95, 0.8, 0.53)
+	_ready_label.modulate = Color(0.78, 0.87, 0.69) if ready else Color(0.95, 0.82, 0.56)
 
 
 func _avatar_for_index(index: int) -> Texture2D:

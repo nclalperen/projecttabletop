@@ -69,39 +69,40 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 22
-theme_override_constants/margin_top = 22
-theme_override_constants/margin_right = 22
-theme_override_constants/margin_bottom = 22
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
 
 [node name="RootCard" type="PanelContainer" parent="Margin"]
 layout_mode = 2
-custom_minimum_size = Vector2(1200, 760)
+custom_minimum_size = Vector2(1120, 700)
 size_flags_horizontal = 4
 size_flags_vertical = 4
 theme_override_styles/panel = SubResource("1_card_style")
 
 [node name="CardMargin" type="MarginContainer" parent="Margin/RootCard"]
 layout_mode = 2
-theme_override_constants/margin_left = 18
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 18
-theme_override_constants/margin_bottom = 16
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
 
 [node name="VBox" type="VBoxContainer" parent="Margin/RootCard/CardMargin"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 14
 
 [node name="Title" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
 layout_mode = 2
 text = "Online Lobby"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 36
+theme_override_font_sizes/font_size = 40
 theme_override_colors/font_color = Color(0.96, 0.9, 0.78, 1)
 
 [node name="Status" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 34)
 text = "Initializing online services..."
 autowrap_mode = 2
 theme_override_font_sizes/font_size = 16
@@ -109,7 +110,7 @@ theme_override_font_sizes/font_size = 16
 [node name="Buttons" type="GridContainer" parent="Margin/RootCard/CardMargin/VBox"]
 layout_mode = 2
 columns = 3
-theme_override_constants/h_separation = 12
+theme_override_constants/h_separation = 10
 theme_override_constants/v_separation = 10
 
 [node name="LoginBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
@@ -145,11 +146,12 @@ button_label = "Back"
 [node name="RosterHeader" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
 layout_mode = 2
 text = "Players In Lobby"
+custom_minimum_size = Vector2(0, 28)
 theme_override_font_sizes/font_size = 20
 theme_override_colors/font_color = Color(0.95, 0.88, 0.76, 0.97)
 
 [node name="RosterScroll" type="ScrollContainer" parent="Margin/RootCard/CardMargin/VBox"]
-custom_minimum_size = Vector2(0, 320)
+custom_minimum_size = Vector2(0, 300)
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
@@ -162,16 +164,16 @@ theme_override_constants/separation = 8
 
 [node name="PromptStrip" type="FlowContainer" parent="Margin/RootCard/CardMargin/VBox"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="EmoteRow" type="HBoxContainer" parent="Margin/RootCard/CardMargin/VBox"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="EmoteLabel" type="Label" parent="Margin/RootCard/CardMargin/VBox/EmoteRow"]
 layout_mode = 2
 text = "Lobby Emotes"
-custom_minimum_size = Vector2(120, 0)
+custom_minimum_size = Vector2(132, 0)
 theme_override_colors/font_color = Color(0.95, 0.97, 1, 0.92)
 
 [node name="EmoteButtons" type="FlowContainer" parent="Margin/RootCard/CardMargin/VBox/EmoteRow"]

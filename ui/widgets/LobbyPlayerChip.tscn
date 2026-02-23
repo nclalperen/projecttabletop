@@ -21,7 +21,7 @@ content_margin_right = 10
 content_margin_bottom = 8
 
 [node name="LobbyPlayerChip" type="PanelContainer"]
-custom_minimum_size = Vector2(0, 74)
+custom_minimum_size = Vector2(0, 78)
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("1_chip_style")
 script = ExtResource("1_chip")
@@ -52,7 +52,7 @@ theme_override_font_sizes/font_size = 18
 layout_mode = 2
 text = "Seat 0 | OK"
 theme_override_colors/font_color = Color(0.84, 0.78, 0.69, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 14
 
 [node name="Badges" type="HBoxContainer" parent="Margin/HBox"]
 layout_mode = 2

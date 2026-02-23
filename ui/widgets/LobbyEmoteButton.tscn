@@ -3,6 +3,6 @@
 [ext_resource type="Script" path="res://ui/widgets/LobbyEmoteButton.gd" id="1_emote"]
 
 [node name="LobbyEmoteButton" type="Button"]
-custom_minimum_size = Vector2(44, 44)
+custom_minimum_size = Vector2(54, 54)
 clip_text = true
 script = ExtResource("1_emote")

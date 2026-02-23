@@ -37,29 +37,29 @@ func _ready() -> void:
 		button_label = text
 	text = button_label
 	icon = icon_texture
-	add_theme_constant_override("h_separation", 10)
+	add_theme_constant_override("h_separation", 12)
 	add_theme_constant_override("outline_size", 1)
-	add_theme_font_size_override("font_size", 21)
+	add_theme_font_size_override("font_size", 22)
 	add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.2))
 	_apply_kenney_button_skin()
 
 
 func _apply_kenney_button_skin() -> void:
 	var texture_id: StringName = BUTTON_GOLD_ID
-	var font_normal := Color(0.16, 0.12, 0.08, 1.0)
-	var font_hover := Color(0.16, 0.12, 0.08, 1.0)
-	var normal_tint := Color(1.0, 0.96, 0.86, 1.0)
-	var hover_tint := Color(1.04, 1.0, 0.9, 1.0)
-	var pressed_tint := Color(0.9, 0.86, 0.78, 1.0)
+	var font_normal := Color(0.14, 0.11, 0.08, 1.0)
+	var font_hover := Color(0.12, 0.09, 0.07, 1.0)
+	var normal_tint := Color(1.0, 0.94, 0.79, 1.0)
+	var hover_tint := Color(1.0, 0.96, 0.84, 1.0)
+	var pressed_tint := Color(0.89, 0.82, 0.68, 1.0)
 	var disabled_tint := Color(0.48, 0.45, 0.41, 0.92)
 	if style_variant == ButtonVariant.SECONDARY_BLUE:
 		texture_id = BUTTON_BLUE_ID
-		font_normal = Color(0.96, 0.91, 0.82, 1.0)
-		font_hover = Color(1.0, 0.95, 0.84, 1.0)
-		normal_tint = Color(0.63, 0.48, 0.33, 1.0)
-		hover_tint = Color(0.69, 0.52, 0.36, 1.0)
-		pressed_tint = Color(0.56, 0.42, 0.3, 1.0)
-		disabled_tint = Color(0.42, 0.35, 0.31, 0.92)
+		font_normal = Color(0.94, 0.9, 0.83, 1.0)
+		font_hover = Color(0.98, 0.95, 0.87, 1.0)
+		normal_tint = Color(0.46, 0.35, 0.24, 1.0)
+		hover_tint = Color(0.52, 0.39, 0.27, 1.0)
+		pressed_tint = Color(0.4, 0.3, 0.21, 1.0)
+		disabled_tint = Color(0.37, 0.31, 0.28, 0.9)
 	var texture: Texture2D = ASSET_REGISTRY.texture(texture_id)
 	if texture == null:
 		return
@@ -70,11 +70,11 @@ func _apply_kenney_button_skin() -> void:
 	add_theme_stylebox_override("disabled", _make_button_style(texture, disabled_tint))
 	add_theme_color_override("font_color", font_normal)
 	add_theme_color_override("font_hover_color", font_hover)
-	add_theme_color_override("font_pressed_color", font_normal.darkened(0.1))
+	add_theme_color_override("font_pressed_color", font_normal.darkened(0.08))
 	add_theme_color_override("font_disabled_color", Color(0.77, 0.72, 0.65, 0.75))
-	add_theme_color_override("icon_normal_color", Color(0.96, 0.93, 0.84, 1.0))
-	add_theme_color_override("icon_hover_color", Color(1.0, 0.97, 0.89, 1.0))
-	add_theme_color_override("icon_pressed_color", Color(0.9, 0.87, 0.78, 1.0))
+	add_theme_color_override("icon_normal_color", Color(0.96, 0.92, 0.84, 1.0))
+	add_theme_color_override("icon_hover_color", Color(1.0, 0.96, 0.88, 1.0))
+	add_theme_color_override("icon_pressed_color", Color(0.9, 0.84, 0.74, 1.0))
 	add_theme_color_override("icon_disabled_color", Color(0.66, 0.61, 0.55, 0.8))
 
 
