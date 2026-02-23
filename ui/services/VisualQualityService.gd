@@ -56,6 +56,7 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 	out["ssr_enabled"] = bool(raw.get("ssr_enabled", profile == PROFILE_HIGH or profile == PROFILE_ULTRA))
 	out["resolution_scale"] = clampf(float(raw.get("resolution_scale", _default_resolution_scale_for_profile(profile))), 0.55, 1.20)
 	out["postfx_strength"] = clampf(float(raw.get("postfx_strength", _default_postfx_for_profile(profile))), 0.0, 1.0)
+	out["shadow_quality"] = clampi(int(raw.get("shadow_quality", _default_shadow_quality_for_profile(profile))), 0, 3)
 	return out
 
 
@@ -70,6 +71,7 @@ static func _defaults_for_profile(profile: String) -> Dictionary:
 		"ssr_enabled": p == PROFILE_HIGH or p == PROFILE_ULTRA,
 		"resolution_scale": _default_resolution_scale_for_profile(p),
 		"postfx_strength": _default_postfx_for_profile(p),
+		"shadow_quality": _default_shadow_quality_for_profile(p),
 	}
 
 
@@ -157,6 +159,7 @@ static func apply_to_lights(key_light: Light3D, rim_light: Light3D, fill_light: 
 	var s: Dictionary = sanitize(settings)
 	var profile: String = str(s["graphics_profile"])
 	var postfx: float = float(s["postfx_strength"])
+	var shadow_quality: int = int(s["shadow_quality"])
 	var key_energy: float = 1.20
 	var rim_energy: float = 0.52
 	var fill_energy: float = 0.34
@@ -182,7 +185,21 @@ static func apply_to_lights(key_light: Light3D, rim_light: Light3D, fill_light: 
 	fill_energy += postfx * 0.03
 	if key_light != null:
 		key_light.light_energy = key_energy
-		key_light.shadow_enabled = profile != PROFILE_LOW
+		key_light.shadow_enabled = shadow_quality > 0 and profile != PROFILE_LOW
+		key_light.shadow_blur = lerpf(3.0, 1.2, float(shadow_quality) / 3.0) if shadow_quality > 0 else 0.0
+		var key_dir: DirectionalLight3D = key_light as DirectionalLight3D
+		if key_dir != null:
+			key_dir.directional_shadow_max_distance = lerpf(6.0, 20.0, float(shadow_quality) / 3.0) if shadow_quality > 0 else 2.5
+			key_dir.directional_shadow_split_1 = 0.12
+			key_dir.directional_shadow_split_2 = 0.28
+			key_dir.directional_shadow_split_3 = 0.55
+			match shadow_quality:
+				3:
+					key_dir.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+				2:
+					key_dir.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+				_:
+					key_dir.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	if rim_light != null:
 		rim_light.light_energy = rim_energy
 	if fill_light != null:
@@ -239,3 +256,17 @@ static func _default_postfx_for_profile(profile: String) -> float:
 			return 0.68
 		_:
 			return 0.50
+
+
+static func _default_shadow_quality_for_profile(profile: String) -> int:
+	match profile:
+		PROFILE_LOW:
+			return 0
+		PROFILE_MEDIUM:
+			return 1
+		PROFILE_HIGH:
+			return 2
+		PROFILE_ULTRA:
+			return 3
+		_:
+			return 2
