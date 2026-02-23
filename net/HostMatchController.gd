@@ -5,6 +5,7 @@ const REJOIN_WINDOW_SEC: int = 90
 const PROTOCOL_SCRIPT: Script = preload("res://net/Protocol.gd")
 const SEAT_ADAPTER_SCRIPT: Script = preload("res://core/network/SeatViewAdapter.gd")
 const STATE_CODEC_SCRIPT: Script = preload("res://core/network/StateCodec.gd")
+static var _test_tracked_instances: Array = []
 
 var _core: LocalGameController = LocalGameController.new()
 var _transport = null
@@ -22,6 +23,8 @@ var _bot_fallback: BotRandom = BotRandom.new(20260221)
 var _bot_loop_running: bool = false
 
 func _init() -> void:
+	if OS.has_feature("editor"):
+		_test_tracked_instances.append(self)
 	_core.state_changed.connect(_on_core_state_changed)
 	_core.action_rejected.connect(func(reason: String) -> void:
 		emit_signal("action_rejected", reason)
@@ -29,6 +32,25 @@ func _init() -> void:
 	_core.action_applied.connect(_on_core_action_applied)
 	_core.turn_advanced.connect(_on_core_turn_advanced)
 	_core.match_finished.connect(_on_core_match_finished)
+
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_PREDELETE:
+		return
+	if OS.has_feature("editor"):
+		_test_tracked_instances.erase(self)
+	if _transport != null and _transport.packet_received.is_connected(_on_transport_packet):
+		_transport.packet_received.disconnect(_on_transport_packet)
+	_transport = null
+	if _core != null and is_instance_valid(_core):
+		_core.free()
+	_core = null
+
+static func free_test_tracked_instances() -> void:
+	for i in range(_test_tracked_instances.size() - 1, -1, -1):
+		var inst = _test_tracked_instances[i]
+		if inst != null and is_instance_valid(inst):
+			inst.free()
+	_test_tracked_instances.clear()
 
 func configure_host(local_puid: String, transport, seat_by_puid: Dictionary, match_id: String = "", match_seed: int = 0) -> void:
 	_local_puid = String(local_puid)

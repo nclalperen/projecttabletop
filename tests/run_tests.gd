@@ -65,7 +65,15 @@ const TEST_SCRIPTS = [
 	"res://tests/test_rack_slot_manager.gd",
 ]
 
+var _all_ok := true
+
+
 func _init() -> void:
+	_all_ok = _run_all_tests()
+	call_deferred("_complete")
+
+
+func _run_all_tests() -> bool:
 	var ok = true
 	for path in TEST_SCRIPTS:
 		var script = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
@@ -78,8 +86,19 @@ func _init() -> void:
 			ok = false
 		test = null
 		script = null
+		LocalGameController.free_test_tracked_instances()
+		HostMatchController.free_test_tracked_instances()
+		ClientMatchController.free_test_tracked_instances()
+		P2PTransportEOS.free_test_tracked_instances()
+		OnlineServiceEOS.free_test_tracked_instances()
+		LobbyServiceEOS.free_test_tracked_instances()
+	return ok
 
-	if ok:
+func _complete() -> void:
+	# Let queued disposals/resources settle before process shutdown.
+	await process_frame
+	await process_frame
+	if _all_ok:
 		print("All tests passed")
 	else:
 		print("Tests failed")

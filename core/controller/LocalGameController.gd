@@ -2,6 +2,22 @@ extends "res://core/controller/MatchControllerPort.gd"
 class_name LocalGameController
 
 var show_tips: bool = true
+static var _test_tracked_instances: Array = []
+
+func _init() -> void:
+	if OS.has_feature("editor"):
+		_test_tracked_instances.append(self)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and OS.has_feature("editor"):
+		_test_tracked_instances.erase(self)
+
+static func free_test_tracked_instances() -> void:
+	for i in range(_test_tracked_instances.size() - 1, -1, -1):
+		var inst = _test_tracked_instances[i]
+		if inst != null and is_instance_valid(inst):
+			inst.free()
+	_test_tracked_instances.clear()
 
 func start_new_round(rule_config: RuleConfig, rng_seed: int, player_count: int = 4) -> void:
 	if state != null and bool(state.match_finished):

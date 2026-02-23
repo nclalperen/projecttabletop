@@ -16,6 +16,7 @@ const LOBBY_MEMBER_STATUS_PROMOTED: int = 4
 const LOBBY_MEMBER_STATUS_CLOSED: int = 5
 
 static var _lobbies: Dictionary = {}
+static var _test_tracked_instances: Array = []
 
 var local_puid: String = ""
 var current_lobby_id: String = ""
@@ -27,6 +28,17 @@ var _runtime_inflight_op: String = ""
 var _runtime_current_lobby: Dictionary = {}
 var _runtime_last_status_by_puid: Dictionary = {}
 var _runtime_status_hint_by_puid: Dictionary = {}
+
+func _init() -> void:
+	if OS.has_feature("editor"):
+		_test_tracked_instances.append(self)
+
+static func free_test_tracked_instances() -> void:
+	for i in range(_test_tracked_instances.size() - 1, -1, -1):
+		var inst = _test_tracked_instances[i]
+		if inst != null and is_instance_valid(inst):
+			inst.free()
+	_test_tracked_instances.clear()
 
 func set_backend_mode(mode: String) -> void:
 	var normalized: String = String(mode).to_lower().strip_edges()
@@ -117,8 +129,11 @@ func get_current_lobby() -> Dictionary:
 	return _clone_lobby(_lobbies[current_lobby_id])
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_PREDELETE:
-		_disconnect_runtime_callbacks()
+	if what != NOTIFICATION_PREDELETE:
+		return
+	if OS.has_feature("editor"):
+		_test_tracked_instances.erase(self)
+	_disconnect_runtime_callbacks()
 
 func _use_runtime() -> bool:
 	if backend_mode != BACKEND_IEOS_RAW:

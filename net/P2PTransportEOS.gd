@@ -17,6 +17,7 @@ const RTC_DATA_STATUS_ENABLED: int = 1
 const RTC_DATA_STATUS_DISABLED: int = 2
 
 static var _registry: Dictionary = {}
+static var _test_tracked_instances: Array = []
 
 var local_puid: String = ""
 var opened: bool = false
@@ -32,6 +33,10 @@ var _runtime_last_seq_by_puid: Dictionary = {}
 var _runtime_known_peers: Dictionary = {}
 var _runtime_notif_data_received: int = INVALID_NOTIFICATION_ID
 var _runtime_notif_participant_updated: int = INVALID_NOTIFICATION_ID
+
+func _init() -> void:
+	if OS.has_feature("editor"):
+		_test_tracked_instances.append(self)
 
 func set_backend_mode(mode: String) -> void:
 	var normalized: String = String(mode).to_lower().strip_edges()
@@ -118,7 +123,16 @@ func _deliver(from_puid: String, payload: Dictionary) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE:
+		if OS.has_feature("editor"):
+			_test_tracked_instances.erase(self)
 		close_endpoint()
+
+static func free_test_tracked_instances() -> void:
+	for i in range(_test_tracked_instances.size() - 1, -1, -1):
+		var inst = _test_tracked_instances[i]
+		if inst != null and is_instance_valid(inst):
+			inst.free()
+	_test_tracked_instances.clear()
 
 func _use_runtime() -> bool:
 	if backend_mode != BACKEND_IEOS_RAW:

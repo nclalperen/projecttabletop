@@ -151,25 +151,21 @@ func _test_mock_online_lobby_flow() -> bool:
 	var host_core: LocalGameController = host_match.get("_core") as LocalGameController
 	if host_core == null or host_core.state == null:
 		push_error("HostMatchController core state missing after start_new_match.")
-		host_match.free()
-		host_transport.free()
+		_free_host_runtime(host_match, host_transport)
 		_cleanup_online_lobby_flow(online_services, lobby_services, original_runtime_env)
 		return false
 	if host_match.state == null:
 		push_error("HostMatchController state missing after start_new_match.")
-		host_match.free()
-		host_transport.free()
+		_free_host_runtime(host_match, host_transport)
 		_cleanup_online_lobby_flow(online_services, lobby_services, original_runtime_env)
 		return false
 	if host_match.state.players.size() != 4:
 		push_error("HostMatchController state did not start with 4 players.")
-		host_match.free()
-		host_transport.free()
+		_free_host_runtime(host_match, host_transport)
 		_cleanup_online_lobby_flow(online_services, lobby_services, original_runtime_env)
 		return false
 
-	host_match.free()
-	host_transport.free()
+	_free_host_runtime(host_match, host_transport)
 	_cleanup_online_lobby_flow(online_services, lobby_services, original_runtime_env)
 	return true
 
@@ -187,3 +183,12 @@ func _cleanup_online_lobby_flow(online_services: Array, lobby_services: Array, o
 	LOBBY_SERVICE_SCRIPT.clear_mock_lobbies()
 	TRANSPORT_SCRIPT.clear_mock_registry()
 	OS.set_environment("PROJECT101_EOS_RUNTIME", original_runtime_env)
+
+func _free_host_runtime(host_match: HostMatchController, host_transport: P2PTransportEOS) -> void:
+	if host_match != null:
+		var host_core = host_match.get("_core")
+		if host_core != null and host_core is Node:
+			(host_core as Node).free()
+		host_match.free()
+	if host_transport != null:
+		host_transport.free()

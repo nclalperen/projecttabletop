@@ -10,6 +10,7 @@ const EOS_RAW_SCRIPT: Script = preload("res://net/eos/EOSRaw.gd")
 const BACKEND_MOCK: String = "mock"
 const BACKEND_IEOS: String = "ieos_raw"
 const RUNTIME_ENABLE_ENV: String = "PROJECT101_EOS_RUNTIME"
+static var _test_tracked_instances: Array = []
 
 var initialized: bool = false
 var available: bool = false
@@ -21,6 +22,21 @@ var _runtime_initialized: bool = false
 var _runtime_login_inflight: bool = false
 var _runtime_env: Dictionary = {}
 var _runtime_epic_account_id: String = ""
+
+func _init() -> void:
+	if OS.has_feature("editor"):
+		_test_tracked_instances.append(self)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and OS.has_feature("editor"):
+		_test_tracked_instances.erase(self)
+
+static func free_test_tracked_instances() -> void:
+	for i in range(_test_tracked_instances.size() - 1, -1, -1):
+		var inst = _test_tracked_instances[i]
+		if inst != null and is_instance_valid(inst):
+			inst.free()
+	_test_tracked_instances.clear()
 
 func _process(_delta: float) -> void:
 	if backend_mode != BACKEND_IEOS:

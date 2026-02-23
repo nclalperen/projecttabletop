@@ -3,6 +3,7 @@ class_name ClientMatchController
 
 const PROTOCOL_SCRIPT: Script = preload("res://net/Protocol.gd")
 const STATE_CODEC_SCRIPT: Script = preload("res://core/network/StateCodec.gd")
+static var _test_tracked_instances: Array = []
 
 var _transport = null
 var _local_puid: String = ""
@@ -12,6 +13,28 @@ var _local_abs_seat: int = 0
 var _seq: int = 0
 var _last_turn_id_seen: int = 0
 var _pending_action_type_by_seq: Dictionary = {}
+
+func _init() -> void:
+	if OS.has_feature("editor"):
+		_test_tracked_instances.append(self)
+
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_PREDELETE:
+		return
+	if OS.has_feature("editor"):
+		_test_tracked_instances.erase(self)
+	if _transport != null and _transport.packet_received.is_connected(_on_transport_packet):
+		_transport.packet_received.disconnect(_on_transport_packet)
+	if _transport != null and _transport.has_method("close_endpoint"):
+		_transport.close_endpoint()
+	_transport = null
+
+static func free_test_tracked_instances() -> void:
+	for i in range(_test_tracked_instances.size() - 1, -1, -1):
+		var inst = _test_tracked_instances[i]
+		if inst != null and is_instance_valid(inst):
+			inst.free()
+	_test_tracked_instances.clear()
 
 func configure_client(local_puid: String, host_puid: String, transport, local_abs_seat: int = 0, match_id: String = "") -> void:
 	_local_puid = String(local_puid)
