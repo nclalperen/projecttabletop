@@ -7,6 +7,7 @@ signal cancelled
 
 const UI_SETTINGS_SCRIPT: Script = preload("res://ui/services/UISettings.gd")
 const VISUAL_QUALITY_SCRIPT: Script = preload("res://ui/services/VisualQualityService.gd")
+const DISPLAY_SETTINGS_SCRIPT: Script = preload("res://ui/services/DisplaySettingsService.gd")
 const MENU_AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/MenuAudioService.gd")
 const MENU_STYLE: Script = preload("res://ui/services/MenuStyleRegistry.gd")
 const PROMPT_BADGE_SCENE: PackedScene = preload("res://ui/widgets/InputPromptBadge.tscn")
@@ -23,6 +24,7 @@ const PROMPT_ESC_ID: StringName = ASSET_IDS.UI_PROMPT_ESC
 
 @onready var _background: TextureRect = $Background
 @onready var _panel: Panel = $Panel
+@onready var _main_vbox: VBoxContainer = $Panel/MarginContainer/VBoxContainer
 @onready var settings_list = $Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList
 @onready var initial_open_points = $Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/InitialOpenPoints/Value
 @onready var allow_five_pairs_open = $Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/AllowFivePairsOpen/Value
@@ -41,12 +43,27 @@ var _music_volume_spin: SpinBox = null
 var _graphics_profile_option: OptionButton = null
 var _aa_mode_option: OptionButton = null
 var _ssao_quality_option: OptionButton = null
+var _shadow_quality_option: OptionButton = null
 var _ssr_enabled_check: CheckBox = null
 var _resolution_scale_spin: SpinBox = null
 var _postfx_strength_spin: SpinBox = null
+var _display_monitor_option: OptionButton = null
+var _display_mode_option: OptionButton = null
+var _display_resolution_option: OptionButton = null
+var _display_refresh_option: OptionButton = null
+var _display_vsync_option: OptionButton = null
+var _display_fps_cap_option: OptionButton = null
+var _display_monitors: Array[Dictionary] = []
+var _status_label: Label = null
 var _menu_audio = null
 var _suppress_feedback_audio: bool = false
 var _last_toggle_sound_msec: int = -1
+var _preview_dialog: ConfirmationDialog = null
+var _preview_timer: Timer = null
+var _preview_seconds_left: int = 0
+var _preview_active: bool = false
+var _preview_previous_display: Dictionary = {}
+var _preview_candidate_display: Dictionary = {}
 
 func _ready():
 	if _menu_audio == null:
@@ -56,7 +73,9 @@ func _ready():
 
 	_ui_settings = UI_SETTINGS_SCRIPT.load_from_disk()
 	_ensure_visual_rows()
+	_ensure_display_rows()
 	_ensure_audio_rows()
+	_ensure_status_row()
 	_apply_kenney_fonts()
 	_apply_form_skin()
 	_apply_background_pattern()
@@ -65,6 +84,7 @@ func _ready():
 	_build_prompt_strip()
 	_configure_feedback_copy()
 	_bind_audio_feedback()
+	_init_preview_dialog()
 	_apply_responsive_layout()
 
 	save_button.pressed.connect(_on_save_pressed)
@@ -113,7 +133,7 @@ func _apply_kenney_fonts() -> void:
 		var item: Label = label as Label
 		if item == null:
 			continue
-		var is_header: bool = item.name == "VisualLabel"
+		var is_header: bool = item.name == "VisualLabel" or item.name == "DisplayLabel"
 		item.add_theme_font_size_override("font_size", 20 if is_header else 18)
 		item.add_theme_color_override("font_color", _style_color(&"subtitle_text") if is_header else _style_color(&"body_text"))
 
@@ -241,6 +261,29 @@ func _build_prompt_strip() -> void:
 			badge.call("configure", entry.get("icon", null), String(entry.get("text", "")))
 
 
+func _ensure_status_row() -> void:
+	if _main_vbox == null:
+		return
+	_status_label = _main_vbox.get_node_or_null("StatusLabel") as Label
+	if _status_label == null:
+		_status_label = Label.new()
+		_status_label.name = "StatusLabel"
+		_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_status_label.custom_minimum_size = Vector2(0, 26)
+		_status_label.add_theme_font_size_override("font_size", 15)
+		_status_label.add_theme_color_override("font_color", _style_color(&"chip_text"))
+		var prompt_index: int = _prompt_strip.get_index()
+		_main_vbox.add_child(_status_label)
+		_main_vbox.move_child(_status_label, prompt_index)
+
+
+func _set_status_text(text: String, is_error: bool = false) -> void:
+	if _status_label == null:
+		return
+	_status_label.text = text
+	_status_label.modulate = Color(1.0, 0.85, 0.72, 1.0) if is_error else Color(0.94, 0.9, 0.8, 0.96)
+
+
 func _configure_feedback_copy() -> void:
 	if save_button != null:
 		save_button.tooltip_text = "Save and apply settings"
@@ -257,12 +300,25 @@ func _bind_audio_feedback() -> void:
 		match_end_condition.item_selected.connect(_on_match_end_condition_selected)
 	if not allow_five_pairs_open.toggled.is_connected(_on_allow_five_pairs_toggled):
 		allow_five_pairs_open.toggled.connect(_on_allow_five_pairs_toggled)
-	for opt in [_graphics_profile_option, _aa_mode_option, _ssao_quality_option]:
+	for opt in [
+		_graphics_profile_option,
+		_aa_mode_option,
+		_ssao_quality_option,
+		_shadow_quality_option,
+		_display_mode_option,
+		_display_resolution_option,
+		_display_refresh_option,
+		_display_vsync_option,
+		_display_fps_cap_option
+	]:
 		var option: OptionButton = opt as OptionButton
 		if option != null and not option.item_selected.is_connected(_on_visual_option_selected):
 			option.item_selected.connect(_on_visual_option_selected)
 	if _ssr_enabled_check != null and not _ssr_enabled_check.toggled.is_connected(_on_visual_toggle_changed):
 		_ssr_enabled_check.toggled.connect(_on_visual_toggle_changed)
+	if _display_monitor_option != null:
+		if not _display_monitor_option.item_selected.is_connected(_on_display_monitor_selected):
+			_display_monitor_option.item_selected.connect(_on_display_monitor_selected)
 
 
 func _on_settings_button_hover(_button: Button) -> void:
@@ -283,6 +339,11 @@ func _on_visual_option_selected(_idx: int) -> void:
 
 
 func _on_visual_toggle_changed(_pressed: bool) -> void:
+	_play_toggle_feedback()
+
+
+func _on_display_monitor_selected(_idx: int) -> void:
+	_rebuild_resolution_and_refresh_options_for_selected_monitor()
 	_play_toggle_feedback()
 
 
@@ -321,10 +382,11 @@ func load_config():
 	if _music_volume_spin != null and _ui_settings != null:
 		_music_volume_spin.value = round(float(_ui_settings.get("music_volume", 0.30)) * 100.0)
 	_sync_visual_controls_from_settings()
+	_sync_display_controls_from_settings()
 	_suppress_feedback_audio = false
 
 
-func save_config():
+func save_config(display_override: Dictionary = {}):
 	if not _config:
 		return
 
@@ -342,22 +404,36 @@ func save_config():
 		var sfx_volume: float = clampf(float(_sfx_volume_spin.value) / 100.0, 0.0, 1.0) if _sfx_volume_spin != null else 0.82
 		var music_volume: float = clampf(float(_music_volume_spin.value) / 100.0, 0.0, 1.0) if _music_volume_spin != null else 0.30
 		var visual_settings: Dictionary = _collect_visual_settings_from_controls()
-		UI_SETTINGS_SCRIPT.save_to_disk(sfx_volume, music_volume, visual_settings)
+		var display_settings: Dictionary = _collect_display_settings_from_controls()
+		if not display_override.is_empty():
+			display_settings = UI_SETTINGS_SCRIPT.sanitize_display_settings(display_override)
+		UI_SETTINGS_SCRIPT.save_to_disk(sfx_volume, music_volume, visual_settings, display_settings)
 		_ui_settings["sfx_volume"] = sfx_volume
 		_ui_settings["music_volume"] = music_volume
 		for key in visual_settings.keys():
 			_ui_settings[key] = visual_settings[key]
+		for key in display_settings.keys():
+			_ui_settings[key] = display_settings[key]
 
 
 func _on_save_pressed():
+	if _preview_active:
+		return
 	if _menu_audio != null:
 		_menu_audio.play_confirm()
-	save_config()
+	var candidate_display: Dictionary = _collect_display_settings_from_controls()
+	var current_display: Dictionary = DISPLAY_SETTINGS_SCRIPT.current_runtime_settings()
+	if not _display_settings_equal(candidate_display, current_display):
+		_start_display_preview(candidate_display, current_display)
+		return
+	save_config(candidate_display)
 	emit_signal("settings_changed", _config)
 	queue_free()
 
 
 func _on_cancel_pressed():
+	if _preview_active:
+		_cancel_display_preview("Display preview cancelled. Reverted changes.")
 	if _menu_audio != null:
 		_menu_audio.play_back()
 	emit_signal("cancelled")
@@ -427,6 +503,16 @@ func _ensure_visual_rows() -> void:
 		])
 		settings_list.add_child(ssao_row.get("row"))
 		_ssao_quality_option = ssao_row.get("option") as OptionButton
+	if _shadow_quality_option == null:
+		var shadow_row := _build_option_row("Shadow Quality", [
+			{"label": "Off", "id": 0},
+			{"label": "Low", "id": 1},
+			{"label": "Medium", "id": 2},
+			{"label": "High", "id": 3},
+		])
+		shadow_row.get("row").name = "ShadowQuality"
+		settings_list.add_child(shadow_row.get("row"))
+		_shadow_quality_option = shadow_row.get("option") as OptionButton
 	if _ssr_enabled_check == null:
 		var ssr_row := _build_toggle_row("SSR Reflections")
 		settings_list.add_child(ssr_row.get("row"))
@@ -450,6 +536,70 @@ func _ensure_visual_rows() -> void:
 	_sync_visual_controls_from_settings()
 
 
+func _ensure_display_rows() -> void:
+	if settings_list == null:
+		return
+	if settings_list.get_node_or_null("DisplaySeparator") == null:
+		var sep := HSeparator.new()
+		sep.name = "DisplaySeparator"
+		settings_list.add_child(sep)
+	if settings_list.get_node_or_null("DisplayLabel") == null:
+		var header := Label.new()
+		header.name = "DisplayLabel"
+		header.text = "Display & Hardware"
+		header.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		settings_list.add_child(header)
+	if _display_monitor_option == null:
+		var monitor_row := _build_option_row("Monitor", [])
+		monitor_row.get("row").name = "DisplayMonitor"
+		settings_list.add_child(monitor_row.get("row"))
+		_display_monitor_option = monitor_row.get("option") as OptionButton
+	if _display_mode_option == null:
+		var mode_row := _build_option_row("Display Mode", [
+			{"label": "Windowed", "id": DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED},
+			{"label": "Borderless", "id": DISPLAY_SETTINGS_SCRIPT.MODE_BORDERLESS},
+			{"label": "Exclusive Fullscreen", "id": DISPLAY_SETTINGS_SCRIPT.MODE_EXCLUSIVE},
+		])
+		mode_row.get("row").name = "DisplayMode"
+		settings_list.add_child(mode_row.get("row"))
+		_display_mode_option = mode_row.get("option") as OptionButton
+	if _display_resolution_option == null:
+		var res_row := _build_option_row("Resolution", [])
+		res_row.get("row").name = "DisplayResolution"
+		settings_list.add_child(res_row.get("row"))
+		_display_resolution_option = res_row.get("option") as OptionButton
+	if _display_refresh_option == null:
+		var refresh_row := _build_option_row("Refresh Rate", [])
+		refresh_row.get("row").name = "DisplayRefreshRate"
+		settings_list.add_child(refresh_row.get("row"))
+		_display_refresh_option = refresh_row.get("option") as OptionButton
+	if _display_vsync_option == null:
+		var vsync_row := _build_option_row("VSync", [
+			{"label": "Enabled", "id": DISPLAY_SETTINGS_SCRIPT.VSYNC_ENABLED},
+			{"label": "Disabled", "id": DISPLAY_SETTINGS_SCRIPT.VSYNC_DISABLED},
+			{"label": "Adaptive", "id": DISPLAY_SETTINGS_SCRIPT.VSYNC_ADAPTIVE},
+			{"label": "Mailbox", "id": DISPLAY_SETTINGS_SCRIPT.VSYNC_MAILBOX},
+		])
+		vsync_row.get("row").name = "DisplayVSync"
+		settings_list.add_child(vsync_row.get("row"))
+		_display_vsync_option = vsync_row.get("option") as OptionButton
+	if _display_fps_cap_option == null:
+		var fps_row := _build_option_row("FPS Cap", [
+			{"label": "Uncapped", "id": 0},
+			{"label": "30", "id": 30},
+			{"label": "60", "id": 60},
+			{"label": "90", "id": 90},
+			{"label": "120", "id": 120},
+			{"label": "144", "id": 144},
+			{"label": "165", "id": 165},
+			{"label": "240", "id": 240},
+		])
+		fps_row.get("row").name = "DisplayFpsCap"
+		settings_list.add_child(fps_row.get("row"))
+		_display_fps_cap_option = fps_row.get("option") as OptionButton
+	_populate_display_controls()
+
+
 func _sync_visual_controls_from_settings() -> void:
 	if _ui_settings == null:
 		_ui_settings = UI_SETTINGS_SCRIPT.default_visual_settings()
@@ -457,12 +607,58 @@ func _sync_visual_controls_from_settings() -> void:
 	_select_option_by_id(_graphics_profile_option, str(visual.get("graphics_profile", VISUAL_QUALITY_SCRIPT.PROFILE_HIGH)))
 	_select_option_by_id(_aa_mode_option, str(visual.get("aa_mode", VISUAL_QUALITY_SCRIPT.AA_FXAA)))
 	_select_option_by_id(_ssao_quality_option, int(visual.get("ssao_quality", 2)))
+	_select_option_by_id(_shadow_quality_option, int(visual.get("shadow_quality", 2)))
 	if _ssr_enabled_check != null:
 		_ssr_enabled_check.button_pressed = bool(visual.get("ssr_enabled", true))
 	if _resolution_scale_spin != null:
 		_resolution_scale_spin.value = round(float(visual.get("resolution_scale", 1.0)) * 100.0)
 	if _postfx_strength_spin != null:
 		_postfx_strength_spin.value = round(float(visual.get("postfx_strength", 0.70)) * 100.0)
+
+
+func _populate_display_controls() -> void:
+	_display_monitors = DISPLAY_SETTINGS_SCRIPT.list_monitors()
+	_clear_option(_display_monitor_option)
+	for m in _display_monitors:
+		var idx: int = int(m.get("index", 0))
+		var label: String = String(m.get("label", "Display %d" % (idx + 1)))
+		_display_monitor_option.add_item(label)
+		_display_monitor_option.set_item_metadata(_display_monitor_option.get_item_count() - 1, idx)
+	_rebuild_resolution_and_refresh_options_for_selected_monitor()
+	_sync_display_controls_from_settings()
+
+
+func _rebuild_resolution_and_refresh_options_for_selected_monitor() -> void:
+	var monitor_index: int = _selected_monitor_index()
+	_clear_option(_display_resolution_option)
+	for res in DISPLAY_SETTINGS_SCRIPT.list_resolutions(monitor_index):
+		var key: String = _resolution_key(res)
+		_display_resolution_option.add_item(key)
+		_display_resolution_option.set_item_metadata(_display_resolution_option.get_item_count() - 1, key)
+	_clear_option(_display_refresh_option)
+	var rates: PackedInt32Array = DISPLAY_SETTINGS_SCRIPT.list_refresh_rates(monitor_index)
+	if rates.is_empty():
+		rates = PackedInt32Array([0])
+	for hz in rates:
+		var label: String = "Auto" if hz == 0 else "%d Hz" % hz
+		_display_refresh_option.add_item(label)
+		_display_refresh_option.set_item_metadata(_display_refresh_option.get_item_count() - 1, int(hz))
+
+
+func _sync_display_controls_from_settings() -> void:
+	if _ui_settings == null:
+		_ui_settings = UI_SETTINGS_SCRIPT.load_from_disk()
+	var display: Dictionary = UI_SETTINGS_SCRIPT.sanitize_display_settings(_ui_settings)
+	_select_option_by_id(_display_monitor_option, int(display.get("monitor_index", 0)))
+	_rebuild_resolution_and_refresh_options_for_selected_monitor()
+	_select_option_by_id(_display_mode_option, str(display.get("display_mode", DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED)))
+	_select_option_by_id(_display_resolution_option, _resolution_key(Vector2i(
+		int(display.get("resolution_width", 1280)),
+		int(display.get("resolution_height", 720))
+	)))
+	_select_option_by_id(_display_refresh_option, int(display.get("refresh_rate_hz", 0)))
+	_select_option_by_id(_display_vsync_option, str(display.get("vsync_mode", DISPLAY_SETTINGS_SCRIPT.VSYNC_ENABLED)))
+	_select_option_by_id(_display_fps_cap_option, int(display.get("fps_cap", 0)))
 
 
 func _collect_visual_settings_from_controls() -> Dictionary:
@@ -476,11 +672,26 @@ func _collect_visual_settings_from_controls() -> Dictionary:
 		"graphics_profile": selected_profile,
 		"aa_mode": _selected_option_id(_aa_mode_option, VISUAL_QUALITY_SCRIPT.AA_FXAA),
 		"ssao_quality": int(_selected_option_id(_ssao_quality_option, 2)),
+		"shadow_quality": int(_selected_option_id(_shadow_quality_option, 2)),
 		"ssr_enabled": _ssr_enabled_check.button_pressed if _ssr_enabled_check != null else true,
 		"resolution_scale": (float(_resolution_scale_spin.value) / 100.0) if _resolution_scale_spin != null else 1.0,
 		"postfx_strength": (float(_postfx_strength_spin.value) / 100.0) if _postfx_strength_spin != null else 0.70,
 	}
 	return UI_SETTINGS_SCRIPT.sanitize_visual_settings(raw)
+
+
+func _collect_display_settings_from_controls() -> Dictionary:
+	var resolution: Vector2i = _selected_resolution()
+	var raw: Dictionary = {
+		"display_mode": str(_selected_option_id(_display_mode_option, DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED)),
+		"monitor_index": int(_selected_option_id(_display_monitor_option, 0)),
+		"resolution_width": resolution.x,
+		"resolution_height": resolution.y,
+		"refresh_rate_hz": int(_selected_option_id(_display_refresh_option, 0)),
+		"vsync_mode": str(_selected_option_id(_display_vsync_option, DISPLAY_SETTINGS_SCRIPT.VSYNC_ENABLED)),
+		"fps_cap": int(_selected_option_id(_display_fps_cap_option, 0)),
+	}
+	return UI_SETTINGS_SCRIPT.sanitize_display_settings(raw)
 
 
 func _build_percent_row(label_text: String) -> Dictionary:
@@ -493,6 +704,7 @@ func _build_percent_row(label_text: String) -> Dictionary:
 	row.add_child(lbl)
 
 	var spin := SpinBox.new()
+	spin.name = "Value"
 	spin.min_value = 0.0
 	spin.max_value = 100.0
 	spin.step = 1.0
@@ -514,6 +726,7 @@ func _build_option_row(label_text: String, items: Array) -> Dictionary:
 	row.add_child(lbl)
 
 	var option := OptionButton.new()
+	option.name = "Value"
 	option.custom_minimum_size = Vector2(220, 0)
 	for item in items:
 		var i_label: String = str(item.get("label", "Option"))
@@ -534,6 +747,7 @@ func _build_toggle_row(label_text: String) -> Dictionary:
 	row.add_child(lbl)
 
 	var check := CheckBox.new()
+	check.name = "Value"
 	check.text = "On"
 	check.button_pressed = true
 	row.add_child(check)
@@ -557,6 +771,135 @@ func _select_option_by_id(opt: OptionButton, target) -> void:
 			return
 	if opt.get_item_count() > 0:
 		opt.select(0)
+
+
+func _clear_option(opt: OptionButton) -> void:
+	if opt == null:
+		return
+	opt.clear()
+
+
+func _selected_monitor_index() -> int:
+	return int(_selected_option_id(_display_monitor_option, 0))
+
+
+func _selected_resolution() -> Vector2i:
+	var fallback := Vector2i(1280, 720)
+	var key: String = str(_selected_option_id(_display_resolution_option, _resolution_key(fallback)))
+	var parts: PackedStringArray = key.split("x")
+	if parts.size() != 2:
+		return fallback
+	var w: int = int(parts[0])
+	var h: int = int(parts[1])
+	if w <= 0 or h <= 0:
+		return fallback
+	return Vector2i(w, h)
+
+
+func _resolution_key(resolution: Vector2i) -> String:
+	return "%dx%d" % [resolution.x, resolution.y]
+
+
+func _display_settings_equal(a: Dictionary, b: Dictionary) -> bool:
+	var left: Dictionary = UI_SETTINGS_SCRIPT.sanitize_display_settings(a)
+	var right: Dictionary = UI_SETTINGS_SCRIPT.sanitize_display_settings(b)
+	var keys: PackedStringArray = [
+		"display_mode",
+		"monitor_index",
+		"resolution_width",
+		"resolution_height",
+		"refresh_rate_hz",
+		"vsync_mode",
+		"fps_cap",
+	]
+	for key in keys:
+		if left.get(key) != right.get(key):
+			return false
+	return true
+
+
+func _init_preview_dialog() -> void:
+	if _preview_dialog == null:
+		_preview_dialog = ConfirmationDialog.new()
+		_preview_dialog.name = "DisplayPreviewDialog"
+		_preview_dialog.title = "Keep display settings?"
+		_preview_dialog.get_ok_button().text = "Keep"
+		_preview_dialog.get_cancel_button().text = "Revert"
+		_preview_dialog.confirmed.connect(_on_preview_confirmed)
+		_preview_dialog.canceled.connect(_on_preview_canceled)
+		add_child(_preview_dialog)
+	if _preview_timer == null:
+		_preview_timer = Timer.new()
+		_preview_timer.name = "DisplayPreviewTimer"
+		_preview_timer.wait_time = 1.0
+		_preview_timer.one_shot = false
+		_preview_timer.timeout.connect(_on_preview_tick)
+		add_child(_preview_timer)
+
+
+func _start_display_preview(candidate: Dictionary, previous_runtime: Dictionary) -> void:
+	_init_preview_dialog()
+	var apply_res: Dictionary = DISPLAY_SETTINGS_SCRIPT.apply_safe(candidate)
+	if not bool(apply_res.get("ok", false)):
+		if _menu_audio != null:
+			_menu_audio.play_error()
+		_set_status_text("Display apply failed: %s" % String(apply_res.get("reason", "unknown")), true)
+		return
+	_preview_active = true
+	_preview_previous_display = UI_SETTINGS_SCRIPT.sanitize_display_settings(previous_runtime)
+	_preview_candidate_display = UI_SETTINGS_SCRIPT.sanitize_display_settings(apply_res.get("applied", candidate))
+	_preview_seconds_left = 15
+	_update_preview_dialog_text()
+	_preview_dialog.popup_centered(Vector2i(520, 170))
+	_preview_timer.start()
+	_set_status_text("Previewing display settings. Confirm to keep them.")
+
+
+func _cancel_display_preview(status_text: String) -> void:
+	if not _preview_active:
+		return
+	DISPLAY_SETTINGS_SCRIPT.apply_safe(_preview_previous_display)
+	_preview_active = false
+	_preview_timer.stop()
+	if _preview_dialog != null:
+		_preview_dialog.hide()
+	_set_status_text(status_text, true)
+	_suppress_feedback_audio = true
+	for key in _preview_previous_display.keys():
+		_ui_settings[key] = _preview_previous_display[key]
+	_sync_display_controls_from_settings()
+	_suppress_feedback_audio = false
+
+
+func _on_preview_confirmed() -> void:
+	if not _preview_active:
+		return
+	_preview_active = false
+	_preview_timer.stop()
+	save_config(_preview_candidate_display)
+	_set_status_text("Display settings saved.")
+	emit_signal("settings_changed", _config)
+	queue_free()
+
+
+func _on_preview_canceled() -> void:
+	_cancel_display_preview("Display changes reverted.")
+
+
+func _on_preview_tick() -> void:
+	if not _preview_active:
+		return
+	_preview_seconds_left -= 1
+	if _preview_seconds_left <= 0:
+		_cancel_display_preview("Display preview timed out. Reverted.")
+		return
+	_update_preview_dialog_text()
+
+
+func _update_preview_dialog_text() -> void:
+	if _preview_dialog == null:
+		return
+	_preview_dialog.dialog_text = "Keep these display settings? Reverting in %d seconds." % _preview_seconds_left
 
 
 func _apply_responsive_layout() -> void:

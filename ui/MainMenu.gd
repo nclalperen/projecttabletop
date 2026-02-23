@@ -19,6 +19,8 @@ const SETTINGS_MENU_SCENE: PackedScene = preload("res://ui/SettingsMenu.tscn")
 const ONLINE_LOBBY_SCENE: PackedScene = preload("res://ui/OnlineLobby.tscn")
 const ONLINE_SERVICE_SCRIPT: Script = preload("res://net/OnlineServiceEOS.gd")
 const MENU_AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/MenuAudioService.gd")
+const UI_SETTINGS_SCRIPT: Script = preload("res://ui/services/UISettings.gd")
+const DISPLAY_SETTINGS_SCRIPT: Script = preload("res://ui/services/DisplaySettingsService.gd")
 const MENU_STYLE: Script = preload("res://ui/services/MenuStyleRegistry.gd")
 const ICON_BUTTON_SCENE: PackedScene = preload("res://ui/widgets/IconTextButton.tscn")
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
@@ -55,6 +57,7 @@ func _ready() -> void:
 
 	# Initialize default config.
 	rule_config = RuleConfig.new()
+	_apply_runtime_display_settings()
 	_apply_background_pattern()
 	_apply_panel_shell()
 	_ensure_online_button()
@@ -409,3 +412,12 @@ func _style_scalar(id: StringName) -> float:
 
 func _style_vector(id: StringName) -> Vector2:
 	return MENU_STYLE.vector(id)
+
+
+func _apply_runtime_display_settings() -> void:
+	var settings: Dictionary = UI_SETTINGS_SCRIPT.load_from_disk()
+	var display_settings: Dictionary = UI_SETTINGS_SCRIPT.sanitize_display_settings(settings)
+	var result: Dictionary = DISPLAY_SETTINGS_SCRIPT.apply_safe(display_settings)
+	if not bool(result.get("ok", false)):
+		if _banner != null and _banner.has_method("set_text"):
+			_banner.call("set_text", "Display settings failed: %s" % String(result.get("reason", "unknown")))
