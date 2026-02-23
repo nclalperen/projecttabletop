@@ -11,11 +11,21 @@ var local_product_user_id: String
 
 ## The Epic Account ID of the most recent logged in user.
 var local_epic_account_id: String
+var _platform_created := false
 
 
 func _ready() -> void:
 	if not _has_ieos():
 		return
+	var platform := get_node_or_null("/root/HPlatform")
+	if platform != null and platform.has_signal("platform_created"):
+		platform.platform_created.connect(func() -> void:
+			_platform_created = true
+		)
+	if platform != null and platform.has_signal("platform_initialized"):
+		platform.platform_initialized.connect(func() -> void:
+			_platform_created = false
+		)
 	IEOS.auth_interface_login_callback.connect(func (data: Dictionary):
 		if data.local_user_id != "":
 			local_epic_account_id = data.local_user_id
@@ -36,6 +46,9 @@ func _on_logout(data: Dictionary):
 
 func _process(_delta: float):
 	if not _has_ieos():
+		return
+	# Avoid ticking before HPlatform creates EOS platform handle.
+	if not _platform_created:
 		return
 	IEOS.tick()
 
