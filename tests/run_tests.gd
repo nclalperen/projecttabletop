@@ -59,6 +59,7 @@ const TEST_SCRIPTS = [
 	"res://tests/test_ui_scene_contract.gd",
 	"res://tests/test_ui_gametable3d_scene_contract.gd",
 	"res://tests/test_ui_no_legacy_controls.gd",
+	"res://tests/test_ui_menu_scene_contract.gd",
 	"res://tests/test_ui_settings_visual.gd",
 	"res://tests/test_local_controller.gd",
 	"res://tests/test_legacy_paths_removed.gd",
