@@ -19,6 +19,7 @@ const SETTINGS_MENU_SCENE: PackedScene = preload("res://ui/SettingsMenu.tscn")
 const ONLINE_LOBBY_SCENE: PackedScene = preload("res://ui/OnlineLobby.tscn")
 const ONLINE_SERVICE_SCRIPT: Script = preload("res://net/OnlineServiceEOS.gd")
 const MENU_AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/MenuAudioService.gd")
+const MENU_STYLE: Script = preload("res://ui/services/MenuStyleRegistry.gd")
 const ICON_BUTTON_SCENE: PackedScene = preload("res://ui/widgets/IconTextButton.tscn")
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
@@ -74,11 +75,14 @@ func _ready() -> void:
 func _animate_menu_in() -> void:
 	if not _animations_enabled or _menu_card == null:
 		return
+	var menu_in_time: float = _style_scalar(&"motion_menu_in")
+	var button_in_time: float = _style_scalar(&"motion_button_in")
+	var stagger: float = _style_scalar(&"motion_stagger")
 	_menu_card.modulate = Color(1, 1, 1, 0)
 	_menu_card.position.y += 18
 	var card_tween = create_tween()
-	card_tween.tween_property(_menu_card, "modulate", Color(1, 1, 1, 1), 0.22)
-	card_tween.parallel().tween_property(_menu_card, "position:y", _menu_card.position.y - 18, 0.22)
+	card_tween.tween_property(_menu_card, "modulate", Color(1, 1, 1, 1), menu_in_time)
+	card_tween.parallel().tween_property(_menu_card, "position:y", _menu_card.position.y - 18, menu_in_time)
 
 	var buttons: Array = _button_list()
 	for i in range(buttons.size()):
@@ -89,9 +93,9 @@ func _animate_menu_in() -> void:
 		b.modulate = Color(1, 1, 1, 0)
 		b.position.x -= 12.0
 		var tween = create_tween()
-		var delay: float = float(i) * 0.035
-		tween.tween_property(b, "modulate", Color(1, 1, 1, 1), 0.18).set_delay(delay)
-		tween.parallel().tween_property(b, "position:x", original_x, 0.18).set_delay(delay)
+		var delay: float = float(i) * stagger
+		tween.tween_property(b, "modulate", Color(1, 1, 1, 1), button_in_time).set_delay(delay)
+		tween.parallel().tween_property(b, "position:x", original_x, button_in_time).set_delay(delay)
 
 
 func _bind_button_feedback() -> void:
@@ -111,7 +115,8 @@ func _on_menu_button_hover(_button: Button) -> void:
 
 func _on_menu_button_down(button: Button) -> void:
 	if button != null:
-		button.scale = Vector2(1.02, 1.02)
+		var scale_amount: float = _style_scalar(&"press_scale")
+		button.scale = Vector2(scale_amount, scale_amount)
 
 
 func _on_menu_button_up(button: Button) -> void:
@@ -160,25 +165,28 @@ func _apply_background_pattern() -> void:
 		_background.texture = _texture(PANEL_GRID_ID)
 		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		_background.stretch_mode = TextureRect.STRETCH_TILE
-		_background.modulate = Color(0.18, 0.16, 0.11, 0.9)
+		_background.modulate = _style_color(&"bg_pattern")
 
 
 func _apply_panel_shell() -> void:
 	if _menu_card == null:
 		return
+	var panel_margin: float = _style_scalar(&"panel_margin")
+	var panel_content_x: float = _style_scalar(&"panel_content_x")
+	var panel_content_y: float = _style_scalar(&"panel_content_y")
 	var panel_tex: Texture2D = _texture(PANEL_FILL_ID)
 	if panel_tex != null:
 		var panel_style := StyleBoxTexture.new()
 		panel_style.texture = panel_tex
-		panel_style.modulate_color = Color(0.34, 0.29, 0.22, 0.97)
-		panel_style.texture_margin_left = 12.0
-		panel_style.texture_margin_top = 12.0
-		panel_style.texture_margin_right = 12.0
-		panel_style.texture_margin_bottom = 12.0
-		panel_style.content_margin_left = 20.0
-		panel_style.content_margin_top = 18.0
-		panel_style.content_margin_right = 20.0
-		panel_style.content_margin_bottom = 18.0
+		panel_style.modulate_color = _style_color(&"panel_shell")
+		panel_style.texture_margin_left = panel_margin
+		panel_style.texture_margin_top = panel_margin
+		panel_style.texture_margin_right = panel_margin
+		panel_style.texture_margin_bottom = panel_margin
+		panel_style.content_margin_left = panel_content_x
+		panel_style.content_margin_top = panel_content_y
+		panel_style.content_margin_right = panel_content_x
+		panel_style.content_margin_bottom = panel_content_y
 		_menu_card.add_theme_stylebox_override("panel", panel_style)
 
 	var border_tex: Texture2D = _texture(PANEL_BORDER_ID)
@@ -192,22 +200,23 @@ func _apply_panel_shell() -> void:
 		border.draw_center = false
 		border.anchor_right = 1.0
 		border.anchor_bottom = 1.0
-		border.patch_margin_left = 12
-		border.patch_margin_top = 12
-		border.patch_margin_right = 12
-		border.patch_margin_bottom = 12
+		var border_margin: int = int(round(_style_scalar(&"panel_border_margin")))
+		border.patch_margin_left = border_margin
+		border.patch_margin_top = border_margin
+		border.patch_margin_right = border_margin
+		border.patch_margin_bottom = border_margin
 		_menu_card.add_child(border)
 	border.texture = border_tex
-	border.modulate = Color(0.92, 0.8, 0.59, 0.94)
+	border.modulate = _style_color(&"panel_border")
 
 
 func _apply_meta_chip_icons() -> void:
 	if _players_chip_icon != null:
 		_players_chip_icon.texture = _texture(ICON_ONLINE_ID)
-		_players_chip_icon.modulate = Color(0.98, 0.86, 0.58, 1.0)
+		_players_chip_icon.modulate = _style_color(&"chip_icon")
 	if _timer_chip_icon != null:
 		_timer_chip_icon.texture = _texture(ICON_TIMER_ID)
-		_timer_chip_icon.modulate = Color(0.98, 0.86, 0.58, 1.0)
+		_timer_chip_icon.modulate = _style_color(&"chip_icon")
 	_update_online_chip_icon()
 
 
@@ -224,17 +233,17 @@ func _apply_kenney_fonts() -> void:
 	var version: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Version
 	var summary: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/SettingsSummary
 	title.add_theme_font_size_override("font_size", 56)
-	title.add_theme_color_override("font_color", Color(0.96, 0.9, 0.78, 1.0))
+	title.add_theme_color_override("font_color", _style_color(&"title_text"))
 	subtitle.add_theme_font_size_override("font_size", 23)
-	subtitle.add_theme_color_override("font_color", Color(0.9, 0.85, 0.75, 0.97))
+	subtitle.add_theme_color_override("font_color", _style_color(&"subtitle_text"))
 	version.add_theme_font_size_override("font_size", 15)
-	version.add_theme_color_override("font_color", Color(0.82, 0.77, 0.67, 0.88))
+	version.add_theme_color_override("font_color", _style_color(&"muted_text"))
 	summary.add_theme_font_size_override("font_size", 17)
-	summary.add_theme_color_override("font_color", Color(0.91, 0.87, 0.79, 0.95))
+	summary.add_theme_color_override("font_color", _style_color(&"body_text"))
 	for chip in [_players_chip, _timer_chip, _online_chip]:
 		if chip != null:
 			chip.add_theme_font_size_override("font_size", 16)
-			chip.add_theme_color_override("font_color", Color(0.95, 0.89, 0.77, 0.98))
+			chip.add_theme_color_override("font_color", _style_color(&"chip_text"))
 
 
 func _on_start_pressed() -> void:
@@ -264,7 +273,7 @@ func _on_start_pressed() -> void:
 
 	if _animations_enabled:
 		var tween = create_tween()
-		tween.tween_property(self, "modulate", Color(1, 1, 1, 0), 0.2)
+		tween.tween_property(self, "modulate", Color(1, 1, 1, 0), _style_scalar(&"motion_fade_out"))
 		tween.tween_callback(func():
 			get_tree().root.add_child(game_table)
 			queue_free()
@@ -291,7 +300,7 @@ func _on_online_pressed() -> void:
 		online_lobby.call("set_start_config", rule_config, game_seed, player_count, presentation_mode)
 	if _animations_enabled:
 		var tween = create_tween()
-		tween.tween_property(self, "modulate", Color(1, 1, 1, 0), 0.2)
+		tween.tween_property(self, "modulate", Color(1, 1, 1, 0), _style_scalar(&"motion_fade_out"))
 		tween.tween_callback(func():
 			get_tree().root.add_child(online_lobby)
 			queue_free()
@@ -352,7 +361,7 @@ func _ensure_online_button() -> void:
 		if _online_button == null:
 			_online_button = Button.new()
 		_online_button.name = "OnlineButton"
-		_online_button.custom_minimum_size = Vector2(0.0, 56.0)
+		_online_button.custom_minimum_size = _style_vector(&"icon_button_min")
 		_buttons_box.add_child(_online_button)
 		_buttons_box.move_child(_online_button, 1)
 		_online_button.pressed.connect(_on_online_pressed)
@@ -383,6 +392,20 @@ func _apply_responsive_layout() -> void:
 	var viewport_size: Vector2 = get_viewport_rect().size
 	var width_pad: float = 84.0 if viewport_size.x >= 1366.0 else 46.0
 	var height_pad: float = 98.0 if viewport_size.y >= 768.0 else 52.0
-	var width: float = clampf(viewport_size.x - width_pad * 2.0, 420.0, 820.0)
-	var height: float = clampf(viewport_size.y - height_pad * 2.0, 540.0, 820.0)
+	var min_size: Vector2 = _style_vector(&"main_menu_min")
+	var max_size: Vector2 = _style_vector(&"main_menu_max")
+	var width: float = clampf(viewport_size.x - width_pad * 2.0, min_size.x, max_size.x)
+	var height: float = clampf(viewport_size.y - height_pad * 2.0, min_size.y, max_size.y)
 	_menu_card.custom_minimum_size = Vector2(width, height)
+
+
+func _style_color(id: StringName) -> Color:
+	return MENU_STYLE.color(id)
+
+
+func _style_scalar(id: StringName) -> float:
+	return MENU_STYLE.scalar(id)
+
+
+func _style_vector(id: StringName) -> Vector2:
+	return MENU_STYLE.vector(id)

@@ -8,6 +8,7 @@ const P2P_TRANSPORT_SCRIPT: Script = preload("res://net/P2PTransportEOS.gd")
 const HOST_MATCH_CONTROLLER_SCRIPT: Script = preload("res://net/HostMatchController.gd")
 const CLIENT_MATCH_CONTROLLER_SCRIPT: Script = preload("res://net/ClientMatchController.gd")
 const MENU_AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/MenuAudioService.gd")
+const MENU_STYLE: Script = preload("res://ui/services/MenuStyleRegistry.gd")
 const PLAYER_CHIP_SCENE: PackedScene = preload("res://ui/widgets/LobbyPlayerChip.tscn")
 const PROMPT_BADGE_SCENE: PackedScene = preload("res://ui/widgets/InputPromptBadge.tscn")
 const EMOTE_BUTTON_SCENE: PackedScene = preload("res://ui/widgets/LobbyEmoteButton.tscn")
@@ -164,15 +165,15 @@ func _texture(id: StringName) -> Texture2D:
 func _apply_kenney_fonts() -> void:
 	var title: Label = $Margin/RootCard/CardMargin/VBox/Title
 	title.add_theme_font_size_override("font_size", 42)
-	title.add_theme_color_override("font_color", Color(0.97, 0.91, 0.79, 1.0))
+	title.add_theme_color_override("font_color", _style_color(&"title_text"))
 	_status_label.add_theme_font_size_override("font_size", 18)
-	_status_label.add_theme_color_override("font_color", Color(0.92, 0.87, 0.78, 0.95))
+	_status_label.add_theme_color_override("font_color", _style_color(&"body_text"))
 	if _roster_header != null:
 		_roster_header.add_theme_font_size_override("font_size", 21)
-		_roster_header.add_theme_color_override("font_color", Color(0.95, 0.88, 0.76, 0.95))
+		_roster_header.add_theme_color_override("font_color", _style_color(&"subtitle_text"))
 	if _emote_label != null:
 		_emote_label.add_theme_font_size_override("font_size", 17)
-		_emote_label.add_theme_color_override("font_color", Color(0.9, 0.85, 0.76, 0.94))
+		_emote_label.add_theme_color_override("font_color", _style_color(&"subtitle_text"))
 
 
 func _apply_background_pattern() -> void:
@@ -180,25 +181,28 @@ func _apply_background_pattern() -> void:
 		_background.texture = _texture(PANEL_GRID_ID)
 		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		_background.stretch_mode = TextureRect.STRETCH_TILE
-		_background.modulate = Color(0.18, 0.16, 0.11, 0.9)
+		_background.modulate = _style_color(&"bg_pattern")
 
 
 func _apply_panel_shell() -> void:
 	if _root_card == null:
 		return
+	var panel_margin: float = _style_scalar(&"panel_margin")
+	var panel_content_x: float = _style_scalar(&"panel_content_x")
+	var panel_content_y: float = _style_scalar(&"panel_content_y")
 	var panel_tex: Texture2D = _texture(PANEL_FILL_ID)
 	if panel_tex != null:
 		var panel_style := StyleBoxTexture.new()
 		panel_style.texture = panel_tex
-		panel_style.modulate_color = Color(0.33, 0.28, 0.22, 0.97)
-		panel_style.texture_margin_left = 12.0
-		panel_style.texture_margin_top = 12.0
-		panel_style.texture_margin_right = 12.0
-		panel_style.texture_margin_bottom = 12.0
-		panel_style.content_margin_left = 14.0
-		panel_style.content_margin_top = 12.0
-		panel_style.content_margin_right = 14.0
-		panel_style.content_margin_bottom = 12.0
+		panel_style.modulate_color = _style_color(&"panel_shell")
+		panel_style.texture_margin_left = panel_margin
+		panel_style.texture_margin_top = panel_margin
+		panel_style.texture_margin_right = panel_margin
+		panel_style.texture_margin_bottom = panel_margin
+		panel_style.content_margin_left = panel_content_x
+		panel_style.content_margin_top = panel_content_y
+		panel_style.content_margin_right = panel_content_x
+		panel_style.content_margin_bottom = panel_content_y
 		_root_card.add_theme_stylebox_override("panel", panel_style)
 
 	var border_tex: Texture2D = _texture(PANEL_BORDER_ID)
@@ -212,13 +216,14 @@ func _apply_panel_shell() -> void:
 		border.draw_center = false
 		border.anchor_right = 1.0
 		border.anchor_bottom = 1.0
-		border.patch_margin_left = 12
-		border.patch_margin_top = 12
-		border.patch_margin_right = 12
-		border.patch_margin_bottom = 12
+		var border_margin: int = int(round(_style_scalar(&"panel_border_margin")))
+		border.patch_margin_left = border_margin
+		border.patch_margin_top = border_margin
+		border.patch_margin_right = border_margin
+		border.patch_margin_bottom = border_margin
 		_root_card.add_child(border)
 	border.texture = border_tex
-	border.modulate = Color(0.92, 0.8, 0.59, 0.92)
+	border.modulate = _style_color(&"panel_border")
 
 
 func _bind_button_feedback() -> void:
@@ -237,7 +242,8 @@ func _on_lobby_button_hover(_button: Button) -> void:
 
 func _on_lobby_button_down(button: Button) -> void:
 	if button != null:
-		button.scale = Vector2(1.02, 1.02)
+		var scale_amount: float = _style_scalar(&"press_scale")
+		button.scale = Vector2(scale_amount, scale_amount)
 
 
 func _on_lobby_button_up(button: Button) -> void:
@@ -521,7 +527,7 @@ func _rebuild_roster(lobby_model: Dictionary) -> void:
 		empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		empty_label.custom_minimum_size = Vector2(0.0, 74.0)
-		empty_label.modulate = Color(0.84, 0.92, 0.97, 0.9)
+		empty_label.modulate = _style_color(&"body_text")
 		_roster_list.add_child(empty_label)
 		return
 	var owner_puid: String = String(lobby_model.get("owner_puid", ""))
@@ -723,8 +729,10 @@ func _apply_responsive_layout() -> void:
 		_buttons_grid.columns = 3
 	var width_pad: float = 74.0 if viewport_width >= 1366.0 else 40.0
 	var height_pad: float = 70.0 if viewport_size.y >= 768.0 else 40.0
-	var width: float = clampf(viewport_size.x - width_pad, 520.0, 1480.0)
-	var height: float = clampf(viewport_size.y - height_pad, 500.0, 900.0)
+	var min_size: Vector2 = _style_vector(&"online_card_min")
+	var max_size: Vector2 = _style_vector(&"online_card_max")
+	var width: float = clampf(viewport_size.x - width_pad, min_size.x, max_size.x)
+	var height: float = clampf(viewport_size.y - height_pad, min_size.y, max_size.y)
 	_root_card.custom_minimum_size = Vector2(width, height)
 	if _roster_scroll != null:
 		_roster_scroll.custom_minimum_size.y = clampf(viewport_size.y * 0.32, 180.0, 330.0)
@@ -740,3 +748,15 @@ func _apply_responsive_layout() -> void:
 		_emote_row.add_theme_constant_override("separation", 8 if compact else 10)
 	if _emote_label != null:
 		_emote_label.visible = not (compact and _buttons_grid.columns == 1)
+
+
+func _style_color(id: StringName) -> Color:
+	return MENU_STYLE.color(id)
+
+
+func _style_scalar(id: StringName) -> float:
+	return MENU_STYLE.scalar(id)
+
+
+func _style_vector(id: StringName) -> Vector2:
+	return MENU_STYLE.vector(id)
