@@ -22,8 +22,8 @@ func run() -> bool:
 	for p in required_nodes:
 		if root.get_node_or_null(p) == null:
 			push_error("GameTable3D missing required node: %s" % p)
-			root.queue_free()
+			root.free()
 			return false
 
-	root.queue_free()
+	root.free()
 	return true
