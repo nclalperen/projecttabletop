@@ -45,6 +45,8 @@ var _ssr_enabled_check: CheckBox = null
 var _resolution_scale_spin: SpinBox = null
 var _postfx_strength_spin: SpinBox = null
 var _menu_audio = null
+var _suppress_feedback_audio: bool = false
+var _last_toggle_sound_msec: int = -1
 
 func _ready():
 	if _menu_audio == null:
@@ -61,6 +63,7 @@ func _ready():
 	_apply_panel_shell()
 	_apply_button_icons()
 	_build_prompt_strip()
+	_configure_feedback_copy()
 	_bind_audio_feedback()
 	_apply_responsive_layout()
 
@@ -228,8 +231,8 @@ func _build_prompt_strip() -> void:
 	for child in _prompt_strip.get_children():
 		child.queue_free()
 	var prompts: Array[Dictionary] = [
-		{"icon": _texture(PROMPT_ENTER_ID), "text": "ENTER Save"},
-		{"icon": _texture(PROMPT_ESC_ID), "text": "ESC Cancel"},
+		{"icon": _texture(PROMPT_ENTER_ID), "text": "ENTER Save & Apply"},
+		{"icon": _texture(PROMPT_ESC_ID), "text": "ESC Cancel Changes"},
 	]
 	for entry in prompts:
 		var badge: Node = PROMPT_BADGE_SCENE.instantiate()
@@ -238,24 +241,59 @@ func _build_prompt_strip() -> void:
 			badge.call("configure", entry.get("icon", null), String(entry.get("text", "")))
 
 
+func _configure_feedback_copy() -> void:
+	if save_button != null:
+		save_button.tooltip_text = "Save and apply settings"
+	if cancel_button != null:
+		cancel_button.tooltip_text = "Discard changes and return"
+
+
 func _bind_audio_feedback() -> void:
 	for button in [save_button, cancel_button]:
 		if button == null:
 			continue
 		button.mouse_entered.connect(_on_settings_button_hover.bind(button))
-	match_end_condition.item_selected.connect(func(_idx: int) -> void:
-		if _menu_audio != null:
-			_menu_audio.play_toggle()
-	)
-	allow_five_pairs_open.toggled.connect(func(_pressed: bool) -> void:
-		if _menu_audio != null:
-			_menu_audio.play_toggle()
-	)
+	if not match_end_condition.item_selected.is_connected(_on_match_end_condition_selected):
+		match_end_condition.item_selected.connect(_on_match_end_condition_selected)
+	if not allow_five_pairs_open.toggled.is_connected(_on_allow_five_pairs_toggled):
+		allow_five_pairs_open.toggled.connect(_on_allow_five_pairs_toggled)
+	for opt in [_graphics_profile_option, _aa_mode_option, _ssao_quality_option]:
+		var option: OptionButton = opt as OptionButton
+		if option != null and not option.item_selected.is_connected(_on_visual_option_selected):
+			option.item_selected.connect(_on_visual_option_selected)
+	if _ssr_enabled_check != null and not _ssr_enabled_check.toggled.is_connected(_on_visual_toggle_changed):
+		_ssr_enabled_check.toggled.connect(_on_visual_toggle_changed)
 
 
 func _on_settings_button_hover(_button: Button) -> void:
 	if _menu_audio != null:
 		_menu_audio.play_hover()
+
+
+func _on_match_end_condition_selected(_idx: int) -> void:
+	_play_toggle_feedback()
+
+
+func _on_allow_five_pairs_toggled(_pressed: bool) -> void:
+	_play_toggle_feedback()
+
+
+func _on_visual_option_selected(_idx: int) -> void:
+	_play_toggle_feedback()
+
+
+func _on_visual_toggle_changed(_pressed: bool) -> void:
+	_play_toggle_feedback()
+
+
+func _play_toggle_feedback() -> void:
+	if _suppress_feedback_audio or _menu_audio == null:
+		return
+	var now_ms: int = Time.get_ticks_msec()
+	if _last_toggle_sound_msec >= 0 and now_ms - _last_toggle_sound_msec < 40:
+		return
+	_last_toggle_sound_msec = now_ms
+	_menu_audio.play_toggle()
 
 
 func set_config(config: RuleConfig):
@@ -267,6 +305,7 @@ func load_config():
 	if not _config:
 		return
 
+	_suppress_feedback_audio = true
 	initial_open_points.value = _config.open_min_points_initial
 	allow_five_pairs_open.button_pressed = _config.allow_open_by_five_pairs
 	turn_timer.value = _config.timer_seconds
@@ -282,6 +321,7 @@ func load_config():
 	if _music_volume_spin != null and _ui_settings != null:
 		_music_volume_spin.value = round(float(_ui_settings.get("music_volume", 0.30)) * 100.0)
 	_sync_visual_controls_from_settings()
+	_suppress_feedback_audio = false
 
 
 func save_config():

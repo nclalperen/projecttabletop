@@ -40,6 +40,41 @@ const EMOTE_DATA: Array[Dictionary] = [
 	{"id": "trophy", "label": "GG", "icon_id": ASSET_IDS.UI_ICON_TROPHY},
 ]
 
+const STATUS_COPY := {
+	&"online_unavailable": "Online unavailable: {reason}",
+	&"online_ready": "Online ready ({mode} backend). Sign in to continue.",
+	&"login_pending": "Signing in via EOS Dev Auth...",
+	&"login_success": "Logged in as {puid} ({mode}).",
+	&"signed_in": "Signed in: {puid}",
+	&"login_failed": "Login failed: {reason}",
+	&"operation_failed": "{reason}",
+	&"sign_in_required": "Sign in first.",
+	&"quick_searching": "Searching lobbies...",
+	&"quick_search_failed": "Quick match search failed: {reason}",
+	&"quick_invalid_lobby": "Search returned invalid lobby id.",
+	&"joining_lobby": "Joining lobby {lobby_id}...",
+	&"joined_lobby": "Joined lobby {lobby_id}.",
+	&"creating_private_pending": "Creating private lobby...",
+	&"creating_private_done": "Private lobby created.",
+	&"creating_public_pending": "Creating public lobby...",
+	&"creating_public_done": "Public lobby created.",
+	&"ready_blocked": "Join or create a lobby first.",
+	&"ready_pending": "Updating ready state...",
+	&"ready_done": "Ready state updated.",
+	&"start_no_lobby": "No active lobby.",
+	&"start_not_host": "Only lobby creator can start.",
+	&"start_need_players": "Need {count} players to start.",
+	&"start_need_ready": "All players must be ready.",
+	&"start_publish": "Publishing match start...",
+	&"attr_update": "Updating lobby: {key}...",
+	&"attr_update_failed": "Failed to update lobby attrs: {reason}",
+	&"lobby_error": "Lobby error ({code}): {reason}",
+	&"seat_map_missing": "Seat map missing local player.",
+	&"start_missing_host": "Match start missing host.",
+	&"emote": "Emote: {label}",
+	&"emote_generic": "Emote sent.",
+}
+
 @onready var _status_label: Label = $Margin/RootCard/CardMargin/VBox/Status
 @onready var _background: TextureRect = $Background
 @onready var _root_card: PanelContainer = $Margin/RootCard
@@ -108,7 +143,7 @@ func _ready() -> void:
 	_lobby_service.lobby_error.connect(func(code: String, reason: String) -> void:
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = "Lobby error (%s): %s" % [code, reason]
+		_set_status(&"lobby_error", {"code": code, "reason": reason})
 	)
 
 	_login_btn.pressed.connect(_on_login_pressed)
@@ -122,10 +157,10 @@ func _ready() -> void:
 	if _lobby_service.has_method("set_backend_mode"):
 		_lobby_service.call("set_backend_mode", _online_service.get_backend_mode())
 	if not bool(init_res.get("ok", false)):
-		_status_label.text = String(init_res.get("reason", "Online unavailable"))
+		_set_status(&"online_unavailable", {"reason": String(init_res.get("reason", "Online unavailable"))})
 	else:
 		var mode: String = String(init_res.get("backend_mode", "mock"))
-		_status_label.text = "Online ready (%s backend)." % mode
+		_set_status(&"online_ready", {"mode": mode})
 	_refresh_button_states()
 
 
@@ -291,17 +326,17 @@ func _on_emote_selected(emote_id: String) -> void:
 		_menu_audio.play_toggle()
 	for entry in EMOTE_DATA:
 		if String(entry.get("id", "")) == emote_id:
-			_status_label.text = "Emote: %s" % String(entry.get("label", ""))
+			_set_status(&"emote", {"label": String(entry.get("label", ""))})
 			return
-	_status_label.text = "Emote sent"
+	_set_status(&"emote_generic")
 
 
 func _on_online_availability_changed(available: bool, reason: String) -> void:
 	if not available:
-		_status_label.text = reason
+		_set_status(&"online_unavailable", {"reason": reason})
 	else:
 		var mode: String = _online_service.get_backend_mode()
-		_status_label.text = "Online ready (%s backend). Sign in to continue." % mode
+		_set_status(&"online_ready", {"mode": mode})
 	_refresh_button_states()
 
 
@@ -311,30 +346,33 @@ func _on_login_pressed() -> void:
 	if not _online_service.is_available():
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = _online_service.get_unavailable_reason()
+		_set_status(&"online_unavailable", {"reason": _online_service.get_unavailable_reason()})
 		return
 	var login_res: Dictionary = _online_service.login_dev_auth("dev_player")
 	if not bool(login_res.get("ok", false)):
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = String(login_res.get("reason", "Login failed"))
+		_set_status(&"login_failed", {"reason": String(login_res.get("reason", "Unknown error"))})
 		return
 	if String(login_res.get("code", "")) == "pending":
-		_status_label.text = "Signing in via EOS Dev Auth..."
+		_set_status(&"login_pending")
 		return
-	_status_label.text = "Logged in as %s (%s)." % [String(login_res.get("local_puid", "")), String(login_res.get("backend_mode", _online_service.get_backend_mode()))]
+	_set_status(&"login_success", {
+		"puid": String(login_res.get("local_puid", "")),
+		"mode": String(login_res.get("backend_mode", _online_service.get_backend_mode())),
+	})
 
 
 func _on_login_succeeded(local_puid: String) -> void:
 	_lobby_service.set_local_puid(local_puid)
-	_status_label.text = "Signed in: %s" % local_puid
+	_set_status(&"signed_in", {"puid": local_puid})
 	_refresh_button_states()
 
 
 func _on_login_failed(reason: String) -> void:
 	if _menu_audio != null:
 		_menu_audio.play_error()
-	_status_label.text = reason
+	_set_status(&"login_failed", {"reason": reason})
 	_refresh_button_states()
 
 
@@ -344,7 +382,7 @@ func _on_quick_match_pressed() -> void:
 	if _online_service.local_puid == "":
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = "Sign in first."
+		_set_status(&"sign_in_required")
 		return
 	_quick_match_pending = true
 	var search: Dictionary = _lobby_service.search_lobbies({
@@ -357,10 +395,10 @@ func _on_quick_match_pressed() -> void:
 		_quick_match_pending = false
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = String(search.get("reason", "Quick match search failed"))
+		_set_status(&"quick_search_failed", {"reason": String(search.get("reason", "Unknown error"))})
 		return
 	if String(search.get("code", "")) == "pending":
-		_status_label.text = "Searching lobbies..."
+		_set_status(&"quick_searching")
 		return
 	_handle_quick_search_result(search.get("lobbies", []))
 
@@ -371,7 +409,7 @@ func _on_private_lobby_pressed() -> void:
 	if _online_service.local_puid == "":
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = "Sign in first."
+		_set_status(&"sign_in_required")
 		return
 	var create_res: Dictionary = _lobby_service.create_lobby({
 		"ruleset_id": _rule_config.ruleset_name,
@@ -382,9 +420,9 @@ func _on_private_lobby_pressed() -> void:
 	if not bool(create_res.get("ok", false)):
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = String(create_res.get("reason", "Failed to create lobby"))
+		_set_status(&"operation_failed", {"reason": String(create_res.get("reason", "Failed to create lobby"))})
 		return
-	_status_label.text = "Creating private lobby..." if String(create_res.get("code", "")) == "pending" else "Created private lobby."
+	_set_status(&"creating_private_pending" if String(create_res.get("code", "")) == "pending" else &"creating_private_done")
 
 
 func _on_ready_pressed() -> void:
@@ -394,16 +432,16 @@ func _on_ready_pressed() -> void:
 	if lobby.is_empty():
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = "Join or create a lobby first."
+		_set_status(&"ready_blocked")
 		return
 	var ready_now: bool = _current_member_ready(lobby)
 	var res: Dictionary = _lobby_service.set_ready(not ready_now)
 	if not bool(res.get("ok", false)):
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = String(res.get("reason", "Failed to update ready"))
+		_set_status(&"operation_failed", {"reason": String(res.get("reason", "Failed to update ready"))})
 		return
-	_status_label.text = "Updating ready..." if String(res.get("code", "")) == "pending" else "Ready updated."
+	_set_status(&"ready_pending" if String(res.get("code", "")) == "pending" else &"ready_done")
 
 
 func _on_start_pressed() -> void:
@@ -413,22 +451,22 @@ func _on_start_pressed() -> void:
 	if lobby.is_empty():
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = "No active lobby."
+		_set_status(&"start_no_lobby")
 		return
 	if not _is_local_host(lobby):
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = "Only lobby creator can start."
+		_set_status(&"start_not_host")
 		return
 	if int(lobby.get("members", []).size()) != _player_count:
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = "Need %d players to start." % _player_count
+		_set_status(&"start_need_players", {"count": _player_count})
 		return
 	if not _all_members_ready(lobby):
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = "All players must be ready."
+		_set_status(&"start_need_ready")
 		return
 	if _launch_started:
 		return
@@ -444,7 +482,7 @@ func _on_start_pressed() -> void:
 	_start_attr_queue.append({"key": "match_seed", "value": match_seed})
 	_start_attr_queue.append({"key": "seat_map_json", "value": seat_json})
 	_start_attr_queue.append({"key": "phase", "value": "MATCH_STARTING"})
-	_status_label.text = "Publishing match start..."
+	_set_status(&"start_publish")
 	_drain_host_start_attr_queue()
 
 
@@ -466,15 +504,15 @@ func _handle_quick_search_result(lobbies: Array) -> void:
 		if lobby_id == "":
 			if _menu_audio != null:
 				_menu_audio.play_error()
-			_status_label.text = "Search returned invalid lobby id."
+			_set_status(&"quick_invalid_lobby")
 			return
 		var join_res: Dictionary = _lobby_service.join_lobby(lobby_id)
 		if not bool(join_res.get("ok", false)):
 			if _menu_audio != null:
 				_menu_audio.play_error()
-			_status_label.text = String(join_res.get("reason", "Failed to join lobby"))
+			_set_status(&"operation_failed", {"reason": String(join_res.get("reason", "Failed to join lobby"))})
 			return
-		_status_label.text = "Joining lobby %s..." % lobby_id if String(join_res.get("code", "")) == "pending" else "Joined lobby %s" % lobby_id
+		_set_status(&"joining_lobby" if String(join_res.get("code", "")) == "pending" else &"joined_lobby", {"lobby_id": lobby_id})
 		return
 
 	var create_res: Dictionary = _lobby_service.create_lobby({
@@ -486,9 +524,9 @@ func _handle_quick_search_result(lobbies: Array) -> void:
 	if not bool(create_res.get("ok", false)):
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = String(create_res.get("reason", "Failed to create lobby"))
+		_set_status(&"operation_failed", {"reason": String(create_res.get("reason", "Failed to create lobby"))})
 		return
-	_status_label.text = "Creating public lobby..." if String(create_res.get("code", "")) == "pending" else "Created public lobby."
+	_set_status(&"creating_public_pending" if String(create_res.get("code", "")) == "pending" else &"creating_public_done")
 
 
 func _on_lobby_updated(lobby_model: Dictionary) -> void:
@@ -554,10 +592,10 @@ func _drain_host_start_attr_queue() -> void:
 		_start_attr_queue.clear()
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = String(set_res.get("reason", "Failed to update lobby attrs"))
+		_set_status(&"attr_update_failed", {"reason": String(set_res.get("reason", "Unknown error"))})
 		return
 	if String(set_res.get("code", "")) == "pending":
-		_status_label.text = "Updating lobby: %s..." % key
+		_set_status(&"attr_update", {"key": key})
 		return
 	_start_attr_queue.remove_at(0)
 	call_deferred("_drain_host_start_attr_queue")
@@ -573,13 +611,13 @@ func _maybe_launch_match_from_lobby(lobby: Dictionary) -> void:
 	if not seat_by_puid.has(_online_service.local_puid):
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = "Seat map missing local player."
+		_set_status(&"seat_map_missing")
 		return
 	var host_puid: String = String(attrs.get("host_puid", lobby.get("owner_puid", "")))
 	if host_puid == "":
 		if _menu_audio != null:
 			_menu_audio.play_error()
-		_status_label.text = "Match start missing host."
+		_set_status(&"start_missing_host")
 		return
 	var match_seed: int = int(attrs.get("match_seed", _game_seed if _game_seed >= 0 else randi()))
 	var match_id: String = String(attrs.get("match_id", ""))
@@ -673,11 +711,26 @@ func _refresh_button_states() -> void:
 	var lobby: Dictionary = _lobby_service.get_current_lobby() if _lobby_service != null else {}
 	var in_lobby: bool = not lobby.is_empty()
 	var local_host: bool = in_lobby and _is_local_host(lobby)
-	_login_btn.disabled = not online_ok
-	_quick_btn.disabled = not logged_in
-	_private_btn.disabled = not logged_in
-	_ready_btn.disabled = not in_lobby
-	_start_btn.disabled = not (in_lobby and local_host)
+
+	var unavailable_reason: String = _online_service.get_unavailable_reason() if _online_service != null else "Online unavailable."
+	_set_button_enabled(_login_btn, online_ok, unavailable_reason)
+	_set_button_enabled(_quick_btn, logged_in, "Sign in to use quick match.")
+	_set_button_enabled(_private_btn, logged_in, "Sign in to create a private lobby.")
+	_set_button_enabled(_ready_btn, in_lobby, "Join or create a lobby first.")
+
+	var start_enabled: bool = false
+	var start_reason: String = "Join or create a lobby first."
+	if in_lobby:
+		if not local_host:
+			start_reason = "Only the host can start."
+		elif int(lobby.get("members", []).size()) != _player_count:
+			start_reason = "Need %d players to start." % _player_count
+		elif not _all_members_ready(lobby):
+			start_reason = "All players must be ready."
+		else:
+			start_enabled = true
+			start_reason = ""
+	_set_button_enabled(_start_btn, start_enabled, start_reason)
 	_refresh_ready_button_visual()
 
 
@@ -748,6 +801,27 @@ func _apply_responsive_layout() -> void:
 		_emote_row.add_theme_constant_override("separation", 8 if compact else 10)
 	if _emote_label != null:
 		_emote_label.visible = not (compact and _buttons_grid.columns == 1)
+
+
+func _set_button_enabled(button: Button, enabled: bool, disabled_reason: String) -> void:
+	if button == null:
+		return
+	button.disabled = not enabled
+	button.tooltip_text = "" if enabled else disabled_reason
+
+
+func _set_status(key: StringName, values: Dictionary = {}) -> void:
+	if _status_label == null:
+		return
+	var template: String = String(STATUS_COPY.get(key, String(key)))
+	_status_label.text = _render_status_template(template, values)
+
+
+func _render_status_template(template: String, values: Dictionary) -> String:
+	var rendered: String = template
+	for key in values.keys():
+		rendered = rendered.replace("{%s}" % String(key), String(values[key]))
+	return rendered
 
 
 func _style_color(id: StringName) -> Color:
