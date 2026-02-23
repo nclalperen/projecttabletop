@@ -179,13 +179,26 @@ static func apply(settings: Dictionary) -> Dictionary:
 		DisplayServer.window_set_current_screen(monitor_index)
 
 	var mode: String = str(sanitized.get("display_mode", MODE_WINDOWED))
-	_apply_window_mode(mode)
-
 	var size := Vector2i(
 		int(sanitized.get("resolution_width", 1280)),
 		int(sanitized.get("resolution_height", 720))
 	)
+	if mode == MODE_EXCLUSIVE:
+		# Attempt to seed exclusive fullscreen with requested mode.
+		DisplayServer.window_set_size(size)
+	_apply_window_mode(mode)
+
 	if mode == MODE_WINDOWED:
+		DisplayServer.window_set_size(size)
+	elif mode == MODE_BORDERLESS:
+		# Borderless follows monitor native size.
+		var native: Vector2i = _monitor_size_for(monitor_index)
+		if native != Vector2i.ZERO:
+			DisplayServer.window_set_size(native)
+			sanitized["resolution_width"] = native.x
+			sanitized["resolution_height"] = native.y
+	elif mode == MODE_EXCLUSIVE:
+		# Re-apply after mode switch for platforms honoring it.
 		DisplayServer.window_set_size(size)
 
 	DisplayServer.window_set_vsync_mode(_vsync_enum_from_id(str(sanitized.get("vsync_mode", VSYNC_ENABLED))))

@@ -345,6 +345,7 @@ func _on_visual_toggle_changed(_pressed: bool) -> void:
 func _on_display_monitor_selected(_idx: int) -> void:
 	_rebuild_resolution_and_refresh_options_for_selected_monitor()
 	_play_toggle_feedback()
+	_update_display_mode_hints()
 
 
 func _play_toggle_feedback() -> void:
@@ -422,6 +423,7 @@ func _on_save_pressed():
 	if _menu_audio != null:
 		_menu_audio.play_confirm()
 	var candidate_display: Dictionary = _collect_display_settings_from_controls()
+	_update_display_mode_hints()
 	var current_display: Dictionary = DISPLAY_SETTINGS_SCRIPT.current_runtime_settings()
 	if not _display_settings_equal(candidate_display, current_display):
 		_start_display_preview(candidate_display, current_display)
@@ -659,6 +661,7 @@ func _sync_display_controls_from_settings() -> void:
 	_select_option_by_id(_display_refresh_option, int(display.get("refresh_rate_hz", 0)))
 	_select_option_by_id(_display_vsync_option, str(display.get("vsync_mode", DISPLAY_SETTINGS_SCRIPT.VSYNC_ENABLED)))
 	_select_option_by_id(_display_fps_cap_option, int(display.get("fps_cap", 0)))
+	_update_display_mode_hints()
 
 
 func _collect_visual_settings_from_controls() -> Dictionary:
@@ -692,6 +695,18 @@ func _collect_display_settings_from_controls() -> Dictionary:
 		"fps_cap": int(_selected_option_id(_display_fps_cap_option, 0)),
 	}
 	return UI_SETTINGS_SCRIPT.sanitize_display_settings(raw)
+
+
+func _update_display_mode_hints() -> void:
+	var mode: String = str(_selected_option_id(_display_mode_option, DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED))
+	match mode:
+		DISPLAY_SETTINGS_SCRIPT.MODE_BORDERLESS:
+			_set_status_text("Borderless uses native monitor resolution. Use resolution scale for render sharpness.")
+		DISPLAY_SETTINGS_SCRIPT.MODE_EXCLUSIVE:
+			_set_status_text("Exclusive may fallback to borderless on unsupported displays.")
+		_:
+			if not _preview_active:
+				_set_status_text("Windowed mode applies selected resolution.")
 
 
 func _build_percent_row(label_text: String) -> Dictionary:
@@ -852,7 +867,11 @@ func _start_display_preview(candidate: Dictionary, previous_runtime: Dictionary)
 	_update_preview_dialog_text()
 	_preview_dialog.popup_centered(Vector2i(520, 170))
 	_preview_timer.start()
-	_set_status_text("Previewing display settings. Confirm to keep them.")
+	var applied_mode: String = str(_preview_candidate_display.get("display_mode", DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED))
+	if applied_mode == DISPLAY_SETTINGS_SCRIPT.MODE_BORDERLESS:
+		_set_status_text("Previewing borderless mode. Resolution follows monitor native size.")
+	else:
+		_set_status_text("Previewing display settings. Confirm to keep them.")
 
 
 func _cancel_display_preview(status_text: String) -> void:
