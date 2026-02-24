@@ -1,10 +1,32 @@
 param(
-    [string]$GodotExe = "C:\Users\Alperen\Desktop\godot_notnet\Godot_v4.6-stable_win64.exe",
+    [string]$GodotExe = ".\tools\godot.cmd",
     [string]$ProjectPath = ".",
-    [bool]$IncludeInteractionProbes = $true
+    [bool]$IncludeInteractionProbes = $true,
+    [bool]$IncludeRuntimeLane = $true
 )
 
 $ErrorActionPreference = "Stop"
+
+function Get-MissingRuntimeEnv {
+    $required = @(
+        "EOS_PRODUCT_NAME",
+        "EOS_PRODUCT_VERSION",
+        "EOS_PRODUCT_ID",
+        "EOS_SANDBOX_ID",
+        "EOS_DEPLOYMENT_ID",
+        "EOS_CLIENT_ID",
+        "EOS_CLIENT_SECRET",
+        "EOS_DEV_AUTH_HOST"
+    )
+    $missing = @()
+    foreach ($key in $required) {
+        $value = [Environment]::GetEnvironmentVariable($key)
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            $missing += $key
+        }
+    }
+    return $missing
+}
 
 function Get-TestScripts {
     param([string]$RunTestsPath)
@@ -105,11 +127,66 @@ function Invoke-Probe {
     }
 }
 
+function Invoke-RuntimeLane {
+    param(
+        [string]$RepoPath
+    )
+
+    $missing = Get-MissingRuntimeEnv
+    if ($missing.Count -gt 0) {
+        return [PSCustomObject]@{
+            Test = "tools/run_eos_runtime_lane.ps1"
+            Status = "BLOCKED_ENV_MISSING"
+            ExitCode = 2
+            Note = ("missing_env={0}" -f ($missing -join ","))
+        }
+    }
+
+    $runnerPath = Join-Path $RepoPath "tools\run_eos_runtime_lane.ps1"
+    if (-not (Test-Path $runnerPath)) {
+        return [PSCustomObject]@{
+            Test = "tools/run_eos_runtime_lane.ps1"
+            Status = "FAIL"
+            ExitCode = 1
+            Note = "runner_missing"
+        }
+    }
+
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $runnerPath -ProjectPath $RepoPath | Out-Host
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 0) {
+        return [PSCustomObject]@{
+            Test = "tools/run_eos_runtime_lane.ps1"
+            Status = "PASS"
+            ExitCode = 0
+            Note = ""
+        }
+    }
+    if ($exitCode -eq 2) {
+        return [PSCustomObject]@{
+            Test = "tools/run_eos_runtime_lane.ps1"
+            Status = "BLOCKED_ENV_MISSING"
+            ExitCode = 2
+            Note = "blocked_by_runtime_lane"
+        }
+    }
+    return [PSCustomObject]@{
+        Test = "tools/run_eos_runtime_lane.ps1"
+        Status = "FAIL"
+        ExitCode = $exitCode
+        Note = ("runtime_exit={0}" -f $exitCode)
+    }
+}
+
 $repo = (Resolve-Path $ProjectPath).Path
 $runTests = Join-Path $repo "tests/run_tests.gd"
+$resolvedGodotExe = $GodotExe
+if (-not [System.IO.Path]::IsPathRooted($resolvedGodotExe)) {
+    $resolvedGodotExe = Join-Path $repo $resolvedGodotExe
+}
 
-if (-not (Test-Path $GodotExe)) {
-    Write-Error "Godot executable not found: $GodotExe"
+if (-not (Test-Path $resolvedGodotExe)) {
+    Write-Error "Godot executable not found: $resolvedGodotExe"
 }
 if (-not (Test-Path $runTests)) {
     Write-Error "run_tests.gd not found: $runTests"
@@ -122,7 +199,7 @@ if ($tests.Count -eq 0) {
 
 $results = @()
 foreach ($test in $tests) {
-    $results += Invoke-OneTest -TestPath $test -ExePath $GodotExe -RepoPath $repo
+    $results += Invoke-OneTest -TestPath $test -ExePath $resolvedGodotExe -RepoPath $repo
 }
 
 if ($IncludeInteractionProbes) {
@@ -131,21 +208,36 @@ if ($IncludeInteractionProbes) {
         "res://tests/probe_gametable2d_interaction_matrix.gd"
     )
     foreach ($probe in $probeScripts) {
-        $results += Invoke-Probe -ProbePath $probe -ExePath $GodotExe -RepoPath $repo
+        $results += Invoke-Probe -ProbePath $probe -ExePath $resolvedGodotExe -RepoPath $repo
     }
 }
 
-$failures = $results | Where-Object { $_.Status -ne "PASS" }
+$runtimeResult = $null
+if ($IncludeRuntimeLane) {
+    $runtimeResult = Invoke-RuntimeLane -RepoPath $repo
+    $results += $runtimeResult
+}
+
+$failures = $results | Where-Object { $_.Status -eq "FAIL" -or $_.Status -eq "FAIL_LOAD" -or $_.Status -eq "FAIL_NO_OUTPUT" }
+$blocked = $results | Where-Object { $_.Status -eq "BLOCKED_ENV_MISSING" }
 
 Write-Output "TEST_MATRIX_START"
 foreach ($r in $results) {
-    Write-Output ("{0}|{1}" -f $r.Status, $r.Test)
+    if ($r.PSObject.Properties.Name -contains "Note" -and -not [string]::IsNullOrWhiteSpace([string]$r.Note)) {
+        Write-Output ("{0}|{1}|{2}" -f $r.Status, $r.Test, $r.Note)
+    } else {
+        Write-Output ("{0}|{1}" -f $r.Status, $r.Test)
+    }
 }
 Write-Output "TEST_MATRIX_END"
 Write-Output ("TOTAL|{0}" -f $results.Count)
 Write-Output ("FAILED|{0}" -f $failures.Count)
+Write-Output ("BLOCKED|{0}" -f $blocked.Count)
 
 if ($failures.Count -gt 0) {
     exit 1
+}
+if ($blocked.Count -gt 0) {
+    exit 2
 }
 exit 0

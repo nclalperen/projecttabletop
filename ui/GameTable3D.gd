@@ -38,7 +38,6 @@ const SFX_DRAW_FROM_DECK: StringName = &"draw_from_deck"
 const SFX_TAKE_DISCARD: StringName = &"take_discard"
 const SFX_RACK_MOVE: StringName = &"rack_move"
 const SFX_DRAFT_MOVE: StringName = &"stage_move"
-const SFX_STAGE_MOVE: StringName = SFX_DRAFT_MOVE # Compatibility alias for staged-era audio id.
 const SFX_ADD_TO_MELD: StringName = &"add_to_meld"
 const SFX_DISCARD: StringName = &"discard"
 const SFX_INVALID_ACTION: StringName = &"invalid_action"
@@ -1965,7 +1964,7 @@ func _create_meld_lanes_and_guides(felt_half: float) -> void:
 
 func _create_draft_container() -> void:
 	_world_draft_container = Node3D.new()
-	_world_draft_container.name = "StageTiles"
+	_world_draft_container.name = "DraftTiles"
 	_dynamic_root.add_child(_world_draft_container)
 
 
@@ -3419,7 +3418,7 @@ func _begin_drag_candidate_from_pick(screen_pos: Vector2) -> void:
 	if pick.is_empty():
 		return
 	var kind: String = str(pick.get("kind", ""))
-	if kind == "draft_tile" or kind == "stage_tile":
+	if kind == "draft_tile":
 		_drag_candidate_tile_id = int(pick.get("tile_id", -1))
 		_drag_candidate_draft_slot = int(pick.get("slot", -1))
 		return
@@ -3660,7 +3659,7 @@ func _populate_drop_context_for_active_drag(drop_ctx: Dictionary) -> bool:
 	var pick_player: int = int(pick.get("player", -1))
 	var target_slot: int = int(pick.get("slot", -1))
 	var draft_target: int = -1
-	if pick_kind == "draft_tile" or pick_kind == "stage_tile":
+	if pick_kind == "draft_tile":
 		draft_target = int(pick.get("slot", -1))
 	if table_pick_valid and draft_target == -1:
 		draft_target = _draft_slot_from_table_local(table_pos)
@@ -4378,7 +4377,7 @@ func _handle_world_tap(pick: Dictionary, table_pos: Vector2, screen_pos: Vector2
 		return
 	if pick_kind == "local_slot":
 		return
-	if pick_kind == "draft_tile" or pick_kind == "stage_tile":
+	if pick_kind == "draft_tile":
 		_on_draft_tile_clicked(pick)
 		return
 	if _handle_turn_draw_tap(pick, table_pos, screen_pos, state):
@@ -4542,11 +4541,7 @@ func _draft_slot_from_table_local(table_pos: Vector2) -> int:
 func _draft_slots() -> Array:
 	if _game_table == null or not is_instance_valid(_game_table):
 		return []
-	if _game_table.has_method("get_draft_slots"):
-		return _game_table.get_draft_slots()
-	if _game_table.has_method("get_stage_slots"):
-		return _game_table.get_stage_slots()
-	return []
+	return _game_table.get_draft_slots()
 
 func _draft_slot_count() -> int:
 	var slots: Array = _draft_slots()
@@ -4562,29 +4557,17 @@ func _draft_row_slots() -> int:
 func _overlay_move_rack_to_draft(from_slot: int, to_draft_slot: int) -> Dictionary:
 	if _game_table == null or not is_instance_valid(_game_table):
 		return {"ok": false, "reason": "no_table"}
-	if _game_table.has_method("overlay_move_rack_to_draft"):
-		return _game_table.overlay_move_rack_to_draft(from_slot, to_draft_slot)
-	if _game_table.has_method("overlay_move_rack_to_stage"):
-		return _game_table.overlay_move_rack_to_stage(from_slot, to_draft_slot)
-	return {"ok": false, "reason": "missing_api"}
+	return _game_table.overlay_move_rack_to_draft(from_slot, to_draft_slot)
 
 func _overlay_move_draft_to_rack(from_draft_slot: int, to_rack_slot: int) -> Dictionary:
 	if _game_table == null or not is_instance_valid(_game_table):
 		return {"ok": false, "reason": "no_table"}
-	if _game_table.has_method("overlay_move_draft_to_rack"):
-		return _game_table.overlay_move_draft_to_rack(from_draft_slot, to_rack_slot)
-	if _game_table.has_method("overlay_move_stage_to_rack"):
-		return _game_table.overlay_move_stage_to_rack(from_draft_slot, to_rack_slot)
-	return {"ok": false, "reason": "missing_api"}
+	return _game_table.overlay_move_draft_to_rack(from_draft_slot, to_rack_slot)
 
 func _overlay_move_draft_slot(from_draft_slot: int, to_draft_slot: int) -> Dictionary:
 	if _game_table == null or not is_instance_valid(_game_table):
 		return {"ok": false, "reason": "no_table"}
-	if _game_table.has_method("overlay_move_draft_slot"):
-		return _game_table.overlay_move_draft_slot(from_draft_slot, to_draft_slot)
-	if _game_table.has_method("overlay_move_stage_slot"):
-		return _game_table.overlay_move_stage_slot(from_draft_slot, to_draft_slot)
-	return {"ok": false, "reason": "missing_api"}
+	return _game_table.overlay_move_draft_slot(from_draft_slot, to_draft_slot)
 
 
 func _can_reorder_in_phase(phase: int) -> bool:

@@ -55,7 +55,7 @@ Current UI is functional at baseline drag/drop level, but still not at the inten
 - Table backdrop/polygon shaping exists.
 - Corner discard slots exist and are interactive.
 - Rack uses fixed slot rows (no auto-sort expected by user).
-- Draft Grid is now canonical for temporary felt placement (stage names remain compatibility wrappers).
+- Draft Grid is canonical for temporary felt placement; stage-named interaction APIs were removed from runtime classes.
 - 2D and 3D drop intent resolution is unified through `InteractionResolver`.
 
 ## 3) Known unresolved issues from recent session
@@ -65,8 +65,8 @@ Current UI is functional at baseline drag/drop level, but still not at the inten
 - Proportions and composition are still perceived as off.
 
 2. Interaction model migration:
-- Draft-first naming is active in interaction APIs (`get_draft_slots`, `overlay_move_*_draft`).
-- Stage-named methods are still callable wrappers during stabilization.
+- Draft-only naming is active in interaction APIs (`get_draft_slots`, `overlay_move_*_draft`).
+- Stage-named runtime wrappers were hard-cut.
 
 3. Layout drift during iterations:
 - Multiple geometry passes happened quickly; some runs appeared to regress.
@@ -138,7 +138,7 @@ Use this exact order to avoid further UI loops:
 3. Keep a single interaction contract
 - Preserve resolver precedence and draft-lane targeting rules.
 - Avoid reintroducing implicit fallback placement paths.
-- Remove compatibility wrappers only after downstream callers are migrated.
+- Keep runtime interaction surface draft-only; do not reintroduce stage aliases.
 
 4. Reintroduce meld rendering in owner zones only
 - Separate per-player opened meld rows from neutral felt center.
@@ -156,6 +156,9 @@ Use this exact order to avoid further UI loops:
 - Interaction probes:
   - `./tools/godot.cmd --headless --path . -s res://tests/probe_gametable3d_interaction_matrix.gd`
   - `./tools/godot.cmd --headless --path . -s res://tests/probe_gametable2d_interaction_matrix.gd`
+- Strict matrix gate:
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File ./tools/run_tests_matrix.ps1`
+  - Runtime lane status can be `PASS`, `FAIL`, or `BLOCKED_ENV_MISSING` (exit `2`).
 - Probe note:
   - 3D probe may print renderer RID/resource warnings on shutdown in headless Forward+ mode; rely on scenario summary and process exit code.
 - Search UI hotspots:

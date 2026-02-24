@@ -6,10 +6,38 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Get-MissingRuntimeEnv {
+    $required = @(
+        "EOS_PRODUCT_NAME",
+        "EOS_PRODUCT_VERSION",
+        "EOS_PRODUCT_ID",
+        "EOS_SANDBOX_ID",
+        "EOS_DEPLOYMENT_ID",
+        "EOS_CLIENT_ID",
+        "EOS_CLIENT_SECRET",
+        "EOS_DEV_AUTH_HOST"
+    )
+    $missing = @()
+    foreach ($key in $required) {
+        $value = [Environment]::GetEnvironmentVariable($key)
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            $missing += $key
+        }
+    }
+    return $missing
+}
+
 $repoRoot = (Resolve-Path $ProjectPath).Path
 $godotCmd = Join-Path $repoRoot "tools\godot.cmd"
 if (-not (Test-Path $godotCmd)) {
     throw "Godot wrapper not found: $godotCmd"
+}
+
+$missingEnv = Get-MissingRuntimeEnv
+if ($missingEnv.Count -gt 0) {
+    Write-Output "EOS_RUNTIME_LANE: BLOCKED_ENV_MISSING"
+    Write-Output ("MISSING_ENV_KEYS: {0}" -f ($missingEnv -join ", "))
+    exit 2
 }
 
 $resolvedLogDir = $LogDir

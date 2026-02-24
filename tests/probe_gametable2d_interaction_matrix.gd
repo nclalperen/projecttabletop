@@ -230,8 +230,6 @@ func _find_rack_tile_by_id(tile_id: int) -> Dictionary:
 func _first_draft_tile() -> Dictionary:
 	var draft_slots: Array = table.call("get_draft_slots")
 	var draft_controls: Array = table.get("_draft_slot_controls")
-	if draft_controls.is_empty():
-		draft_controls = table.get("_stage_slot_controls")
 	for i in range(mini(draft_slots.size(), draft_controls.size())):
 		var tile_id: int = int(draft_slots[i])
 		if tile_id == -1:

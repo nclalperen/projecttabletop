@@ -116,7 +116,6 @@ var _indicator_stack_layers: Array[Panel] = []
 var _draw_stack_visible_layers: int = 5
 var _indicator_stack_visible_layers: int = 2
 var _presentation_mode: String = "2d"
-var _compat_stage_api_warned: Dictionary = {}
 
 # ═══════════════════════════════════════════
 # LIFECYCLE
@@ -268,16 +267,6 @@ func get_rack_slots() -> Array[int]:
 func get_draft_slots() -> Array[int]:
 	return _slots.draft_slots
 
-func get_stage_slots() -> Array[int]:
-	_warn_stage_api_once("get_stage_slots()", "get_draft_slots()")
-	return get_draft_slots()
-
-func _warn_stage_api_once(stage_api: String, draft_api: String) -> void:
-	if _compat_stage_api_warned.has(stage_api):
-		return
-	_compat_stage_api_warned[stage_api] = true
-	push_warning("%s is deprecated; use %s instead." % [stage_api, draft_api])
-
 func get_draft_row_slots() -> int:
 	return GEO.STAGE_ROW_SLOTS
 
@@ -356,15 +345,6 @@ func overlay_end_play() -> Dictionary:
 		_action_in_flight = false
 	return res
 
-# Deprecated compatibility shim; retained for external/dynamic callers.
-func overlay_submit_staged() -> Dictionary:
-	_warn_stage_api_once("overlay_submit_staged()", "_submit_draft_melds()")
-	if not _is_my_turn() or _action_in_flight:
-		return {"ok": false, "reason": "not_my_turn"}
-	if not _submit_draft_melds():
-		return {"ok": false, "reason": _last_draft_error}
-	return {"ok": true}
-
 func overlay_move_rack_to_draft(from_slot: int, to_draft_slot: int) -> Dictionary:
 	if _action_in_flight:
 		return {"ok": false, "reason": "busy"}
@@ -388,10 +368,6 @@ func overlay_move_rack_to_draft(from_slot: int, to_draft_slot: int) -> Dictionar
 		return {"ok": false, "reason": "move_failed"}
 	return {"ok": true}
 
-func overlay_move_rack_to_stage(from_slot: int, to_stage_slot: int) -> Dictionary:
-	_warn_stage_api_once("overlay_move_rack_to_stage()", "overlay_move_rack_to_draft()")
-	return overlay_move_rack_to_draft(from_slot, to_stage_slot)
-
 func overlay_move_draft_to_rack(from_draft_slot: int, to_rack_slot: int) -> Dictionary:
 	if _action_in_flight:
 		return {"ok": false, "reason": "busy"}
@@ -414,10 +390,6 @@ func overlay_move_draft_to_rack(from_draft_slot: int, to_rack_slot: int) -> Dict
 	if _slots.rack_slots.find(tile_id) == -1:
 		return {"ok": false, "reason": "move_failed"}
 	return {"ok": true}
-
-func overlay_move_stage_to_rack(from_stage_slot: int, to_rack_slot: int) -> Dictionary:
-	_warn_stage_api_once("overlay_move_stage_to_rack()", "overlay_move_draft_to_rack()")
-	return overlay_move_draft_to_rack(from_stage_slot, to_rack_slot)
 
 func overlay_move_slot(from_slot: int, to_slot: int) -> Dictionary:
 	if _action_in_flight:
@@ -466,10 +438,6 @@ func overlay_move_draft_slot(from_draft_slot: int, to_draft_slot: int) -> Dictio
 	if int(_slots.draft_slots[to_draft_slot]) != tile_id:
 		return {"ok": false, "reason": "move_failed"}
 	return {"ok": true}
-
-func overlay_move_stage_slot(from_stage_slot: int, to_stage_slot: int) -> Dictionary:
-	_warn_stage_api_once("overlay_move_stage_slot()", "overlay_move_draft_slot()")
-	return overlay_move_draft_slot(from_stage_slot, to_stage_slot)
 
 func _can_overlay_rack_reorder_phase(phase: int) -> bool:
 	return phase == GameState.Phase.STARTER_DISCARD \
@@ -1750,24 +1718,8 @@ func _submit_draft_melds() -> bool:
 		return false
 	return true
 
-# Compatibility wrapper. Remove after stage API deprecation window.
-func _submit_staged_melds() -> bool:
-	_warn_stage_api_once("_submit_staged_melds()", "_submit_draft_melds()")
-	return _submit_draft_melds()
-
-func _all_staged_tile_ids() -> Array:
-	_warn_stage_api_once("_all_staged_tile_ids()", "_all_draft_tile_ids()")
-	return _slots.all_draft_tile_ids()
-
 func _all_draft_tile_ids() -> Array:
 	return _slots.all_draft_tile_ids()
-
-func _build_new_melds_from_stage_slots_opened() -> Array:
-	_warn_stage_api_once(
-		"_build_new_melds_from_stage_slots_opened()",
-		"_build_new_melds_from_draft_slots_opened()"
-	)
-	return _build_new_melds_from_draft_slots_opened()
 
 func _build_new_melds_from_draft_slots_opened() -> Array:
 	return _draft_logic.build_new_melds_from_draft_slots_opened(
@@ -1776,10 +1728,6 @@ func _build_new_melds_from_draft_slots_opened() -> Array:
 		_slots.draft_slots,
 		GEO.STAGE_ROW_SLOTS
 	)
-
-func _build_melds_from_stage_slots() -> Array:
-	_warn_stage_api_once("_build_melds_from_stage_slots()", "_build_melds_from_draft_slots()")
-	return _build_melds_from_draft_slots()
 
 func _build_melds_from_draft_slots() -> Array:
 	return _draft_logic.build_melds_from_draft_slots(
@@ -1790,24 +1738,12 @@ func _build_melds_from_draft_slots() -> Array:
 		Callable(self, "_pair_key_for_tile")
 	)
 
-func _has_staged_tiles() -> bool:
-	_warn_stage_api_once("_has_staged_tiles()", "_has_draft_tiles()")
-	return _has_draft_tiles()
-
 func _has_draft_tiles() -> bool:
 	return _slots.has_draft_tiles()
-
-func _restore_staged_to_rack() -> void:
-	_warn_stage_api_once("_restore_staged_to_rack()", "_restore_draft_to_rack()")
-	_restore_draft_to_rack()
 
 func _restore_draft_to_rack() -> void:
 	_slots.restore_draft_to_rack()
 	_render_rack()
-
-func _clear_stage_slots() -> void:
-	_warn_stage_api_once("_clear_stage_slots()", "_clear_draft_slots()")
-	_clear_draft_slots()
 
 func _clear_draft_slots() -> void:
 	_slots.clear_draft_slots()
@@ -2158,10 +2094,6 @@ func _find_draft_drop_slot(global_pos: Vector2) -> int:
 		INTERACTION_TUNING.DRAFT_LANE_MARGIN_2D_PX
 	)
 
-func _find_stage_drop_slot(global_pos: Vector2) -> int:
-	_warn_stage_api_once("_find_stage_drop_slot()", "_find_draft_drop_slot()")
-	return _find_draft_drop_slot(global_pos)
-
 func _move_slot(from_slot: int, to_slot: int) -> void:
 	if _slots.move_slot(from_slot, to_slot):
 		_render_rack()
@@ -2182,6 +2114,15 @@ func _move_draft_slot(from_slot: int, to_slot: int) -> void:
 # BOT TURNS
 # ═══════════════════════════════════════════
 
+func _compute_bot_action_async(bot, state, bot_index: int):
+	var result: Array = [null]
+	var thread := Thread.new()
+	thread.start(func(): result[0] = bot.choose_action(state, bot_index))
+	while thread.is_alive():
+		await get_tree().process_frame
+	thread.wait_to_finish()
+	return result[0]
+
 func _maybe_auto_bot_turn() -> void:
 	if _controller_injected_external:
 		return
@@ -2193,10 +2134,17 @@ func _maybe_auto_bot_turn() -> void:
 	var safety: int = 0
 	while _controller.state != null and _controller.state.phase != GameState.Phase.ROUND_END and _controller.state.current_player_index != 0 and safety < 96:
 		safety += 1
+		await get_tree().process_frame
+		if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END or _controller.state.current_player_index == 0:
+			break
 		var bot_index: int = int(_controller.state.current_player_index)
-		var action = _bot.choose_action(_controller.state, bot_index)
+		var action = await _compute_bot_action_async(_bot, _controller.state, bot_index)
+		if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END or _controller.state.current_player_index == 0:
+			break
 		if action == null:
-			action = _bot_fallback.choose_action(_controller.state, bot_index)
+			action = await _compute_bot_action_async(_bot_fallback, _controller.state, bot_index)
+			if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END or _controller.state.current_player_index == 0:
+				break
 		if action == null and _controller.state.phase == GameState.Phase.TURN_DRAW and _controller.state.deck.is_empty() and not _controller.state.discard_pile.is_empty():
 			action = Action.new(Action.ActionType.TAKE_DISCARD, {})
 		if action == null:
@@ -2206,7 +2154,9 @@ func _maybe_auto_bot_turn() -> void:
 		if not bool(result.get("ok", false)):
 			if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END:
 				break
-			var fallback_try = _bot_fallback.choose_action(_controller.state, bot_index)
+			var fallback_try = await _compute_bot_action_async(_bot_fallback, _controller.state, bot_index)
+			if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END or _controller.state.current_player_index == 0:
+				break
 			if fallback_try != null:
 				var fallback_try_res: Dictionary = _controller.apply_action_if_valid(bot_index, fallback_try)
 				if bool(fallback_try_res.get("ok", false)):

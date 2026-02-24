@@ -72,6 +72,7 @@ const TEST_SCRIPTS = [
 	"res://tests/test_draft_grid.gd",
 	"res://tests/test_interaction_resolver.gd",
 	"res://tests/test_rack_slot_manager.gd",
+	"res://tests/test_draft_api_hardcut.gd",
 ]
 
 var _all_ok := true

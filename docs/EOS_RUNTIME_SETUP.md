@@ -52,6 +52,11 @@ $env:EOS_DEV_AUTH_CREDENTIAL_HOST="dev_host"
 $env:EOS_DEV_AUTH_CREDENTIAL_CLIENT="dev_client"
 ```
 
+Runtime lane preflight is strict:
+
+- If required env vars are missing, `tools/run_eos_runtime_lane.ps1` prints `EOS_RUNTIME_LANE: BLOCKED_ENV_MISSING` and exits with code `2`.
+- This is a deliberate non-green status (not a pass, not a false fallback).
+
 ## 3) Authentication Modes
 - App UI path defaults to **Account Portal** (`OnlineLobby` login button).
 - DevAuth remains available as internal helper for runtime automation and integration debugging.
@@ -69,6 +74,12 @@ $env:EOS_DEV_AUTH_CREDENTIAL_CLIENT="dev_client"
 ```powershell
 ./tools/run_eos_runtime_lane.ps1
 ```
+
+Expected lane outcomes:
+
+- `EOS_RUNTIME_LANE: PASS` (exit `0`)
+- `EOS_RUNTIME_LANE: FAIL` (non-zero fail code)
+- `EOS_RUNTIME_LANE: BLOCKED_ENV_MISSING` (exit `2`)
 
 Runner script: `res://tests/run_tests_runtime_eos.gd`
 

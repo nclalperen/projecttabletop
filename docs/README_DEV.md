@@ -22,6 +22,14 @@ Interaction probes (drag/drop matrices):
 
 Note: the 3D probe can print renderer RID/resource leak warnings on process exit in headless Forward+ runs. Use scenario pass/fail summary and process exit code as the authoritative signal.
 
+Strict matrix gate:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\run_tests_matrix.ps1
+```
+
+`run_tests_matrix.ps1` includes runtime EOS lane validation when enabled. If required runtime env is missing, it reports `BLOCKED_ENV_MISSING` and exits non-zero (`2`) to avoid false-green.
+
 ## Android Build Readiness Gate
 
 Run the Android gate in this order:
@@ -76,7 +84,7 @@ SeOkey11 gameplay rules are defined in:
   - `overlay_move_rack_to_draft(...)`
   - `overlay_move_draft_to_rack(...)`
   - `overlay_move_draft_slot(...)`
-- Stage-named methods remain as compatibility wrappers for one stabilization cycle.
+- Stage-named interaction APIs were hard-cut from runtime classes.
 - Tap policy is targeted-only:
   - allowed: draw/take/select/add-to-meld shortcut
   - disallowed: tap-to-draft placement and tap-to-discard

@@ -1,14 +1,6 @@
 class_name StageMeldLogic
 extends RefCounted
 
-var _compat_stage_api_warned: Dictionary = {}
-
-func _warn_stage_api_once(stage_api: String, draft_api: String) -> void:
-	if _compat_stage_api_warned.has(stage_api):
-		return
-	_compat_stage_api_warned[stage_api] = true
-	push_warning("%s is deprecated; use %s instead." % [stage_api, draft_api])
-
 func submit_draft_melds(
 	controller,
 	state,
@@ -87,18 +79,6 @@ func submit_draft_melds(
 	slots.clear_draft_slots()
 	return {"ok": true, "reason": ""}
 
-# Compatibility wrapper. Remove after stage API deprecation window.
-func submit_staged_melds(
-	controller,
-	state,
-	hand: Array,
-	slots,
-	stage_row_slots: int,
-	pair_key_fn: Callable
-) -> Dictionary:
-	_warn_stage_api_once("submit_staged_melds()", "submit_draft_melds()")
-	return submit_draft_melds(controller, state, hand, slots, stage_row_slots, pair_key_fn)
-
 func build_new_melds_from_draft_slots_opened(
 	state,
 	hand: Array,
@@ -135,19 +115,6 @@ func build_new_melds_from_draft_slots_opened(
 				out.append(tail_meld)
 
 	return out
-
-# Compatibility wrapper. Remove after stage API deprecation window.
-func build_new_melds_from_stage_slots_opened(
-	state,
-	hand: Array,
-	stage_slots: Array[int],
-	stage_row_slots: int
-) -> Array:
-	_warn_stage_api_once(
-		"build_new_melds_from_stage_slots_opened()",
-		"build_new_melds_from_draft_slots_opened()"
-	)
-	return build_new_melds_from_draft_slots_opened(state, hand, stage_slots, stage_row_slots)
 
 func build_melds_from_draft_slots(
 	state,
@@ -223,17 +190,6 @@ func build_melds_from_draft_slots(
 	if out.is_empty():
 		return []
 	return out
-
-# Compatibility wrapper. Remove after stage API deprecation window.
-func build_melds_from_stage_slots(
-	state,
-	hand: Array,
-	stage_slots: Array[int],
-	stage_row_slots: int,
-	pair_key_fn: Callable
-) -> Array:
-	_warn_stage_api_once("build_melds_from_stage_slots()", "build_melds_from_draft_slots()")
-	return build_melds_from_draft_slots(state, hand, stage_slots, stage_row_slots, pair_key_fn)
 
 func _validate_new_meld_candidate(
 	ids: Array,
