@@ -31,3 +31,7 @@ dev/.tmp_*
 
 # EOS addon temp reload artifacts
 addons/epic-online-services-godot/bin/windows/~libeosg*.dll
+
+# Local secrets (never commit)
+tools/eos_env.local.ps1
+*.local.ps1
