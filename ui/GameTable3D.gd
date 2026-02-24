@@ -665,7 +665,7 @@ func _load_texture_first(paths: Array[String]) -> Texture2D:
 	for p in paths:
 		if p == "":
 			continue
-		if not FileAccess.file_exists(p):
+		if not ResourceLoader.exists(p):
 			continue
 		var tex: Texture2D = load(p) as Texture2D
 		if tex != null:
@@ -678,7 +678,7 @@ func _asset_path(id: StringName) -> String:
 
 
 func _load_packed_scene_if_exists(path: String) -> PackedScene:
-	if path == "" or not FileAccess.file_exists(path):
+	if path == "" or not ResourceLoader.exists(path):
 		return null
 	return load(path) as PackedScene
 
