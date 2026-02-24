@@ -7,6 +7,9 @@ const TILE_HELPERS = preload("res://ui/game_table/TileHelpers.gd")
 const RACK_SLOT_MANAGER = preload("res://ui/game_table/RackSlotManager.gd")
 const STAGE_MELD_LOGIC = preload("res://ui/game_table/StageMeldLogic.gd")
 const BOARD_RENDERER = preload("res://ui/game_table/BoardRenderer.gd")
+const DRAFT_GRID = preload("res://ui/game_table/DraftGrid.gd")
+const INTERACTION_RESOLVER = preload("res://ui/game_table/InteractionResolver.gd")
+const INTERACTION_TUNING = preload("res://ui/game_table/InteractionTuning.gd")
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 
 # ─── Scene node references ───
@@ -58,14 +61,14 @@ var _rule_config: RuleConfig = null
 var _game_seed: int = -1
 var _player_count: int = 4
 var _slots = RACK_SLOT_MANAGER.new()
-var _stage_logic = STAGE_MELD_LOGIC.new()
+var _draft_logic = STAGE_MELD_LOGIC.new()
 
 # ─── Rack state ───
 var _slot_controls: Array[Control] = []
-var _stage_panel: Control = null
-var _stage_row1: HBoxContainer = null
-var _stage_row2: HBoxContainer = null
-var _stage_slot_controls: Array[Control] = []
+var _draft_panel: Control = null
+var _draft_row1: HBoxContainer = null
+var _draft_row2: HBoxContainer = null
+var _draft_slot_controls: Array[Control] = []
 var _tile_controls: Dictionary = {}
 var _hand_zoom: float = 0.94
 var _slot_size: Vector2 = Vector2(52, 72)
@@ -79,7 +82,7 @@ var _round_controls: HBoxContainer = null
 var _round_new_btn: Button = null
 var _round_menu_btn: Button = null
 var _meld_clusters: Array[Control] = []
-var _last_stage_error: String = ""
+var _last_draft_error: String = ""
 var _rail_top: Panel = null
 var _rail_left: Panel = null
 var _rail_right: Panel = null
@@ -113,6 +116,7 @@ var _indicator_stack_layers: Array[Panel] = []
 var _draw_stack_visible_layers: int = 5
 var _indicator_stack_visible_layers: int = 2
 var _presentation_mode: String = "2d"
+var _compat_stage_api_warned: Dictionary = {}
 
 # ═══════════════════════════════════════════
 # LIFECYCLE
@@ -140,8 +144,8 @@ func _ready() -> void:
 	_create_rack_contact_shadow()
 	_create_discard_prompt()
 	_init_rack_slots()
-	_init_stage_slots()
-	_create_stage_area()
+	_init_draft_slots()
+	_create_draft_area()
 	_create_round_controls()
 
 	_bind_controller_signals()
@@ -208,8 +212,8 @@ func _apply_presentation_mode() -> void:
 		if _action_bar != null:
 			_action_bar.visible = false
 			_action_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		if _stage_panel != null:
-			_stage_panel.visible = false
+		if _draft_panel != null:
+			_draft_panel.visible = false
 		if _rack_depth_shell != null:
 			_rack_depth_shell.visible = false
 		if _rack_contact_shadow != null:
@@ -261,8 +265,21 @@ func get_hand_tiles() -> Array:
 func get_rack_slots() -> Array[int]:
 	return _slots.rack_slots
 
+func get_draft_slots() -> Array[int]:
+	return _slots.draft_slots
+
 func get_stage_slots() -> Array[int]:
-	return _slots.stage_slots
+	_warn_stage_api_once("get_stage_slots()", "get_draft_slots()")
+	return get_draft_slots()
+
+func _warn_stage_api_once(stage_api: String, draft_api: String) -> void:
+	if _compat_stage_api_warned.has(stage_api):
+		return
+	_compat_stage_api_warned[stage_api] = true
+	push_warning("%s is deprecated; use %s instead." % [stage_api, draft_api])
+
+func get_draft_row_slots() -> int:
+	return GEO.STAGE_ROW_SLOTS
 
 func overlay_draw_from_deck() -> Dictionary:
 	if not _is_my_turn() or _action_in_flight:
@@ -311,11 +328,11 @@ func overlay_end_play_then_discard(tile_id: int) -> Dictionary:
 		return {"ok": false, "reason": "busy"}
 	if _controller.state.phase != GameState.Phase.TURN_PLAY:
 		return {"ok": false, "reason": "wrong_phase"}
-	# Submit any staged melds first
-	if _has_staged_tiles():
-		if not _submit_staged_melds():
-			_restore_staged_to_rack()
-			return {"ok": false, "reason": _last_stage_error}
+	# Submit any draft melds first
+	if _has_draft_tiles():
+		if not _submit_draft_melds():
+			_restore_draft_to_rack()
+			return {"ok": false, "reason": _last_draft_error}
 	_action_in_flight = true
 	var end_res: Dictionary = _controller.end_play_turn(0)
 	if not bool(end_res.get("ok", false)):
@@ -341,13 +358,14 @@ func overlay_end_play() -> Dictionary:
 
 # Deprecated compatibility shim; retained for external/dynamic callers.
 func overlay_submit_staged() -> Dictionary:
+	_warn_stage_api_once("overlay_submit_staged()", "_submit_draft_melds()")
 	if not _is_my_turn() or _action_in_flight:
 		return {"ok": false, "reason": "not_my_turn"}
-	if not _submit_staged_melds():
-		return {"ok": false, "reason": _last_stage_error}
+	if not _submit_draft_melds():
+		return {"ok": false, "reason": _last_draft_error}
 	return {"ok": true}
 
-func overlay_move_rack_to_stage(from_slot: int, to_stage_slot: int) -> Dictionary:
+func overlay_move_rack_to_draft(from_slot: int, to_draft_slot: int) -> Dictionary:
 	if _action_in_flight:
 		return {"ok": false, "reason": "busy"}
 	if _controller.state == null:
@@ -356,21 +374,25 @@ func overlay_move_rack_to_stage(from_slot: int, to_stage_slot: int) -> Dictionar
 		return {"ok": false, "reason": "not_my_turn"}
 	if _controller.state.phase != GameState.Phase.TURN_PLAY:
 		return {"ok": false, "reason": "wrong_phase"}
-	if from_slot < 0 or from_slot >= _slots.rack_slots.size() or to_stage_slot < 0 or to_stage_slot >= _slots.stage_slots.size():
+	if from_slot < 0 or from_slot >= _slots.rack_slots.size() or to_draft_slot < 0 or to_draft_slot >= _slots.draft_slots.size():
 		return {"ok": false, "reason": "invalid_slot"}
 	var tile_id: int = int(_slots.rack_slots[from_slot])
 	if tile_id == -1:
 		return {"ok": false, "reason": "empty_source"}
 	var rack_before: Array = _slots.rack_slots.duplicate()
-	var stage_before: Array = _slots.stage_slots.duplicate()
-	_move_rack_to_stage(from_slot, to_stage_slot)
-	if _slots.rack_slots == rack_before and _slots.stage_slots == stage_before:
+	var draft_before: Array = _slots.draft_slots.duplicate()
+	_move_rack_to_draft(from_slot, to_draft_slot)
+	if _slots.rack_slots == rack_before and _slots.draft_slots == draft_before:
 		return {"ok": false, "reason": "no_change"}
-	if _slots.stage_slots.find(tile_id) == -1:
+	if _slots.draft_slots.find(tile_id) == -1:
 		return {"ok": false, "reason": "move_failed"}
 	return {"ok": true}
 
-func overlay_move_stage_to_rack(from_stage_slot: int, to_rack_slot: int) -> Dictionary:
+func overlay_move_rack_to_stage(from_slot: int, to_stage_slot: int) -> Dictionary:
+	_warn_stage_api_once("overlay_move_rack_to_stage()", "overlay_move_rack_to_draft()")
+	return overlay_move_rack_to_draft(from_slot, to_stage_slot)
+
+func overlay_move_draft_to_rack(from_draft_slot: int, to_rack_slot: int) -> Dictionary:
 	if _action_in_flight:
 		return {"ok": false, "reason": "busy"}
 	if _controller.state == null:
@@ -379,19 +401,23 @@ func overlay_move_stage_to_rack(from_stage_slot: int, to_rack_slot: int) -> Dict
 		return {"ok": false, "reason": "not_my_turn"}
 	if _controller.state.phase != GameState.Phase.TURN_PLAY:
 		return {"ok": false, "reason": "wrong_phase"}
-	if from_stage_slot < 0 or from_stage_slot >= _slots.stage_slots.size() or to_rack_slot < 0 or to_rack_slot >= _slots.rack_slots.size():
+	if from_draft_slot < 0 or from_draft_slot >= _slots.draft_slots.size() or to_rack_slot < 0 or to_rack_slot >= _slots.rack_slots.size():
 		return {"ok": false, "reason": "invalid_slot"}
-	var tile_id: int = int(_slots.stage_slots[from_stage_slot])
+	var tile_id: int = int(_slots.draft_slots[from_draft_slot])
 	if tile_id == -1:
 		return {"ok": false, "reason": "empty_source"}
 	var rack_before: Array = _slots.rack_slots.duplicate()
-	var stage_before: Array = _slots.stage_slots.duplicate()
-	_move_stage_to_rack(from_stage_slot, to_rack_slot)
-	if _slots.rack_slots == rack_before and _slots.stage_slots == stage_before:
+	var draft_before: Array = _slots.draft_slots.duplicate()
+	_move_draft_to_rack(from_draft_slot, to_rack_slot)
+	if _slots.rack_slots == rack_before and _slots.draft_slots == draft_before:
 		return {"ok": false, "reason": "no_change"}
 	if _slots.rack_slots.find(tile_id) == -1:
 		return {"ok": false, "reason": "move_failed"}
 	return {"ok": true}
+
+func overlay_move_stage_to_rack(from_stage_slot: int, to_rack_slot: int) -> Dictionary:
+	_warn_stage_api_once("overlay_move_stage_to_rack()", "overlay_move_draft_to_rack()")
+	return overlay_move_draft_to_rack(from_stage_slot, to_rack_slot)
 
 func overlay_move_slot(from_slot: int, to_slot: int) -> Dictionary:
 	if _action_in_flight:
@@ -417,7 +443,7 @@ func overlay_move_slot(from_slot: int, to_slot: int) -> Dictionary:
 		return {"ok": false, "reason": "move_failed"}
 	return {"ok": true}
 
-func overlay_move_stage_slot(from_stage_slot: int, to_stage_slot: int) -> Dictionary:
+func overlay_move_draft_slot(from_draft_slot: int, to_draft_slot: int) -> Dictionary:
 	if _action_in_flight:
 		return {"ok": false, "reason": "busy"}
 	if _controller.state == null:
@@ -426,20 +452,24 @@ func overlay_move_stage_slot(from_stage_slot: int, to_stage_slot: int) -> Dictio
 		return {"ok": false, "reason": "not_my_turn"}
 	if _controller.state.phase != GameState.Phase.TURN_PLAY:
 		return {"ok": false, "reason": "wrong_phase"}
-	if from_stage_slot < 0 or from_stage_slot >= _slots.stage_slots.size() or to_stage_slot < 0 or to_stage_slot >= _slots.stage_slots.size():
+	if from_draft_slot < 0 or from_draft_slot >= _slots.draft_slots.size() or to_draft_slot < 0 or to_draft_slot >= _slots.draft_slots.size():
 		return {"ok": false, "reason": "invalid_slot"}
-	if from_stage_slot == to_stage_slot:
+	if from_draft_slot == to_draft_slot:
 		return {"ok": false, "reason": "no_change"}
-	var tile_id: int = int(_slots.stage_slots[from_stage_slot])
+	var tile_id: int = int(_slots.draft_slots[from_draft_slot])
 	if tile_id == -1:
 		return {"ok": false, "reason": "empty_source"}
-	var stage_before: Array = _slots.stage_slots.duplicate()
-	_move_stage_slot(from_stage_slot, to_stage_slot)
-	if _slots.stage_slots == stage_before:
+	var draft_before: Array = _slots.draft_slots.duplicate()
+	_move_draft_slot(from_draft_slot, to_draft_slot)
+	if _slots.draft_slots == draft_before:
 		return {"ok": false, "reason": "no_change"}
-	if int(_slots.stage_slots[to_stage_slot]) != tile_id:
+	if int(_slots.draft_slots[to_draft_slot]) != tile_id:
 		return {"ok": false, "reason": "move_failed"}
 	return {"ok": true}
+
+func overlay_move_stage_slot(from_stage_slot: int, to_stage_slot: int) -> Dictionary:
+	_warn_stage_api_once("overlay_move_stage_slot()", "overlay_move_draft_slot()")
+	return overlay_move_draft_slot(from_stage_slot, to_stage_slot)
 
 func _can_overlay_rack_reorder_phase(phase: int) -> bool:
 	return phase == GameState.Phase.STARTER_DISCARD \
@@ -1134,7 +1164,7 @@ func _start_round() -> void:
 	_controller.start_new_round(cfg, round_seed, _player_count)
 	_round_index += 1
 	_slots.last_tile_id = -1
-	_clear_stage_slots()
+	_clear_draft_slots()
 	_action_in_flight = false
 	_render_all()
 	_maybe_auto_bot_turn()
@@ -1370,15 +1400,15 @@ func _render_hud() -> void:
 	_open_meter.text = "Open: %d/101" % pts
 	_open_meter_bottom.text = "Open: %d/101" % pts
 	_open_meter.visible = _is_my_turn() and state.phase == GameState.Phase.TURN_PLAY
-	_meld_hint.visible = _is_my_turn() and state.phase == GameState.Phase.TURN_PLAY and _controller.state.table_melds.is_empty() and not _has_staged_tiles()
+	_meld_hint.visible = _is_my_turn() and state.phase == GameState.Phase.TURN_PLAY and _controller.state.table_melds.is_empty() and not _has_draft_tiles()
 	if _board != null:
 		var ring_alpha: float = 0.82 if state.table_melds.is_empty() else 0.22
 		_board.set_wall_ring_state(GEO.SHOW_WALL_RING, ring_alpha)
-	if _stage_panel != null:
-		# No explicit staging panel UI: pending tiles are rendered directly on felt.
+	if _draft_panel != null:
+		# No explicit draft panel UI: draft tiles are rendered directly on felt.
 		# Keep it visible only while interactive or when it already contains tiles.
-		_stage_panel.visible = (_is_my_turn() and state.phase == GameState.Phase.TURN_PLAY) or _has_staged_tiles()
-	_update_stage_slot_visuals()
+		_draft_panel.visible = (_is_my_turn() and state.phase == GameState.Phase.TURN_PLAY) or _has_draft_tiles()
+	_update_draft_slot_visuals()
 	_instructions.text = _instruction_for_state()
 
 func _sync_center_stack_depths(state: GameState) -> void:
@@ -1504,7 +1534,7 @@ func _render_rack() -> void:
 	if _controller.state == null:
 		return
 	_ensure_slot_controls()
-	_ensure_stage_slot_controls()
+	_ensure_draft_slot_controls()
 	var hand: Array = _rack_hand()
 	_sync_slots_with_hand(hand)
 
@@ -1514,7 +1544,7 @@ func _render_rack() -> void:
 				continue
 			slot.remove_child(child)
 			child.queue_free()
-	for slot in _stage_slot_controls:
+	for slot in _draft_slot_controls:
 		for child in slot.get_children():
 			if child.name == "SlotBg":
 				continue
@@ -1539,8 +1569,8 @@ func _render_rack() -> void:
 		tile_ctrl.drag_ended.connect(func(ctrl, pos: Vector2): _on_tile_drag_ended(ctrl, pos))
 		_slot_controls[slot_index].add_child(tile_ctrl)
 		_tile_controls[tile_id] = tile_ctrl
-	for slot_index in range(_slots.stage_slots.size()):
-		var tile_id: int = _slots.stage_slots[slot_index]
+	for slot_index in range(_slots.draft_slots.size()):
+		var tile_id: int = _slots.draft_slots[slot_index]
 		if tile_id == -1 or not by_id.has(tile_id):
 			continue
 		var tile_ctrl: OkeyTile = OKEY_TILE_SCENE.instantiate()
@@ -1550,7 +1580,7 @@ func _render_rack() -> void:
 		tile_ctrl.double_clicked.connect(func(ctrl): _on_tile_clicked(ctrl))
 		tile_ctrl.drag_started.connect(func(ctrl): _on_tile_drag_started(ctrl))
 		tile_ctrl.drag_ended.connect(func(ctrl, pos: Vector2): _on_tile_drag_ended(ctrl, pos))
-		_stage_slot_controls[slot_index].add_child(tile_ctrl)
+		_draft_slot_controls[slot_index].add_child(tile_ctrl)
 		_tile_controls[tile_id] = tile_ctrl
 
 	if _slots.last_tile_id == -1 and hand.size() > 0:
@@ -1574,56 +1604,64 @@ func _on_tile_drag_ended(tile_ctrl: OkeyTile, global_pos: Vector2) -> void:
 
 	var tile_id: int = int(tile_ctrl.tile_data.unique_id)
 	var from_slot: int = _slots.rack_slots.find(tile_id)
-	var from_stage_slot: int = _slots.stage_slots.find(tile_id)
+	var from_draft_slot: int = _slots.draft_slots.find(tile_id)
 	var phase: int = _controller.state.phase
 	var on_discard_zone: bool = _my_discard.get_global_rect().has_point(global_pos)
 	var on_rack_zone: bool = _rack_panel.get_global_rect().has_point(global_pos)
-	var on_meld_zone: bool = _is_on_felt_interaction_zone(global_pos)
+	var on_draft_lane: bool = _is_on_felt_interaction_zone(global_pos)
+	var committed_meld_index: int = _find_meld_cluster(global_pos) if _is_my_turn() and phase == GameState.Phase.TURN_PLAY else -1
+	var draft_target_slot: int = _find_draft_drop_slot(global_pos) if on_draft_lane else -1
+	var rack_target_slot: int = _find_drop_slot(global_pos) if on_rack_zone else -1
 
-	# Discard: drag to my discard zone
-	if _is_my_turn() and (phase == GameState.Phase.STARTER_DISCARD or phase == GameState.Phase.TURN_DISCARD):
-		if on_discard_zone:
+	var decision: Dictionary = INTERACTION_RESOLVER.resolve_drop({
+		"is_my_turn": _is_my_turn(),
+		"phase": phase,
+		"tile_id": tile_id,
+		"from_rack_slot": from_slot,
+		"from_draft_slot": from_draft_slot,
+		"discard_intent": on_discard_zone,
+		"committed_meld_hit": committed_meld_index != -1,
+		"committed_meld_index": committed_meld_index,
+		"draft_lane_intent": on_draft_lane,
+		"draft_target_slot": draft_target_slot,
+		"rack_intent": on_rack_zone,
+		"rack_target_slot": rack_target_slot,
+		"allow_rack_reorder": _can_overlay_rack_reorder_phase(phase),
+		"allow_end_play_then_discard": true,
+	})
+	if not _apply_drop_decision_2d(decision):
+		_render_rack()
+
+func _apply_drop_decision_2d(decision: Dictionary) -> bool:
+	var kind: StringName = decision.get("kind", &"") as StringName
+	var tile_id: int = int(decision.get("tile_id", -1))
+	match kind:
+		INTERACTION_RESOLVER.DECISION_DISCARD:
 			_discard_tile(tile_id)
-			return
-	# Fast path: during TURN_PLAY dropping to discard implicitly ends play then discards.
-	if _is_my_turn() and phase == GameState.Phase.TURN_PLAY and on_discard_zone:
-		_try_end_play_then_discard(tile_id)
-		return
-
-	# Meld: drag to existing meld cluster or melds panel
-	if _is_my_turn() and phase == GameState.Phase.TURN_PLAY:
-		var meld_index: int = _find_meld_cluster(global_pos)
-		if meld_index != -1:
+			return true
+		INTERACTION_RESOLVER.DECISION_END_PLAY_THEN_DISCARD:
+			_try_end_play_then_discard(tile_id)
+			return true
+		INTERACTION_RESOLVER.DECISION_ADD_TO_COMMITTED_MELD:
+			var meld_index: int = int(decision.get("meld_index", -1))
+			if meld_index == -1:
+				return false
 			_add_to_meld([tile_id], meld_index)
-			return
-		if on_meld_zone:
-			var to_stage_slot: int = _find_stage_drop_slot(global_pos)
-			if from_slot != -1:
-				# Rack -> felt should be permissive; always try to stage even if row hit-testing fails.
-				if to_stage_slot == -1:
-					to_stage_slot = _first_empty_stage_slot()
-				if to_stage_slot != -1:
-					_move_rack_to_stage(from_slot, to_stage_slot)
-					return
-			if from_stage_slot != -1:
-				if to_stage_slot == -1:
-					to_stage_slot = from_stage_slot
-				if from_stage_slot != to_stage_slot:
-					_move_stage_slot(from_stage_slot, to_stage_slot)
-					return
-			return
-
-	# Rack reorder
-	if on_rack_zone:
-		var to_slot: int = _find_drop_slot(global_pos)
-		if from_slot != -1 and to_slot != -1 and to_slot != from_slot:
-			_move_slot(from_slot, to_slot)
-			return
-		if from_stage_slot != -1 and to_slot != -1:
-			_move_stage_to_rack(from_stage_slot, to_slot)
-			return
-
-	_render_rack()
+			return true
+		INTERACTION_RESOLVER.DECISION_MOVE_RACK_TO_DRAFT:
+			_move_rack_to_draft(int(decision.get("from_slot", -1)), int(decision.get("to_draft_slot", -1)))
+			return true
+		INTERACTION_RESOLVER.DECISION_MOVE_DRAFT_SLOT:
+			_move_draft_slot(int(decision.get("from_draft_slot", -1)), int(decision.get("to_draft_slot", -1)))
+			return true
+		INTERACTION_RESOLVER.DECISION_MOVE_RACK_SLOT:
+			_move_slot(int(decision.get("from_slot", -1)), int(decision.get("to_slot", -1)))
+			return true
+		INTERACTION_RESOLVER.DECISION_MOVE_DRAFT_TO_RACK:
+			_move_draft_to_rack(int(decision.get("from_draft_slot", -1)), int(decision.get("to_slot", -1)))
+			return true
+		_:
+			return false
 
 func _try_end_play_then_discard(tile_id: int) -> void:
 	if _action_in_flight:
@@ -1632,14 +1670,14 @@ func _try_end_play_then_discard(tile_id: int) -> void:
 		_render_rack()
 		return
 	var discard_tile_id: int = tile_id
-	if _controller.state != null and _controller.state.phase == GameState.Phase.TURN_PLAY and _has_staged_tiles():
-		if not _submit_staged_melds():
-			_restore_staged_to_rack()
+	if _controller.state != null and _controller.state.phase == GameState.Phase.TURN_PLAY and _has_draft_tiles():
+		if not _submit_draft_melds():
+			_restore_draft_to_rack()
 			_controller.apply_manual_penalty(0, 101)
-			if _last_stage_error == "":
-				_last_stage_error = "Invalid staged melds"
-			_instructions.text = "%s. Tiles returned to rack, +101 penalty" % _last_stage_error
-		# If the intended discard tile got consumed by staged meld submission,
+			if _last_draft_error == "":
+				_last_draft_error = "Invalid draft melds"
+			_instructions.text = "%s. Tiles returned to rack, +101 penalty" % _last_draft_error
+		# If the intended discard tile got consumed by draft meld submission,
 		# choose a fallback tile before ending play to avoid confusing TURN_DISCARD failure.
 		if not _is_tile_in_my_hand(discard_tile_id):
 			var hand_after_submit: Array = _rack_hand()
@@ -1695,10 +1733,10 @@ func _add_to_meld(tile_ids: Array, meld_index: int) -> void:
 	else:
 		pass
 
-func _submit_staged_melds() -> bool:
-	_last_stage_error = ""
+func _submit_draft_melds() -> bool:
+	_last_draft_error = ""
 	_action_in_flight = true
-	var result: Dictionary = _stage_logic.submit_staged_melds(
+	var result: Dictionary = _draft_logic.submit_draft_melds(
 		_controller,
 		_controller.state,
 		_rack_hand(),
@@ -1708,39 +1746,71 @@ func _submit_staged_melds() -> bool:
 	)
 	if not bool(result.get("ok", false)):
 		_action_in_flight = false
-		_last_stage_error = str(result.get("reason", "Staged melds rejected"))
+		_last_draft_error = str(result.get("reason", "Draft melds rejected"))
 		return false
 	return true
 
+# Compatibility wrapper. Remove after stage API deprecation window.
+func _submit_staged_melds() -> bool:
+	_warn_stage_api_once("_submit_staged_melds()", "_submit_draft_melds()")
+	return _submit_draft_melds()
+
 func _all_staged_tile_ids() -> Array:
-	return _slots.all_staged_tile_ids()
+	_warn_stage_api_once("_all_staged_tile_ids()", "_all_draft_tile_ids()")
+	return _slots.all_draft_tile_ids()
+
+func _all_draft_tile_ids() -> Array:
+	return _slots.all_draft_tile_ids()
 
 func _build_new_melds_from_stage_slots_opened() -> Array:
-	return _stage_logic.build_new_melds_from_stage_slots_opened(
+	_warn_stage_api_once(
+		"_build_new_melds_from_stage_slots_opened()",
+		"_build_new_melds_from_draft_slots_opened()"
+	)
+	return _build_new_melds_from_draft_slots_opened()
+
+func _build_new_melds_from_draft_slots_opened() -> Array:
+	return _draft_logic.build_new_melds_from_draft_slots_opened(
 		_controller.state,
 		_rack_hand(),
-		_slots.stage_slots,
+		_slots.draft_slots,
 		GEO.STAGE_ROW_SLOTS
 	)
 
 func _build_melds_from_stage_slots() -> Array:
-	return _stage_logic.build_melds_from_stage_slots(
+	_warn_stage_api_once("_build_melds_from_stage_slots()", "_build_melds_from_draft_slots()")
+	return _build_melds_from_draft_slots()
+
+func _build_melds_from_draft_slots() -> Array:
+	return _draft_logic.build_melds_from_draft_slots(
 		_controller.state,
 		_rack_hand(),
-		_slots.stage_slots,
+		_slots.draft_slots,
 		GEO.STAGE_ROW_SLOTS,
 		Callable(self, "_pair_key_for_tile")
 	)
 
 func _has_staged_tiles() -> bool:
-	return _slots.has_staged_tiles()
+	_warn_stage_api_once("_has_staged_tiles()", "_has_draft_tiles()")
+	return _has_draft_tiles()
+
+func _has_draft_tiles() -> bool:
+	return _slots.has_draft_tiles()
 
 func _restore_staged_to_rack() -> void:
-	_slots.restore_staged_to_rack()
+	_warn_stage_api_once("_restore_staged_to_rack()", "_restore_draft_to_rack()")
+	_restore_draft_to_rack()
+
+func _restore_draft_to_rack() -> void:
+	_slots.restore_draft_to_rack()
 	_render_rack()
 
 func _clear_stage_slots() -> void:
-	_slots.clear_stage_slots()
+	_warn_stage_api_once("_clear_stage_slots()", "_clear_draft_slots()")
+	_clear_draft_slots()
+
+func _clear_draft_slots() -> void:
+	_slots.clear_draft_slots()
 
 # ═══════════════════════════════════════════
 # MELD BUILDING & DISPLAY
@@ -1758,8 +1828,8 @@ func _render_melds() -> void:
 		return
 
 	var max_w: float = max(200.0, _meld_island.size.x - 16.0)
-	var max_h: float = max(120.0, _meld_island.size.y - _pending_band_height() - 10.0)
-	var zones: Dictionary = GEO.build_meld_owner_zones(max_w, max_h, _pending_band_height())
+	var max_h: float = max(120.0, _meld_island.size.y - _draft_band_height() - 10.0)
+	var zones: Dictionary = GEO.build_meld_owner_zones(max_w, max_h, _draft_band_height())
 	var base_chip_w: float = clamp(_slot_size.x * 0.70, 30.0, 44.0)
 	var base_chip_h: float = clamp(_slot_size.y * 0.70, 42.0, 58.0)
 	var by_owner := {0: [], 1: [], 2: [], 3: []}
@@ -1887,43 +1957,43 @@ func _meld_owner_for_render(meld: Meld) -> int:
 func _init_rack_slots() -> void:
 	_slots.init_rack_slots(GEO.RACK_SLOT_COUNT)
 
-func _init_stage_slots() -> void:
-	_slots.init_stage_slots(GEO.STAGE_SLOT_COUNT)
+func _init_draft_slots() -> void:
+	_slots.init_draft_slots(GEO.STAGE_SLOT_COUNT)
 
-func _create_stage_area() -> void:
-	_stage_panel = Control.new()
-	_stage_panel.name = "PendingSlots"
-	_stage_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_stage_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_stage_panel.z_index = 30
-	_meld_island.add_child(_stage_panel)
+func _create_draft_area() -> void:
+	_draft_panel = Control.new()
+	_draft_panel.name = "DraftSlots"
+	_draft_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_draft_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_draft_panel.z_index = 30
+	_meld_island.add_child(_draft_panel)
 
-	_stage_row1 = HBoxContainer.new()
-	_stage_row1.alignment = BoxContainer.ALIGNMENT_CENTER
-	_stage_row1.add_theme_constant_override("separation", 4)
-	_stage_row1.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_stage_row1.z_index = 31
-	_stage_panel.add_child(_stage_row1)
+	_draft_row1 = HBoxContainer.new()
+	_draft_row1.alignment = BoxContainer.ALIGNMENT_CENTER
+	_draft_row1.add_theme_constant_override("separation", 4)
+	_draft_row1.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_draft_row1.z_index = 31
+	_draft_panel.add_child(_draft_row1)
 
-	_stage_row2 = HBoxContainer.new()
-	_stage_row2.alignment = BoxContainer.ALIGNMENT_CENTER
-	_stage_row2.add_theme_constant_override("separation", 4)
-	_stage_row2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_stage_row2.z_index = 31
-	_stage_panel.add_child(_stage_row2)
+	_draft_row2 = HBoxContainer.new()
+	_draft_row2.alignment = BoxContainer.ALIGNMENT_CENTER
+	_draft_row2.add_theme_constant_override("separation", 4)
+	_draft_row2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_draft_row2.z_index = 31
+	_draft_panel.add_child(_draft_row2)
 
-func _ensure_stage_slot_controls() -> void:
-	if _stage_panel == null or _stage_row1 == null or _stage_row2 == null:
+func _ensure_draft_slot_controls() -> void:
+	if _draft_panel == null or _draft_row1 == null or _draft_row2 == null:
 		return
-	if _stage_slot_controls.size() == GEO.STAGE_SLOT_COUNT:
-		for slot in _stage_slot_controls:
+	if _draft_slot_controls.size() == GEO.STAGE_SLOT_COUNT:
+		for slot in _draft_slot_controls:
 			slot.custom_minimum_size = _slot_size
 		return
-	for child in _stage_row1.get_children():
+	for child in _draft_row1.get_children():
 		child.queue_free()
-	for child in _stage_row2.get_children():
+	for child in _draft_row2.get_children():
 		child.queue_free()
-	_stage_slot_controls.clear()
+	_draft_slot_controls.clear()
 	for i in range(GEO.STAGE_SLOT_COUNT):
 		var slot_panel := PanelContainer.new()
 		slot_panel.custom_minimum_size = _slot_size
@@ -1949,11 +2019,11 @@ func _ensure_stage_slot_controls() -> void:
 		slot_bg.modulate = Color(1, 1, 1, 0.0)
 		slot_panel.add_child(slot_bg)
 		if i < GEO.STAGE_ROW_SLOTS:
-			_stage_row1.add_child(slot_panel)
+			_draft_row1.add_child(slot_panel)
 		else:
-			_stage_row2.add_child(slot_panel)
-		_stage_slot_controls.append(slot_panel)
-	_layout_pending_rows()
+			_draft_row2.add_child(slot_panel)
+		_draft_slot_controls.append(slot_panel)
+	_layout_draft_rows()
 
 func _ensure_slot_controls() -> void:
 	if _slot_controls.size() == GEO.RACK_SLOT_COUNT:
@@ -2018,7 +2088,7 @@ func _apply_selection_and_required() -> void:
 func _selected_points() -> int:
 	if _controller.state == null:
 		return 0
-	var melds: Array = _build_melds_from_stage_slots()
+	var melds: Array = _build_melds_from_draft_slots()
 	if melds.is_empty():
 		return 0
 	var hand_by_id: Dictionary = {}
@@ -2075,57 +2145,37 @@ func _rack_slot_index_from_row_point(global_pos: Vector2, row_rect: Rect2, row_s
 	col = clamp(col, 0, GEO.RACK_ROW_SLOTS - 1)
 	return row_start + col
 
+func _find_draft_drop_slot(global_pos: Vector2) -> int:
+	if _meld_island == null or not is_instance_valid(_meld_island):
+		return -1
+	var lane_rect: Rect2 = _meld_island.get_global_rect()
+	var slot_count: int = _slots.draft_slots.size()
+	return DRAFT_GRID.point_to_slot(
+		global_pos,
+		lane_rect,
+		slot_count,
+		GEO.STAGE_ROW_SLOTS,
+		INTERACTION_TUNING.DRAFT_LANE_MARGIN_2D_PX
+	)
+
 func _find_stage_drop_slot(global_pos: Vector2) -> int:
-	if _stage_slot_controls.is_empty():
-		return -1
-	var row1_rect: Rect2 = _stage_row1.get_global_rect() if _stage_row1 != null else Rect2()
-	var row2_rect: Rect2 = _stage_row2.get_global_rect() if _stage_row2 != null else Rect2()
-	var hit_pad: float = 12.0
-	if row1_rect.grow(hit_pad).has_point(global_pos):
-		return _stage_slot_index_from_row_point(global_pos, row1_rect, 0)
-	if row2_rect.grow(hit_pad).has_point(global_pos):
-		return _stage_slot_index_from_row_point(global_pos, row2_rect, GEO.STAGE_ROW_SLOTS)
-	var best_i: int = -1
-	var best_d: float = INF
-	for i in range(_stage_slot_controls.size()):
-		var slot_ctrl: Control = _stage_slot_controls[i]
-		if slot_ctrl == null or not is_instance_valid(slot_ctrl):
-			continue
-		var d: float = slot_ctrl.get_global_rect().get_center().distance_squared_to(global_pos)
-		if d < best_d:
-			best_d = d
-			best_i = i
-	if best_i == -1:
-		return -1
-	# Prefer the closest geometric slot to where the tile was dropped; if occupied,
-	# search the nearest empty slot in that lane before falling back globally.
-	return _nearest_empty_stage_slot(best_i)
-
-func _stage_slot_index_from_row_point(global_pos: Vector2, row_rect: Rect2, row_start: int) -> int:
-	var sep: float = 4.0
-	var cell_w: float = _slot_size.x + sep
-	var local_x: float = clamp(global_pos.x - row_rect.position.x, 0.0, row_rect.size.x)
-	var col: int = int(floor(local_x / max(1.0, cell_w)))
-	col = clamp(col, 0, GEO.STAGE_ROW_SLOTS - 1)
-	return row_start + col
-
-func _nearest_empty_stage_slot(preferred_slot: int) -> int:
-	return _slots.nearest_empty_stage_slot(preferred_slot, GEO.STAGE_ROW_SLOTS, GEO.STAGE_SLOT_COUNT)
+	_warn_stage_api_once("_find_stage_drop_slot()", "_find_draft_drop_slot()")
+	return _find_draft_drop_slot(global_pos)
 
 func _move_slot(from_slot: int, to_slot: int) -> void:
 	if _slots.move_slot(from_slot, to_slot):
 		_render_rack()
 
-func _move_rack_to_stage(from_slot: int, to_stage_slot: int) -> void:
-	if _slots.move_rack_to_stage(from_slot, to_stage_slot, GEO.STAGE_ROW_SLOTS, GEO.STAGE_SLOT_COUNT):
+func _move_rack_to_draft(from_slot: int, to_draft_slot: int) -> void:
+	if _slots.move_rack_to_draft(from_slot, to_draft_slot, GEO.STAGE_ROW_SLOTS, GEO.STAGE_SLOT_COUNT):
 		_render_rack()
 
-func _move_stage_to_rack(from_stage_slot: int, to_slot: int) -> void:
-	if _slots.move_stage_to_rack(from_stage_slot, to_slot):
+func _move_draft_to_rack(from_draft_slot: int, to_slot: int) -> void:
+	if _slots.move_draft_to_rack(from_draft_slot, to_slot):
 		_render_rack()
 
-func _move_stage_slot(from_slot: int, to_slot: int) -> void:
-	if _slots.move_stage_slot(from_slot, to_slot):
+func _move_draft_slot(from_slot: int, to_slot: int) -> void:
+	if _slots.move_draft_slot(from_slot, to_slot):
 		_render_rack()
 
 # ═══════════════════════════════════════════
@@ -2378,9 +2428,9 @@ func _apply_responsive_layout() -> void:
 	if _board != null:
 		_board.set_slot_size(_slot_size)
 		_board.layout_wall_ring()
-	if _stage_panel != null:
-		_stage_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-		_layout_pending_rows()
+	if _draft_panel != null:
+		_draft_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_layout_draft_rows()
 
 	# Pseudo-3D table rails around the felt (camera-tilt illusion).
 	if GEO.SHOW_TABLE_RAILS and _rail_top != null and _rail_left != null and _rail_right != null and _rail_bottom != null:
@@ -2451,7 +2501,7 @@ func _apply_responsive_layout() -> void:
 		_discard_prompt_base_pos = _discard_prompt.position
 
 	_ensure_slot_controls()
-	_ensure_stage_slot_controls()
+	_ensure_draft_slot_controls()
 	if _round_controls != null:
 		var controls_w: float = 264.0
 		var controls_h: float = 38.0
@@ -2460,41 +2510,36 @@ func _apply_responsive_layout() -> void:
 		_render_all()
 
 
-func _pending_band_height() -> float:
+func _draft_band_height() -> float:
 	return _slot_size.y * 2.0 + 18.0
 
-func _layout_pending_rows() -> void:
-	if _stage_panel == null or _stage_row1 == null or _stage_row2 == null:
+func _layout_draft_rows() -> void:
+	if _draft_panel == null or _draft_row1 == null or _draft_row2 == null:
 		return
 	var row_w: float = float(GEO.STAGE_ROW_SLOTS) * _slot_size.x + float(GEO.STAGE_ROW_SLOTS - 1) * 4.0
 	var x: float = (_meld_island.size.x - row_w) * 0.5
 	var total_h: float = _slot_size.y * 2.0 + 4.0
-	# Keep pending rows near the lower felt half (closer to player's rack), without a visible panel.
+	# Keep draft rows near the lower felt half (closer to player's rack), without a visible panel.
 	var y1: float = _meld_island.size.y * 0.58
 	y1 = clamp(y1, 10.0, max(10.0, _meld_island.size.y - total_h - 10.0))
 	var y2: float = y1 + _slot_size.y + 4.0
-	_set_rect_pixels(_stage_row1, x, y1, row_w, _slot_size.y)
-	_set_rect_pixels(_stage_row2, x, y2, row_w, _slot_size.y)
-	_update_stage_slot_visuals()
-
-func _first_empty_stage_slot() -> int:
-	for i in range(_slots.stage_slots.size()):
-		if int(_slots.stage_slots[i]) == -1:
-			return i
-	return -1
+	_set_rect_pixels(_draft_row1, x, y1, row_w, _slot_size.y)
+	_set_rect_pixels(_draft_row2, x, y2, row_w, _slot_size.y)
+	_update_draft_slot_visuals()
 
 func _is_on_felt_interaction_zone(global_pos: Vector2) -> bool:
+	var margin: float = INTERACTION_TUNING.DRAFT_LANE_MARGIN_2D_PX
 	if _melds_panel != null and is_instance_valid(_melds_panel):
-		return _melds_panel.get_global_rect().grow(26.0).has_point(global_pos)
+		return _melds_panel.get_global_rect().grow(margin).has_point(global_pos)
 	if _meld_island != null and is_instance_valid(_meld_island):
-		return _meld_island.get_global_rect().grow(26.0).has_point(global_pos)
+		return _meld_island.get_global_rect().grow(margin).has_point(global_pos)
 	return false
 
-func _update_stage_slot_visuals() -> void:
-	if _stage_slot_controls.is_empty():
+func _update_draft_slot_visuals() -> void:
+	if _draft_slot_controls.is_empty():
 		return
-	for i in range(_stage_slot_controls.size()):
-		var slot_ctrl: Control = _stage_slot_controls[i]
+	for i in range(_draft_slot_controls.size()):
+		var slot_ctrl: Control = _draft_slot_controls[i]
 		if slot_ctrl == null or not is_instance_valid(slot_ctrl):
 			continue
 		var style := StyleBoxFlat.new()
@@ -2552,3 +2597,4 @@ func _is_tile_in_my_hand(tile_id: int) -> bool:
 
 func _prev_player(player_index: int) -> int:
 	return TILE_HELPERS.prev_player(_controller.state, player_index)
+

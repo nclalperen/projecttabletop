@@ -1,5 +1,7 @@
 extends SceneTree
 
+const ENABLE_CAPTURE: bool = false
+
 var scene_root: Node = null
 var game_table: Node = null
 var controller = null
@@ -51,22 +53,22 @@ func _run() -> void:
 	await _wait_frames(4)
 	await _sync_world()
 
-	await _scenario_01_rack_to_stage()
-	await _scenario_02_stage_reorder()
-	await _scenario_03_stage_to_rack()
+	await _scenario_01_rack_to_draft()
+	await _scenario_02_draft_reorder()
+	await _scenario_03_draft_to_rack()
 	await _scenario_04_starter_discard_drag()
 	await _scenario_05_turn_discard_drag()
 	await _scenario_06_turn_play_end_then_discard_drag()
 	await _scenario_07_rack_to_committed_meld()
 	await _scenario_08_draw_from_deck_tap()
 	await _scenario_09_take_discard_legal_tap()
-	await _scenario_10_round_end_click_new_round()
+	await _scenario_10_turn_play_tap_selected_tile_to_draft_noop()
+	await _scenario_11_turn_discard_tap_selected_tile_to_discard_noop()
+	await _scenario_12_committed_meld_reposition_drag()
+	await _scenario_13_round_end_click_new_round()
 
 	print("SCENARIO_SUMMARY: pass=%d fail=%d" % [passes, failures])
-	if scene_root != null and is_instance_valid(scene_root):
-		scene_root.queue_free()
-	await _wait_frames(2)
-	quit(0 if failures == 0 else 1)
+	await _teardown_and_quit(0 if failures == 0 else 1)
 
 
 func _alloc_uid() -> int:
@@ -78,6 +80,26 @@ func _wait_frames(count: int) -> void:
 	for _i in range(maxi(1, count)):
 		await process_frame
 		await physics_frame
+
+
+func _free_test_instances() -> void:
+	LocalGameController.free_test_tracked_instances()
+	HostMatchController.free_test_tracked_instances()
+	ClientMatchController.free_test_tracked_instances()
+	P2PTransportEOS.free_test_tracked_instances()
+	OnlineServiceEOS.free_test_tracked_instances()
+	LobbyServiceEOS.free_test_tracked_instances()
+
+
+func _teardown_and_quit(exit_code: int) -> void:
+	if scene_root != null and is_instance_valid(scene_root):
+		if scene_root.get_parent() != null:
+			scene_root.get_parent().remove_child(scene_root)
+		scene_root.free()
+		scene_root = null
+	_free_test_instances()
+	await _wait_frames(12)
+	quit(exit_code)
 
 
 func _sync_world() -> void:
@@ -95,6 +117,8 @@ func _record(idx: int, name: String, ok: bool, note: String) -> void:
 
 
 func _capture(label: String) -> void:
+	if not ENABLE_CAPTURE:
+		return
 	scene_root.call("_capture_viewport_png", label)
 	await _wait_frames(3)
 
@@ -127,24 +151,24 @@ func _ensure_local_hand_size(target_count: int) -> void:
 	s.players[0].hand = hand
 
 
-func _ensure_stage_empty() -> void:
+func _ensure_draft_empty() -> void:
 	await _set_turn(GameState.Phase.TURN_PLAY)
 	var safety: int = 0
 	while safety < 48:
 		safety += 1
-		var stage_slots: Array = game_table.call("get_stage_slots")
-		var from_stage: int = -1
-		for i in range(stage_slots.size()):
-			if int(stage_slots[i]) != -1:
-				from_stage = i
+		var draft_slots: Array = game_table.call("get_draft_slots")
+		var from_draft: int = -1
+		for i in range(draft_slots.size()):
+			if int(draft_slots[i]) != -1:
+				from_draft = i
 				break
-		if from_stage == -1:
+		if from_draft == -1:
 			break
 		var rack_slots: Array = game_table.call("get_rack_slots")
 		var to_rack: int = rack_slots.find(-1)
 		if to_rack == -1:
 			break
-		game_table.call("overlay_move_stage_to_rack", from_stage, to_rack)
+		game_table.call("overlay_move_draft_to_rack", from_draft, to_rack)
 		await _sync_world()
 
 
@@ -268,8 +292,8 @@ func _screen_for_rack_slot(prefer_empty: bool = true) -> Vector2:
 	return Vector2(640, 640)
 
 
-func _first_stage_tile_screen() -> Dictionary:
-	var hits: Array = scene_root.get("_stage_tile_hits")
+func _first_draft_tile_screen() -> Dictionary:
+	var hits: Array = scene_root.get("_draft_tile_hits")
 	if hits.is_empty():
 		return {}
 	var d: Dictionary = hits[0] as Dictionary
@@ -336,9 +360,9 @@ func _drag(start_pos: Vector2, end_pos: Vector2) -> void:
 	await _wait_frames(2)
 
 
-func _ensure_two_staged_tiles() -> void:
+func _ensure_two_draft_tiles() -> void:
 	var tries: int = 0
-	while _count_non_empty(game_table.call("get_stage_slots")) < 2 and tries < 4:
+	while _count_non_empty(game_table.call("get_draft_slots")) < 2 and tries < 4:
 		tries += 1
 		await _set_turn(GameState.Phase.TURN_PLAY)
 		var src: Dictionary = _first_rack_tile_screen()
@@ -359,10 +383,10 @@ func _ensure_committed_meld() -> void:
 	await _sync_world()
 
 
-func _scenario_01_rack_to_stage() -> void:
+func _scenario_01_rack_to_draft() -> void:
 	await _set_turn(GameState.Phase.TURN_PLAY)
 	var src: Dictionary = _first_rack_tile_screen()
-	var before_count: int = _count_non_empty(game_table.call("get_stage_slots"))
+	var before_count: int = _count_non_empty(game_table.call("get_draft_slots"))
 	var ok: bool = false
 	var note: String = ""
 	if src.is_empty():
@@ -370,54 +394,54 @@ func _scenario_01_rack_to_stage() -> void:
 	else:
 		await _drag(src.get("screen", Vector2.ZERO) as Vector2, _screen_for_lane(0.34, 0.46))
 		await _sync_world()
-		var after_count: int = _count_non_empty(game_table.call("get_stage_slots"))
+		var after_count: int = _count_non_empty(game_table.call("get_draft_slots"))
 		ok = after_count > before_count
-		note = "stage_count %d -> %d" % [before_count, after_count]
-	await _capture("s01_rack_stage")
-	_record(1, "rack_to_stage", ok, note)
+		note = "draft_count %d -> %d" % [before_count, after_count]
+	await _capture("s01_rack_draft")
+	_record(1, "rack_to_draft", ok, note)
 
 
-func _scenario_02_stage_reorder() -> void:
-	await _ensure_two_staged_tiles()
+func _scenario_02_draft_reorder() -> void:
+	await _ensure_two_draft_tiles()
 	await _set_turn(GameState.Phase.TURN_PLAY)
-	var src: Dictionary = _first_stage_tile_screen()
-	var before_slots: Array = (game_table.call("get_stage_slots") as Array).duplicate()
+	var src: Dictionary = _first_draft_tile_screen()
+	var before_slots: Array = (game_table.call("get_draft_slots") as Array).duplicate()
 	var ok: bool = false
 	var note: String = ""
 	if src.is_empty():
-		note = "no stage tile hit"
+		note = "no draft tile hit"
 	else:
 		await _drag(src.get("screen", Vector2.ZERO) as Vector2, _screen_for_lane(0.88, 0.74))
 		await _sync_world()
-		var after_slots: Array = game_table.call("get_stage_slots") as Array
+		var after_slots: Array = game_table.call("get_draft_slots") as Array
 		ok = _array_changed(before_slots, after_slots)
-		note = "stage_slots_changed=%s" % str(ok)
-	await _capture("s02_stage_reorder")
-	_record(2, "stage_reorder", ok, note)
+		note = "draft_slots_changed=%s" % str(ok)
+	await _capture("s02_draft_reorder")
+	_record(2, "draft_reorder", ok, note)
 
 
-func _scenario_03_stage_to_rack() -> void:
+func _scenario_03_draft_to_rack() -> void:
 	await _set_turn(GameState.Phase.TURN_PLAY)
-	var src: Dictionary = _first_stage_tile_screen()
-	var before_stage: int = _count_non_empty(game_table.call("get_stage_slots"))
+	var src: Dictionary = _first_draft_tile_screen()
+	var before_draft: int = _count_non_empty(game_table.call("get_draft_slots"))
 	var before_rack: int = _count_non_empty(game_table.call("get_rack_slots"))
 	var ok: bool = false
 	var note: String = ""
 	if src.is_empty():
-		note = "no stage tile hit"
+		note = "no draft tile hit"
 	else:
 		await _drag(src.get("screen", Vector2.ZERO) as Vector2, _screen_for_rack_slot(true))
 		await _sync_world()
-		var after_stage: int = _count_non_empty(game_table.call("get_stage_slots"))
+		var after_draft: int = _count_non_empty(game_table.call("get_draft_slots"))
 		var after_rack: int = _count_non_empty(game_table.call("get_rack_slots"))
-		ok = after_stage < before_stage and after_rack >= before_rack
-		note = "stage %d->%d rack %d->%d" % [before_stage, after_stage, before_rack, after_rack]
-	await _capture("s03_stage_to_rack")
-	_record(3, "stage_to_rack", ok, note)
+		ok = after_draft < before_draft and after_rack >= before_rack
+		note = "draft %d->%d rack %d->%d" % [before_draft, after_draft, before_rack, after_rack]
+	await _capture("s03_draft_to_rack")
+	_record(3, "draft_to_rack", ok, note)
 
 
 func _scenario_04_starter_discard_drag() -> void:
-	await _ensure_stage_empty()
+	await _ensure_draft_empty()
 	await _set_turn(GameState.Phase.STARTER_DISCARD)
 	_ensure_local_hand_size(_rule_starter_tiles())
 	game_table.set("_action_in_flight", false)
@@ -457,7 +481,7 @@ func _scenario_05_turn_discard_drag() -> void:
 
 
 func _scenario_06_turn_play_end_then_discard_drag() -> void:
-	await _ensure_stage_empty()
+	await _ensure_draft_empty()
 	await _set_turn(GameState.Phase.TURN_PLAY)
 	controller.state.players[0].has_opened = true
 	controller.state.players[0].opened_by_pairs = false
@@ -537,7 +561,76 @@ func _scenario_09_take_discard_legal_tap() -> void:
 	_record(9, "take_discard_legal_tap", ok, note)
 
 
-func _scenario_10_round_end_click_new_round() -> void:
+func _scenario_10_turn_play_tap_selected_tile_to_draft_noop() -> void:
+	await _ensure_draft_empty()
+	await _set_turn(GameState.Phase.TURN_PLAY)
+	var src: Dictionary = _first_rack_tile_screen()
+	var before_draft: Array = (game_table.call("get_draft_slots") as Array).duplicate()
+	var before_discard: int = (controller.state.player_discard_stacks[0] as Array).size()
+	var ok: bool = false
+	var note: String = ""
+	if src.is_empty():
+		note = "no rack tile hit"
+	else:
+		await _tap(src.get("screen", Vector2.ZERO) as Vector2)
+		await _wait_frames(1)
+		await _tap(_screen_for_lane(0.65, 0.42))
+		await _sync_world()
+		var after_draft: Array = game_table.call("get_draft_slots") as Array
+		var after_discard: int = (controller.state.player_discard_stacks[0] as Array).size()
+		ok = not _array_changed(before_draft, after_draft) and after_discard == before_discard
+		note = "draft_unchanged=%s discard=%d->%d" % [str(not _array_changed(before_draft, after_draft)), before_discard, after_discard]
+	await _capture("s10_tap_no_draft_place")
+	_record(10, "turn_play_tap_selected_tile_to_draft_noop", ok, note)
+
+
+func _scenario_11_turn_discard_tap_selected_tile_to_discard_noop() -> void:
+	await _set_turn(GameState.Phase.TURN_DISCARD)
+	var src: Dictionary = _first_rack_tile_screen()
+	var before_discard: int = (controller.state.player_discard_stacks[0] as Array).size()
+	var ok: bool = false
+	var note: String = ""
+	if src.is_empty():
+		note = "no rack tile hit"
+	else:
+		await _tap(src.get("screen", Vector2.ZERO) as Vector2)
+		await _wait_frames(1)
+		await _tap(_screen_for_discard_pick_area(0))
+		await _sync_world()
+		var after_discard: int = (controller.state.player_discard_stacks[0] as Array).size()
+		ok = after_discard == before_discard
+		note = "discard_stack %d->%d" % [before_discard, after_discard]
+	await _capture("s11_tap_no_discard")
+	_record(11, "turn_discard_tap_selected_tile_to_discard_noop", ok, note)
+
+
+func _scenario_12_committed_meld_reposition_drag() -> void:
+	await _set_turn(GameState.Phase.TURN_PLAY)
+	await _ensure_draft_empty()
+	await _ensure_committed_meld()
+	var before_offsets: Dictionary = (scene_root.get("_table_meld_drag_offsets") as Dictionary).duplicate(true)
+	var meld_hit: Dictionary = _first_table_meld_tile_screen()
+	var ok: bool = false
+	var note: String = ""
+	if meld_hit.is_empty():
+		note = "no committed meld tile hit"
+	else:
+		await _drag(meld_hit.get("screen", Vector2.ZERO) as Vector2, _screen_for_lane(0.62, 0.58))
+		await _sync_world()
+		var after_offsets: Dictionary = scene_root.get("_table_meld_drag_offsets") as Dictionary
+		var moved: bool = false
+		for k in after_offsets.keys():
+			var v: Vector2 = after_offsets[k] as Vector2
+			if v.length() > 0.001:
+				moved = true
+				break
+		ok = moved and (before_offsets.size() != after_offsets.size() or before_offsets != after_offsets)
+		note = "offsets_before=%d offsets_after=%d moved=%s" % [before_offsets.size(), after_offsets.size(), str(moved)]
+	await _capture("s12_committed_meld_reposition")
+	_record(12, "committed_meld_reposition_drag", ok, note)
+
+
+func _scenario_13_round_end_click_new_round() -> void:
 	controller.state.phase = GameState.Phase.ROUND_END
 	controller.state.current_player_index = 0
 	await _sync_world()
@@ -546,5 +639,7 @@ func _scenario_10_round_end_click_new_round() -> void:
 	var phase_now: int = int(controller.state.phase)
 	var ok: bool = phase_now != int(GameState.Phase.ROUND_END)
 	var note: String = "phase_after_click=%d" % phase_now
-	await _capture("s10_round_end_click")
-	_record(10, "round_end_click_new_round", ok, note)
+	await _capture("s13_round_end_click")
+	_record(13, "round_end_click_new_round", ok, note)
+
+

@@ -28,12 +28,23 @@ func set_member(member: Dictionary, owner_puid: String, local_puid: String) -> v
 	var seat: int = int(attrs.get("seat", 0))
 	var ready: bool = bool(attrs.get("ready", false))
 	var status: String = String(attrs.get("status", "OK")).to_upper()
-	var display_name: String = puid
+	var platform_tag: String = String(attrs.get("platform", "unknown")).to_lower()
+	var build_family: String = String(attrs.get("build_family", "")).strip_edges().to_lower()
+	var display_name: String = String(attrs.get("display_name", puid)).strip_edges()
+	if display_name == "":
+		display_name = puid
 	if puid == local_puid:
-		display_name = "%s (You)" % puid
+		display_name = "%s (You)" % display_name
 	_name_label.modulate = MENU_STYLE.color(&"lobby_player_local") if puid == local_puid else MENU_STYLE.color(&"lobby_player_remote")
 	_name_label.text = display_name
-	_meta_label.text = "Seat %d | %s" % [seat, status]
+	var meta_parts: Array[String] = [
+		"Seat %d" % seat,
+		status,
+		platform_tag,
+	]
+	if build_family != "":
+		meta_parts.append(build_family)
+	_meta_label.text = " | ".join(meta_parts)
 	_avatar.texture = _avatar_for_index(seat)
 	_host_icon.texture = _texture(ICON_HOST_ID)
 	_host_icon.visible = puid == owner_puid

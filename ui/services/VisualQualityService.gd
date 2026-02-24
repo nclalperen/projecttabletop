@@ -57,6 +57,14 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 	out["resolution_scale"] = clampf(float(raw.get("resolution_scale", _default_resolution_scale_for_profile(profile))), 0.55, 1.20)
 	out["postfx_strength"] = clampf(float(raw.get("postfx_strength", _default_postfx_for_profile(profile))), 0.0, 1.0)
 	out["shadow_quality"] = clampi(int(raw.get("shadow_quality", _default_shadow_quality_for_profile(profile))), 0, 3)
+	if OS.get_name() == "Android" and str(raw.get("presentation_mode", "2d")).to_lower() == "3d":
+		# Keep Android 3D opt-in conservative to reduce thermal and stability risk on mid-tier devices.
+		out["aa_mode"] = AA_FXAA
+		out["ssao_quality"] = mini(int(out["ssao_quality"]), 1)
+		out["ssr_enabled"] = false
+		out["resolution_scale"] = minf(float(out["resolution_scale"]), 0.90)
+		out["postfx_strength"] = minf(float(out["postfx_strength"]), 0.45)
+		out["shadow_quality"] = mini(int(out["shadow_quality"]), 1)
 	return out
 
 

@@ -1,6 +1,8 @@
 extends Control
 class_name OkeyTile
 
+const INTERACTION_TUNING = preload("res://ui/game_table/InteractionTuning.gd")
+
 signal clicked(tile_control: OkeyTile)
 signal drag_started(tile_control: OkeyTile)
 signal drag_ended(tile_control: OkeyTile, global_pos: Vector2)
@@ -26,7 +28,6 @@ var _origin_global: Vector2 = Vector2.ZERO
 var _drag_pointer_pos: Vector2 = Vector2.ZERO
 var _zoom_factor: float = 1.0
 
-const DRAG_THRESHOLD := 10.0
 const BASE_TILE_SIZE := Vector2(44, 62)
 
 # Style caches
@@ -229,7 +230,7 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		_drag_pointer_pos = get_global_mouse_position()
 		if _mouse_down:
-			if not is_dragging and _drag_pointer_pos.distance_to(_press_pos) > DRAG_THRESHOLD:
+			if not is_dragging and _drag_pointer_pos.distance_to(_press_pos) > _drag_threshold_px():
 				_start_drag(_drag_pointer_pos)
 
 	elif event is InputEventScreenTouch:
@@ -250,7 +251,7 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventScreenDrag:
 		if _touch_down:
 			_drag_pointer_pos = event.position
-			if not is_dragging and event.position.distance_to(_press_pos) > DRAG_THRESHOLD:
+			if not is_dragging and event.position.distance_to(_press_pos) > _drag_threshold_px():
 				_start_drag(event.position)
 
 func _process(_delta: float) -> void:
@@ -259,7 +260,7 @@ func _process(_delta: float) -> void:
 		return
 	if _mouse_down and not is_dragging:
 		var pos = get_global_mouse_position()
-		if pos.distance_to(_press_pos) > DRAG_THRESHOLD:
+		if pos.distance_to(_press_pos) > _drag_threshold_px():
 			_start_drag(pos)
 
 	if is_dragging:
@@ -289,6 +290,9 @@ func _end_drag(global_pos: Vector2) -> void:
 	scale = Vector2(1.0, 1.0)
 	modulate.a = 1.0
 	drag_ended.emit(self, global_pos)
+
+func _drag_threshold_px() -> float:
+	return INTERACTION_TUNING.drag_threshold_for_pointer(_touch_down)
 
 # Deprecated compatibility shim; retained for external/dynamic callers.
 func animate_deal(delay: float) -> void:

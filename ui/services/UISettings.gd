@@ -4,8 +4,10 @@ const SAVE_PATH: String = "user://ui_settings.cfg"
 const SECTION_AUDIO: String = "audio"
 const SECTION_VISUAL: String = "visual"
 const SECTION_DISPLAY: String = "display"
+const SECTION_UI: String = "ui"
 const VISUAL_QUALITY_SCRIPT: Script = preload("res://ui/services/VisualQualityService.gd")
 const DISPLAY_SETTINGS_SCRIPT: Script = preload("res://ui/services/DisplaySettingsService.gd")
+const PLATFORM_PROFILE_SCRIPT: Script = preload("res://ui/services/PlatformProfile.gd")
 const DEFAULT_SFX_VOLUME: float = 0.82
 const DEFAULT_MUSIC_VOLUME: float = 0.30
 
@@ -15,6 +17,7 @@ static func load_from_disk() -> Dictionary:
 	var out_display: Dictionary = DISPLAY_SETTINGS_SCRIPT.default_settings()
 	for key in out_display.keys():
 		out[key] = out_display[key]
+	out["presentation_mode"] = PLATFORM_PROFILE_SCRIPT.default_presentation_mode()
 	out["sfx_volume"] = DEFAULT_SFX_VOLUME
 	out["music_volume"] = DEFAULT_MUSIC_VOLUME
 	var cfg := ConfigFile.new()
@@ -46,6 +49,7 @@ static func load_from_disk() -> Dictionary:
 	var sanitized_display: Dictionary = DISPLAY_SETTINGS_SCRIPT.sanitize(raw_display)
 	for key in sanitized_display.keys():
 		out[key] = sanitized_display[key]
+	out["presentation_mode"] = sanitize_presentation_mode(str(cfg.get_value(SECTION_UI, "presentation_mode", out["presentation_mode"])))
 	return out
 
 
@@ -53,7 +57,8 @@ static func save_to_disk(
 	sfx_volume: float,
 	music_volume: float,
 	visual_settings: Dictionary = {},
-	display_settings: Dictionary = {}
+	display_settings: Dictionary = {},
+	presentation_mode: String = ""
 ) -> void:
 	var cfg := ConfigFile.new()
 	var loaded: Dictionary = load_from_disk()
@@ -69,6 +74,9 @@ static func save_to_disk(
 		merged_display[key] = display_settings[key]
 	var visual: Dictionary = VISUAL_QUALITY_SCRIPT.sanitize(merged_visual)
 	var display: Dictionary = DISPLAY_SETTINGS_SCRIPT.sanitize(merged_display)
+	var sanitized_presentation_mode: String = sanitize_presentation_mode(
+		presentation_mode if presentation_mode != "" else str(loaded.get("presentation_mode", PLATFORM_PROFILE_SCRIPT.default_presentation_mode()))
+	)
 	cfg.set_value(SECTION_AUDIO, "sfx_volume", clampf(sfx_volume, 0.0, 1.0))
 	cfg.set_value(SECTION_AUDIO, "music_volume", clampf(music_volume, 0.0, 1.0))
 	cfg.set_value(SECTION_VISUAL, "graphics_profile", str(visual["graphics_profile"]))
@@ -85,6 +93,7 @@ static func save_to_disk(
 	cfg.set_value(SECTION_DISPLAY, "refresh_rate_hz", int(display["refresh_rate_hz"]))
 	cfg.set_value(SECTION_DISPLAY, "vsync_mode", str(display["vsync_mode"]))
 	cfg.set_value(SECTION_DISPLAY, "fps_cap", int(display["fps_cap"]))
+	cfg.set_value(SECTION_UI, "presentation_mode", sanitized_presentation_mode)
 	cfg.save(SAVE_PATH)
 
 
@@ -102,6 +111,15 @@ static func default_display_settings() -> Dictionary:
 
 static func sanitize_display_settings(raw: Dictionary) -> Dictionary:
 	return DISPLAY_SETTINGS_SCRIPT.sanitize(raw)
+
+
+static func default_presentation_mode() -> String:
+	return PLATFORM_PROFILE_SCRIPT.default_presentation_mode()
+
+
+static func sanitize_presentation_mode(raw: String) -> String:
+	var mode: String = raw.to_lower().strip_edges()
+	return mode if PackedStringArray(["2d", "3d"]).has(mode) else PLATFORM_PROFILE_SCRIPT.default_presentation_mode()
 
 
 static func linear_to_db_safe(level: float) -> float:

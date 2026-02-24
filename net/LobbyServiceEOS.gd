@@ -6,8 +6,14 @@ signal lobby_list_updated(lobbies)
 signal lobby_error(code, reason)
 
 const EOS_RAW_SCRIPT: Script = preload("res://net/eos/EOSRaw.gd")
+const EOS_BACKEND_POLICY_SCRIPT: Script = preload("res://net/EOSBackendPolicy.gd")
+const PROTOCOL_SCRIPT: Script = preload("res://net/Protocol.gd")
 const BACKEND_MOCK: String = "mock"
 const BACKEND_IEOS_RAW: String = "ieos_raw"
+const RUNTIME_PLATFORMS: PackedStringArray = ["Windows", "Android"]
+const ATTR_PROTOCOL_REV: String = "protocol_rev"
+const ATTR_BUILD_FAMILY: String = "build_family"
+const ATTR_DISPLAY_NAME: String = "display_name"
 const LOBBY_MEMBER_STATUS_JOINED: int = 0
 const LOBBY_MEMBER_STATUS_LEFT: int = 1
 const LOBBY_MEMBER_STATUS_DISCONNECTED: int = 2
@@ -21,6 +27,10 @@ static var _test_tracked_instances: Array = []
 var local_puid: String = ""
 var current_lobby_id: String = ""
 var backend_mode: String = BACKEND_MOCK
+var backend_policy: String = EOS_BACKEND_POLICY_SCRIPT.current_policy()
+var _local_display_name: String = ""
+var _local_build_family: String = EOS_BACKEND_POLICY_SCRIPT.build_family()
+var _local_protocol_rev: int = int(PROTOCOL_SCRIPT.PROTOCOL_VERSION)
 
 var _runtime_ieos = null
 var _runtime_bootstrapped: bool = false
@@ -30,6 +40,9 @@ var _runtime_last_status_by_puid: Dictionary = {}
 var _runtime_status_hint_by_puid: Dictionary = {}
 
 func _init() -> void:
+	backend_policy = EOS_BACKEND_POLICY_SCRIPT.current_policy()
+	_local_build_family = EOS_BACKEND_POLICY_SCRIPT.build_family()
+	_local_protocol_rev = int(PROTOCOL_SCRIPT.PROTOCOL_VERSION)
 	if OS.has_feature("editor"):
 		_test_tracked_instances.append(self)
 
@@ -51,8 +64,22 @@ func set_backend_mode(mode: String) -> void:
 func get_backend_mode() -> String:
 	return backend_mode
 
+func set_backend_policy(policy: String) -> void:
+	var normalized: String = EOS_BACKEND_POLICY_SCRIPT.sanitize(policy)
+	if normalized == "":
+		backend_policy = EOS_BACKEND_POLICY_SCRIPT.current_policy()
+		return
+	backend_policy = normalized
+
 func set_local_puid(puid: String) -> void:
 	local_puid = String(puid)
+
+func set_runtime_profile(profile: Dictionary) -> void:
+	_local_display_name = String(profile.get("display_name", _local_display_name)).strip_edges()
+	var build_family: String = String(profile.get(ATTR_BUILD_FAMILY, _local_build_family)).strip_edges().to_lower()
+	if build_family != "":
+		_local_build_family = build_family
+	_local_protocol_rev = maxi(1, int(profile.get(ATTR_PROTOCOL_REV, _local_protocol_rev)))
 
 func create_lobby(options: Dictionary = {}) -> Dictionary:
 	if local_puid == "":
@@ -60,8 +87,10 @@ func create_lobby(options: Dictionary = {}) -> Dictionary:
 	if _use_runtime():
 		var gate: Dictionary = _begin_runtime_op("create_lobby")
 		if not bool(gate.get("ok", false)):
-			_downgrade_runtime_to_mock("create_lobby", gate)
-			return _mock_create_lobby(options)
+			if _can_fallback_to_mock():
+				_downgrade_runtime_to_mock("create_lobby", gate)
+				return _mock_create_lobby(options)
+			return gate
 		call_deferred("_runtime_create_lobby_async", options.duplicate(true))
 		return gate
 	return _mock_create_lobby(options)
@@ -70,8 +99,10 @@ func search_lobbies(filters: Dictionary = {}) -> Dictionary:
 	if _use_runtime():
 		var gate: Dictionary = _begin_runtime_op("search_lobbies")
 		if not bool(gate.get("ok", false)):
-			_downgrade_runtime_to_mock("search_lobbies", gate)
-			return _mock_search_lobbies(filters)
+			if _can_fallback_to_mock():
+				_downgrade_runtime_to_mock("search_lobbies", gate)
+				return _mock_search_lobbies(filters)
+			return gate
 		call_deferred("_runtime_search_lobbies_async", filters.duplicate(true))
 		return gate
 	return _mock_search_lobbies(filters)
@@ -82,8 +113,10 @@ func join_lobby(lobby_id: String) -> Dictionary:
 	if _use_runtime():
 		var gate: Dictionary = _begin_runtime_op("join_lobby")
 		if not bool(gate.get("ok", false)):
-			_downgrade_runtime_to_mock("join_lobby", gate)
-			return _mock_join_lobby(lobby_id)
+			if _can_fallback_to_mock():
+				_downgrade_runtime_to_mock("join_lobby", gate)
+				return _mock_join_lobby(lobby_id)
+			return gate
 		call_deferred("_runtime_join_lobby_async", String(lobby_id))
 		return gate
 	return _mock_join_lobby(lobby_id)
@@ -92,8 +125,10 @@ func leave_lobby() -> Dictionary:
 	if _use_runtime():
 		var gate: Dictionary = _begin_runtime_op("leave_lobby")
 		if not bool(gate.get("ok", false)):
-			_downgrade_runtime_to_mock("leave_lobby", gate)
-			return _mock_leave_lobby()
+			if _can_fallback_to_mock():
+				_downgrade_runtime_to_mock("leave_lobby", gate)
+				return _mock_leave_lobby()
+			return gate
 		call_deferred("_runtime_leave_lobby_async")
 		return gate
 	return _mock_leave_lobby()
@@ -102,8 +137,10 @@ func set_lobby_attr(key: String, value) -> Dictionary:
 	if _use_runtime():
 		var gate: Dictionary = _begin_runtime_op("set_lobby_attr")
 		if not bool(gate.get("ok", false)):
-			_downgrade_runtime_to_mock("set_lobby_attr", gate)
-			return _mock_set_lobby_attr(key, value)
+			if _can_fallback_to_mock():
+				_downgrade_runtime_to_mock("set_lobby_attr", gate)
+				return _mock_set_lobby_attr(key, value)
+			return gate
 		call_deferred("_runtime_set_lobby_attr_async", String(key), value)
 		return gate
 	return _mock_set_lobby_attr(key, value)
@@ -112,8 +149,10 @@ func set_member_attr(key: String, value) -> Dictionary:
 	if _use_runtime():
 		var gate: Dictionary = _begin_runtime_op("set_member_attr")
 		if not bool(gate.get("ok", false)):
-			_downgrade_runtime_to_mock("set_member_attr", gate)
-			return _mock_set_member_attr(key, value)
+			if _can_fallback_to_mock():
+				_downgrade_runtime_to_mock("set_member_attr", gate)
+				return _mock_set_member_attr(key, value)
+			return gate
 		call_deferred("_runtime_set_member_attr_async", String(key), value)
 		return gate
 	return _mock_set_member_attr(key, value)
@@ -140,9 +179,12 @@ func _use_runtime() -> bool:
 		return false
 	if DisplayServer.get_name() == "headless":
 		return false
-	if OS.get_name() != "Windows":
+	if not RUNTIME_PLATFORMS.has(OS.get_name()):
 		return false
 	return true
+
+func _can_fallback_to_mock() -> bool:
+	return EOS_BACKEND_POLICY_SCRIPT.allows_mock_fallback(backend_policy)
 
 func _runtime_bootstrap() -> Dictionary:
 	if _runtime_bootstrapped and _runtime_ieos != null:
@@ -230,6 +272,12 @@ func _runtime_create_lobby_flow(options: Dictionary) -> Dictionary:
 	var version_tag: String = String(options.get("version", "v1"))
 	var phase_tag: String = String(options.get("phase", "FILLING"))
 	var privacy_tag: String = String(options.get("privacy", "PUBLIC"))
+	var build_family: String = String(options.get(ATTR_BUILD_FAMILY, _local_build_family)).strip_edges().to_lower()
+	if build_family == "":
+		build_family = EOS_BACKEND_POLICY_SCRIPT.build_family()
+	var protocol_rev: int = maxi(1, int(options.get(ATTR_PROTOCOL_REV, _local_protocol_rev)))
+	_local_build_family = build_family
+	_local_protocol_rev = protocol_rev
 	create_opts.bucket_id = "%s:%s" % [ruleset_id, version_tag]
 	create_opts.max_lobby_members = int(options.get("max_lobby_members", 4))
 	create_opts.allow_invites = true
@@ -263,12 +311,10 @@ func _runtime_create_lobby_flow(options: Dictionary) -> Dictionary:
 		"match_id": String(options.get("match_id", "")),
 		"ruleset_hash": String(options.get("ruleset_hash", "")),
 		"privacy": privacy_tag,
+		ATTR_BUILD_FAMILY: build_family,
+		ATTR_PROTOCOL_REV: protocol_rev,
 	}
-	var member_attrs: Dictionary = {
-		"ready": false,
-		"status": "OK",
-		"platform": _platform_tag(),
-	}
+	var member_attrs: Dictionary = _default_member_attrs()
 	return await _runtime_update_attrs_flow(lobby_attrs, member_attrs)
 
 func _runtime_search_lobbies_async(filters: Dictionary) -> void:
@@ -352,6 +398,9 @@ func _runtime_join_lobby_flow(lobby_id: String) -> Dictionary:
 		"ready": false,
 		"status": "OK",
 		"platform": _platform_tag(),
+		ATTR_DISPLAY_NAME: _resolved_local_display_name(),
+		ATTR_BUILD_FAMILY: _local_build_family,
+		ATTR_PROTOCOL_REV: _local_protocol_rev,
 	})
 
 func _runtime_leave_lobby_async() -> void:
@@ -471,6 +520,8 @@ func _runtime_build_lobby_model_from_details(details) -> Dictionary:
 		"match_id": "",
 		"ruleset_hash": "",
 		"privacy": "PUBLIC" if int(info.get("permission_level", EOS_RAW_SCRIPT.LOBBY_PERMISSION_PUBLIC_ADVERTISED)) == EOS_RAW_SCRIPT.LOBBY_PERMISSION_PUBLIC_ADVERTISED else "INVITE_ONLY",
+		ATTR_BUILD_FAMILY: _local_build_family,
+		ATTR_PROTOCOL_REV: _local_protocol_rev,
 	}
 	var attr_count: int = int(details.get_attribute_count())
 	for ai in range(maxi(0, attr_count)):
@@ -489,6 +540,8 @@ func _runtime_build_lobby_model_from_details(details) -> Dictionary:
 		if key == "":
 			continue
 		attrs[key] = data.get("value")
+	attrs[ATTR_BUILD_FAMILY] = String(attrs.get(ATTR_BUILD_FAMILY, _local_build_family)).to_lower()
+	attrs[ATTR_PROTOCOL_REV] = maxi(1, int(attrs.get(ATTR_PROTOCOL_REV, _local_protocol_rev)))
 	var lobby_id: String = String(info.get("lobby_id", current_lobby_id))
 	var members: Array = []
 	var member_count: int = int(details.get_member_count())
@@ -496,12 +549,8 @@ func _runtime_build_lobby_model_from_details(details) -> Dictionary:
 		var puid: String = String(details.get_member_by_index(mi))
 		if puid == "":
 			continue
-		var member_attrs: Dictionary = {
-			"seat": -1,
-			"ready": false,
-			"status": String(_runtime_status_hint_by_puid.get(puid, "OK")),
-			"platform": _platform_tag(),
-		}
+		var member_attrs: Dictionary = _default_member_attrs(puid)
+		member_attrs["status"] = String(_runtime_status_hint_by_puid.get(puid, "OK"))
 		var join_time: int = 0
 		var member_info_ret: Dictionary = details.copy_member_info(puid)
 		if EOS_RAW_SCRIPT.is_success(member_info_ret):
@@ -527,6 +576,10 @@ func _runtime_build_lobby_model_from_details(details) -> Dictionary:
 		member_attrs["seat"] = int(member_attrs.get("seat", -1))
 		member_attrs["ready"] = bool(member_attrs.get("ready", false))
 		member_attrs["status"] = String(member_attrs.get("status", "OK"))
+		member_attrs["platform"] = String(member_attrs.get("platform", _platform_tag())).to_lower()
+		member_attrs[ATTR_DISPLAY_NAME] = String(member_attrs.get(ATTR_DISPLAY_NAME, puid))
+		member_attrs[ATTR_BUILD_FAMILY] = String(member_attrs.get(ATTR_BUILD_FAMILY, attrs.get(ATTR_BUILD_FAMILY, _local_build_family))).to_lower()
+		member_attrs[ATTR_PROTOCOL_REV] = maxi(1, int(member_attrs.get(ATTR_PROTOCOL_REV, attrs.get(ATTR_PROTOCOL_REV, _local_protocol_rev))))
 		members.append({
 			"puid": puid,
 			"join_time": join_time,
@@ -629,12 +682,27 @@ func _new_member(puid: String) -> Dictionary:
 	return {
 		"puid": puid,
 		"join_time": int(Time.get_unix_time_from_system()),
-		"attrs": {
-			"seat": -1,
-			"ready": false,
-			"status": "OK",
-			"platform": _platform_tag(),
-		},
+		"attrs": _default_member_attrs(),
+	}
+
+func _resolved_local_display_name() -> String:
+	if _local_display_name.strip_edges() != "":
+		return _local_display_name
+	if local_puid.strip_edges() != "":
+		return local_puid
+	return "Player"
+
+func _default_member_attrs(member_puid: String = "") -> Dictionary:
+	var resolved_puid: String = member_puid if member_puid.strip_edges() != "" else local_puid
+	var resolved_display: String = _resolved_local_display_name() if resolved_puid == local_puid else resolved_puid
+	return {
+		"seat": -1,
+		"ready": false,
+		"status": "OK",
+		"platform": _platform_tag(),
+		ATTR_DISPLAY_NAME: resolved_display,
+		ATTR_BUILD_FAMILY: _local_build_family,
+		ATTR_PROTOCOL_REV: _local_protocol_rev,
 	}
 
 func _assign_seats(lobby: Dictionary) -> void:
@@ -661,6 +729,8 @@ func _update_open_slots(lobby: Dictionary) -> void:
 func _platform_tag() -> String:
 	if OS.get_name() == "Windows":
 		return "pc"
+	if OS.get_name() == "Android":
+		return "android"
 	return "unknown"
 
 func _clone_lobby(lobby: Dictionary) -> Dictionary:
@@ -684,20 +754,38 @@ func _status_from_runtime_member_code(code: int) -> String:
 			return "OK"
 
 func _ok_with(extra: Dictionary) -> Dictionary:
-	var out: Dictionary = {"ok": true, "code": "ok", "reason": "", "backend_mode": backend_mode}
+	var out: Dictionary = {
+		"ok": true,
+		"code": "ok",
+		"reason": "",
+		"backend_mode": backend_mode,
+		"backend_policy": backend_policy,
+	}
 	for k in extra.keys():
 		out[k] = extra[k]
 	return out
 
 func _pending(reason: String, extra: Dictionary = {}) -> Dictionary:
-	var out: Dictionary = {"ok": true, "code": "pending", "reason": reason, "backend_mode": backend_mode}
+	var out: Dictionary = {
+		"ok": true,
+		"code": "pending",
+		"reason": reason,
+		"backend_mode": backend_mode,
+		"backend_policy": backend_policy,
+	}
 	for k in extra.keys():
 		out[k] = extra[k]
 	return out
 
 func _fail(code: String, reason: String) -> Dictionary:
 	emit_signal("lobby_error", code, reason)
-	return {"ok": false, "code": code, "reason": reason, "backend_mode": backend_mode}
+	return {
+		"ok": false,
+		"code": code,
+		"reason": reason,
+		"backend_mode": backend_mode,
+		"backend_policy": backend_policy,
+	}
 
 func _mock_create_lobby(options: Dictionary = {}) -> Dictionary:
 	var lobby_id: String = "L_%08x" % int(abs(hash("%s|%s" % [local_puid, Time.get_unix_time_from_system()])))
@@ -713,6 +801,8 @@ func _mock_create_lobby(options: Dictionary = {}) -> Dictionary:
 			"match_id": String(options.get("match_id", "")),
 			"ruleset_hash": String(options.get("ruleset_hash", "")),
 			"privacy": String(options.get("privacy", "PUBLIC")),
+			ATTR_BUILD_FAMILY: String(options.get(ATTR_BUILD_FAMILY, _local_build_family)).strip_edges().to_lower(),
+			ATTR_PROTOCOL_REV: maxi(1, int(options.get(ATTR_PROTOCOL_REV, _local_protocol_rev))),
 		},
 		"members": [
 			_new_member(local_puid)
@@ -784,7 +874,7 @@ func _mock_set_lobby_attr(key: String, value) -> Dictionary:
 	if String(lobby.get("owner_puid", "")) != local_puid:
 		return _fail("not_host", "only owner can set lobby attrs")
 	lobby["attrs"][String(key)] = value
-	if key == "ruleset_id" or key == "version" or key == "phase":
+	if key == "ruleset_id" or key == "version" or key == "phase" or key == ATTR_BUILD_FAMILY or key == ATTR_PROTOCOL_REV:
 		_reset_ready(lobby)
 	_update_open_slots(lobby)
 	_lobbies[current_lobby_id] = lobby
@@ -798,6 +888,8 @@ func _mock_set_member_attr(key: String, value) -> Dictionary:
 	for m in lobby["members"]:
 		if String(m.get("puid", "")) == local_puid:
 			m["attrs"][String(key)] = value
+			if String(key) == ATTR_DISPLAY_NAME:
+				_local_display_name = String(value).strip_edges()
 			_lobbies[current_lobby_id] = lobby
 			emit_signal("lobby_updated", _clone_lobby(lobby))
 			return _ok_with({"lobby": _clone_lobby(lobby)})

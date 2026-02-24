@@ -4,6 +4,9 @@ const GAME_TABLE_SCENE: PackedScene = preload("res://ui/GameTable.tscn")
 const INVALID_TABLE_POS: Vector2 = Vector2(-99999.0, -99999.0)
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
+const DRAFT_GRID = preload("res://ui/game_table/DraftGrid.gd")
+const INTERACTION_RESOLVER = preload("res://ui/game_table/InteractionResolver.gd")
+const INTERACTION_TUNING = preload("res://ui/game_table/InteractionTuning.gd")
 
 # Asset IDs
 const CLOTH_TEX_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_CLOTH
@@ -34,7 +37,8 @@ const VISUAL_QUALITY_SCRIPT: Script = preload("res://ui/services/VisualQualitySe
 const SFX_DRAW_FROM_DECK: StringName = &"draw_from_deck"
 const SFX_TAKE_DISCARD: StringName = &"take_discard"
 const SFX_RACK_MOVE: StringName = &"rack_move"
-const SFX_STAGE_MOVE: StringName = &"stage_move"
+const SFX_DRAFT_MOVE: StringName = &"stage_move"
+const SFX_STAGE_MOVE: StringName = SFX_DRAFT_MOVE # Compatibility alias for staged-era audio id.
 const SFX_ADD_TO_MELD: StringName = &"add_to_meld"
 const SFX_DISCARD: StringName = &"discard"
 const SFX_INVALID_ACTION: StringName = &"invalid_action"
@@ -75,19 +79,18 @@ const RACK_ROW_TILT_MAX_DEG: float = -2.0
 const RACK_GAP_TO_FELT: float = 0.005
 const DISCARD_EDGE_INSET: float = 0.06
 const DISCARD_HIT_RADIUS: float = 0.105
-const DISCARD_DRAG_HIT_MARGIN: float = 0.022
-const DISCARD_TAP_HIT_MARGIN: float = 0.020
-const DISCARD_TAP_SCREEN_MARGIN_PX: float = 28.0
+const DISCARD_DRAG_HIT_MARGIN: float = INTERACTION_TUNING.DISCARD_DRAG_HIT_MARGIN_3D
+const DISCARD_TAP_HIT_MARGIN: float = INTERACTION_TUNING.DISCARD_TAP_HIT_MARGIN_3D
+const DISCARD_TAP_SCREEN_MARGIN_PX: float = INTERACTION_TUNING.DISCARD_TAP_SCREEN_MARGIN_3D_PX
 const DISCARD_GUIDE_RADIUS: float = 0.038
 const DRAW_HIT_RADIUS: float = 0.065
-const DRAW_TAP_HIT_MARGIN: float = 0.020
-const DRAW_TAP_SCREEN_MARGIN_PX: float = 26.0
+const DRAW_TAP_HIT_MARGIN: float = INTERACTION_TUNING.DRAW_TAP_HIT_MARGIN_3D
+const DRAW_TAP_SCREEN_MARGIN_PX: float = INTERACTION_TUNING.DRAW_TAP_SCREEN_MARGIN_3D_PX
 const MELD_LANE_DEPTH: float = 0.090
 const MELD_LANE_LENGTH: float = 0.44
 const MELD_LANE_INSET_FROM_EDGE: float = 0.040
 const LOCAL_MELD_AREA_WIDTH: float = 0.31
 const LOCAL_MELD_AREA_DEPTH: float = 0.125
-const STAGE_GRID_TARGET_ROWS: int = 3
 const INDICATOR_GAP: float = 0.012
 const DECK_TILE_SCALE: float = 1.30
 const INDICATOR_TILE_SCALE: float = 1.32
@@ -155,16 +158,16 @@ const DRAG_PREVIEW_ROTATION_LERP_SPEED: float = 20.0
 const DRAG_PREVIEW_SNAP_DISTANCE: float = 0.055
 
 # Interaction tuning
-const PICK_RADIUS_PX: float = 42.0
+const PICK_RADIUS_PX: float = INTERACTION_TUNING.PICK_RADIUS_3D_PX
 const SHOW_DEBUG_GUIDES: bool = false
-const DRAG_PICK_RADIUS_PX: float = 84.0
-const SLOT_PICK_RADIUS_PX: float = 180.0
+const DRAG_PICK_RADIUS_PX: float = INTERACTION_TUNING.DRAG_PICK_RADIUS_3D_PX
+const SLOT_PICK_RADIUS_PX: float = INTERACTION_TUNING.SLOT_PICK_RADIUS_3D_PX
 const RACK_ROW_STICKY_PICK_RADIUS_PX: float = 4096.0
 const RACK_VISUAL_FOLLOW_RADIUS_PX: float = 64.0
 const RACK_BAND_RELEASE_MARGIN_PX: float = 8.0
 const RACK_BAND_REENTER_MARGIN_PX: float = -6.0
-const MELD_DRAG_LANE_MARGIN: float = 0.040
-const DRAG_START_DISTANCE_PX: float = 2.0
+const MELD_DRAG_LANE_MARGIN: float = INTERACTION_TUNING.DRAFT_LANE_MARGIN_3D
+const DRAG_START_DISTANCE_PX: float = INTERACTION_TUNING.DRAG_START_DISTANCE_3D_PX
 const INTERACT_COLLISION_LAYER: int = 1
 const INTERACT_RAY_LENGTH: float = 5.0
 const RACK_TILE_PICK_SIZE: Vector3 = Vector3(TILE_W * 0.98, TILE_H * 1.00, TILE_D * 3.8)
@@ -237,7 +240,7 @@ var _world_rack_labels: Array[Label3D] = []
 var _deck_pile_container: Node3D = null
 var _indicator_3d: Node3D = null
 var _discard_pile_containers: Array[Node3D] = []
-var _world_stage_container: Node3D = null
+var _world_draft_container: Node3D = null
 var _draw_guide: Node3D = null
 var _discard_guides: Array[Node3D] = []
 var _meld_guides: Array[Node3D] = []
@@ -252,7 +255,7 @@ var _draw_hotspot_center: Vector2 = Vector2.ZERO
 
 # Interaction pick records
 var _local_rack_tile_hits: Array[Dictionary] = []
-var _stage_tile_hits: Array[Dictionary] = []
+var _draft_tile_hits: Array[Dictionary] = []
 var _table_meld_tile_hits: Array[Dictionary] = []
 var _local_rack_slot_hits: Array[Dictionary] = []
 var _table_meld_base_centers: Dictionary = {}
@@ -261,7 +264,7 @@ var _table_meld_drag_offsets: Dictionary = {}
 # Drag state
 var _drag_candidate_tile_id: int = -1
 var _drag_candidate_slot: int = -1
-var _drag_candidate_stage_slot: int = -1
+var _drag_candidate_draft_slot: int = -1
 var _drag_candidate_meld_index: int = -1
 var _drag_candidate_meld_owner: int = -1
 var _drag_press_screen: Vector2 = Vector2.ZERO
@@ -363,7 +366,7 @@ var _tile_tune_watch_elapsed: float = 0.0
 # Sync hashes
 var _last_selected_tile_id: int = -1
 var _last_world_rack_hashes: Array[int] = [-1, -1, -1, -1]
-var _last_world_stage_hash: int = -1
+var _last_world_draft_hash: int = -1
 var _last_world_deck_hash: int = -1
 var _last_world_discard_hashes: Array[int] = [-1, -1, -1, -1]
 var _last_world_label_hash: int = -1
@@ -443,7 +446,7 @@ func _process(delta: float) -> void:
 	_update_feedback_animation_state()
 	_sync_hud_from_table()
 	_sync_world_racks()
-	_sync_world_stage_tiles()
+	_sync_world_draft_tiles()
 	_sync_world_deck()
 	_sync_world_discards()
 	_sync_world_labels()
@@ -1118,7 +1121,7 @@ func _apply_tile_tuning_runtime(rebuild_templates: bool = false) -> void:
 	_force_sync()
 	# Repaint immediately instead of waiting for next process tick.
 	_sync_world_racks()
-	_sync_world_stage_tiles()
+	_sync_world_draft_tiles()
 	_sync_world_deck()
 	_sync_world_discards()
 	_sync_world_labels()
@@ -1244,8 +1247,8 @@ func _dump_tile_tuning_state() -> void:
 				int(state.turn_required_use_tile_id),
 			]
 	print("[TILE-TUNE] debug face_down_map_size=", _local_rack_face_down_by_id.size(), " phase_fp=", phase_fp)
-	print("[TILE-TUNE] debug drag_state tile/slot/stage/meld/owner/active=",
-		_drag_candidate_tile_id, "/", _drag_candidate_slot, "/", _drag_candidate_stage_slot, "/", _drag_candidate_meld_index, "/", _drag_candidate_meld_owner, "/", _drag_active)
+	print("[TILE-TUNE] debug drag_state tile/slot/draft/meld/owner/active=",
+		_drag_candidate_tile_id, "/", _drag_candidate_slot, "/", _drag_candidate_draft_slot, "/", _drag_candidate_meld_index, "/", _drag_candidate_meld_owner, "/", _drag_active)
 	if _table_meld_tile_hits.is_empty():
 		print("[TILE-TUNE] debug meld_hit_sample=none")
 	else:
@@ -1772,7 +1775,7 @@ func _create_world_elements() -> void:
 	_create_deck_and_draw_pick_area()
 	_create_discard_layout(felt_half)
 	_create_meld_lanes_and_guides(felt_half)
-	_create_stage_container()
+	_create_draft_container()
 
 
 func _reset_dynamic_world_state() -> void:
@@ -1793,12 +1796,12 @@ func _reset_dynamic_world_state() -> void:
 	_local_meld_guide = null
 	_opponent_side_rim_lights.clear()
 	_local_rack_tile_hits.clear()
-	_stage_tile_hits.clear()
+	_draft_tile_hits.clear()
 	_table_meld_tile_hits.clear()
 	_table_meld_base_centers.clear()
 	_table_meld_drag_offsets.clear()
 	_last_world_rack_hashes = [-1, -1, -1, -1]
-	_last_world_stage_hash = -1
+	_last_world_draft_hash = -1
 	_last_world_deck_hash = -1
 	_last_world_discard_hashes = [-1, -1, -1, -1]
 	_last_world_label_hash = -1
@@ -1931,7 +1934,7 @@ func _create_meld_lanes_and_guides(felt_half: float) -> void:
 			{"kind": "meld_lane", "player": i}
 		)
 		# Lane rectangles are used via table-local math; keep these non-colliding so they
-		# never steal picks from staged/committed tiles.
+		# Never steal picks from draft/committed tiles.
 		m_pick.collision_layer = 0
 		m_pick.collision_mask = 0
 		_meld_pick_areas.append(m_pick)
@@ -1960,10 +1963,10 @@ func _create_meld_lanes_and_guides(felt_half: float) -> void:
 		_dynamic_root.add_child(_draw_guide)
 
 
-func _create_stage_container() -> void:
-	_world_stage_container = Node3D.new()
-	_world_stage_container.name = "StageTiles"
-	_dynamic_root.add_child(_world_stage_container)
+func _create_draft_container() -> void:
+	_world_draft_container = Node3D.new()
+	_world_draft_container.name = "StageTiles"
+	_dynamic_root.add_child(_world_draft_container)
 
 
 func _create_opponent_side_rim_lights(rack_center: float) -> void:
@@ -2979,7 +2982,7 @@ func _render_local_rack_tiles(rack_slots: Array, by_id: Dictionary) -> void:
 		})
 
 
-func _sync_world_stage_tiles() -> void:
+func _sync_world_draft_tiles() -> void:
 	if _game_table == null or not is_instance_valid(_game_table):
 		return
 	if not _game_table.has_method("get_controller"):
@@ -2988,18 +2991,18 @@ func _sync_world_stage_tiles() -> void:
 	if controller == null or controller.state == null:
 		return
 	var state = controller.state
-	var stage_slots: Array = _game_table.get_stage_slots() if _game_table.has_method("get_stage_slots") else []
-	var stage_hash: int = _compute_slots_hash(stage_slots)
+	var draft_slots: Array = _draft_slots()
+	var draft_hash: int = _compute_slots_hash(draft_slots)
 	var meld_hash: int = _compute_table_melds_hash(state.table_melds)
 	var drag_hidden_tid: int = _drag_candidate_tile_id if _drag_active else -1
-	var sync_hash: int = int((stage_hash * 65537 + meld_hash + (drag_hidden_tid + 1) * 97) % 2147483647)
-	if sync_hash == _last_world_stage_hash:
+	var sync_hash: int = int((draft_hash * 65537 + meld_hash + (drag_hidden_tid + 1) * 97) % 2147483647)
+	if sync_hash == _last_world_draft_hash:
 		return
-	_last_world_stage_hash = sync_hash
+	_last_world_draft_hash = sync_hash
 
-	_stage_tile_hits.clear()
+	_draft_tile_hits.clear()
 	_table_meld_tile_hits.clear()
-	for child in _world_stage_container.get_children():
+	for child in _world_draft_container.get_children():
 		child.queue_free()
 
 	if _table_local_meld_lanes.is_empty():
@@ -3007,7 +3010,7 @@ func _sync_world_stage_tiles() -> void:
 
 	_render_committed_table_melds(state.table_melds, false)
 
-	if stage_slots.is_empty():
+	if draft_slots.is_empty():
 		return
 
 	var hand: Array = _game_table.get_hand_tiles() if _game_table.has_method("get_hand_tiles") else []
@@ -3016,34 +3019,30 @@ func _sync_world_stage_tiles() -> void:
 		by_id[int(t.unique_id)] = t
 
 	var lane: Rect2 = _table_local_meld_lanes[0]
-	var total_slots: int = stage_slots.size()
+	var total_slots: int = draft_slots.size()
 	if total_slots <= 0:
 		return
-	var cols: int = _stage_grid_cols(total_slots)
-	var rows: int = maxi(1, int(ceil(float(total_slots) / float(cols))))
-	var cell_w: float = lane.size.x / float(cols)
-	var cell_h: float = lane.size.y / float(rows)
+	var row_slots: int = _draft_row_slots()
 
 	for i in range(total_slots):
-		var tid: int = int(stage_slots[i])
+		var tid: int = int(draft_slots[i])
 		if tid == -1 or not by_id.has(tid) or (_drag_active and tid == _drag_candidate_tile_id):
 			continue
-		var row: int = int(floor(float(i) / float(maxi(cols, 1))))
-		var col: int = i % cols
-		var x: float = lane.position.x + cell_w * (float(col) + 0.5)
-		var z: float = lane.position.y + cell_h * (float(row) + 0.5)
+		var cell_center: Vector2 = DRAFT_GRID.slot_to_point(i, lane, total_slots, row_slots)
+		var x: float = cell_center.x
+		var z: float = cell_center.y
 		var tile := _create_tile_face_up(by_id[tid], false)
 		tile.position = _table_local_to_world(Vector2(x, z), TILE_D * 0.5 + 0.0007)
 		_create_pick_box(
 			tile,
-			"StageTilePick",
+			"DraftTilePick",
 			STAGE_TILE_PICK_SIZE,
 			Vector3(0.0, 0.0, 0.0),
 			Vector3.ZERO,
-			{"kind": "stage_tile", "slot": i, "tile_id": tid}
+			{"kind": "draft_tile", "slot": i, "tile_id": tid}
 		)
-		_world_stage_container.add_child(tile)
-		_stage_tile_hits.append({
+		_world_draft_container.add_child(tile)
+		_draft_tile_hits.append({
 			"slot": i,
 			"tile_id": tid,
 			"world": tile.global_position + Vector3(0.0, TILE_D * 0.65, 0.0)
@@ -3121,7 +3120,7 @@ func _render_committed_table_melds(table_melds: Array, hide_local_owner: bool) -
 					Vector3.ZERO,
 					{"kind": "table_meld", "meld_index": meld_idx, "owner": owner_idx}
 				)
-				_world_stage_container.add_child(tile)
+				_world_draft_container.add_child(tile)
 				_table_meld_tile_hits.append({
 					"meld_index": meld_idx,
 					"owner": owner_idx,
@@ -3408,7 +3407,7 @@ func _raycast_pick(screen_pos: Vector2) -> Dictionary:
 func _begin_drag_candidate_from_pick(screen_pos: Vector2) -> void:
 	_drag_candidate_tile_id = -1
 	_drag_candidate_slot = -1
-	_drag_candidate_stage_slot = -1
+	_drag_candidate_draft_slot = -1
 	_drag_candidate_meld_index = -1
 	_drag_candidate_meld_owner = -1
 	_drag_rack_row_lock = -1
@@ -3420,9 +3419,9 @@ func _begin_drag_candidate_from_pick(screen_pos: Vector2) -> void:
 	if pick.is_empty():
 		return
 	var kind: String = str(pick.get("kind", ""))
-	if kind == "stage_tile":
+	if kind == "draft_tile" or kind == "stage_tile":
 		_drag_candidate_tile_id = int(pick.get("tile_id", -1))
-		_drag_candidate_stage_slot = int(pick.get("slot", -1))
+		_drag_candidate_draft_slot = int(pick.get("slot", -1))
 		return
 	if kind == "local_tile":
 		_drag_candidate_tile_id = int(pick.get("tile_id", -1))
@@ -3443,11 +3442,11 @@ func _begin_drag_candidate_from_pick(screen_pos: Vector2) -> void:
 			_drag_rack_row_lock = 0 if slot_idx < 15 else 1
 			return
 
-	# Fallback when lane/table colliders win the ray: select nearest stage/meld tile by screen distance.
-	var stage_hit: Dictionary = _pick_nearest_hit(screen_pos, _stage_tile_hits, DRAG_PICK_RADIUS_PX)
-	if not stage_hit.is_empty():
-		_drag_candidate_tile_id = int(stage_hit.get("tile_id", -1))
-		_drag_candidate_stage_slot = int(stage_hit.get("slot", -1))
+	# Fallback when lane/table colliders win the ray: select nearest draft/meld tile by screen distance.
+	var draft_hit: Dictionary = _pick_nearest_hit(screen_pos, _draft_tile_hits, DRAG_PICK_RADIUS_PX)
+	if not draft_hit.is_empty():
+		_drag_candidate_tile_id = int(draft_hit.get("tile_id", -1))
+		_drag_candidate_draft_slot = int(draft_hit.get("slot", -1))
 		return
 	var meld_hit: Dictionary = _pick_nearest_hit(screen_pos, _table_meld_tile_hits, DRAG_PICK_RADIUS_PX)
 	if not meld_hit.is_empty():
@@ -3535,11 +3534,9 @@ func _finish_drag(screen_pos: Vector2) -> void:
 	if not _populate_drop_context_for_active_drag(drop_ctx):
 		_clear_drag_state()
 		return
-	_try_drop_to_stage(drop_ctx)
-	_try_drop_to_committed_meld(drop_ctx)
+	var decision: Dictionary = _resolve_drop_decision(drop_ctx)
+	_apply_drop_decision(drop_ctx, decision)
 	_try_reposition_committed_meld(drop_ctx)
-	_try_drop_to_discard(drop_ctx)
-	_try_drop_to_rack(drop_ctx)
 	_finalize_drop_feedback(drop_ctx)
 
 
@@ -3580,7 +3577,7 @@ func _build_drop_context(screen_pos: Vector2) -> Dictionary:
 		"was_dragging": _drag_active,
 		"tile_id": _drag_candidate_tile_id,
 		"from_slot": from_slot,
-		"from_stage": _drag_candidate_stage_slot,
+		"from_draft": _drag_candidate_draft_slot,
 		"from_meld": int(_drag_candidate_meld_index),
 		"from_meld_owner": int(_drag_candidate_meld_owner),
 		"follow_mode_for_drop": follow_mode_for_drop,
@@ -3598,7 +3595,7 @@ func _build_drop_context(screen_pos: Vector2) -> Dictionary:
 		"pick_kind": "",
 		"pick_player": -1,
 		"target_slot": -1,
-		"stage_target": -1,
+		"draft_target": -1,
 		"handled": false,
 		"success_event": &"",
 		"snap_world": Vector3.ZERO,
@@ -3610,7 +3607,7 @@ func _handle_non_drag_click_fallback(drop_ctx: Dictionary) -> bool:
 		return false
 	var tile_id: int = int(drop_ctx.get("tile_id", -1))
 	var from_slot: int = int(drop_ctx.get("from_slot", -1))
-	var from_stage: int = int(drop_ctx.get("from_stage", -1))
+	var from_draft: int = int(drop_ctx.get("from_draft", -1))
 	var from_meld: int = int(drop_ctx.get("from_meld", -1))
 	var pick: Dictionary = drop_ctx.get("pick", {})
 	var screen_pos: Vector2 = drop_ctx.get("screen_pos", Vector2.ZERO) as Vector2
@@ -3631,8 +3628,8 @@ func _handle_non_drag_click_fallback(drop_ctx: Dictionary) -> bool:
 					_force_sync()
 				else:
 					_trigger_invalid_feedback(_last_selected_tile_id, screen_pos)
-	elif from_stage != -1:
-		_on_stage_tile_clicked({"slot": from_stage, "tile_id": tile_id})
+	elif from_draft != -1:
+		_on_draft_tile_clicked({"slot": from_draft, "tile_id": tile_id})
 		handled = true
 	elif from_slot != -1:
 		_on_local_rack_tile_clicked({"slot": from_slot, "tile_id": tile_id})
@@ -3662,78 +3659,138 @@ func _populate_drop_context_for_active_drag(drop_ctx: Dictionary) -> bool:
 	var pick_kind: String = str(pick.get("kind", ""))
 	var pick_player: int = int(pick.get("player", -1))
 	var target_slot: int = int(pick.get("slot", -1))
-	var stage_target: int = -1
-	if pick_kind == "stage_tile":
-		stage_target = int(pick.get("slot", -1))
-	if table_pick_valid and stage_target == -1:
-		stage_target = _stage_slot_from_table_local(table_pos)
-	var on_local_meld_lane: bool = (pick_kind == "meld_lane" and pick_player == 0) \
-		or (table_pick_valid and _is_in_meld_lane_expanded(table_pos, 0, MELD_DRAG_LANE_MARGIN))
-	if stage_target == -1 and on_local_meld_lane and phase == GameState.Phase.TURN_PLAY and _game_table.has_method("get_stage_slots"):
-		stage_target = _first_empty(_game_table.get_stage_slots())
+	var draft_target: int = -1
+	if pick_kind == "draft_tile" or pick_kind == "stage_tile":
+		draft_target = int(pick.get("slot", -1))
+	if table_pick_valid and draft_target == -1:
+		draft_target = _draft_slot_from_table_local(table_pos)
 	drop_ctx["phase"] = phase
 	drop_ctx["pick_kind"] = pick_kind
 	drop_ctx["pick_player"] = pick_player
 	drop_ctx["target_slot"] = target_slot
-	drop_ctx["stage_target"] = stage_target
+	drop_ctx["draft_target"] = draft_target
 	return true
 
-
-func _try_drop_to_stage(drop_ctx: Dictionary) -> void:
-	if bool(drop_ctx.get("handled", false)):
-		return
+func _resolve_drop_decision(drop_ctx: Dictionary) -> Dictionary:
 	var phase: int = int(drop_ctx.get("phase", -1))
-	var stage_target: int = int(drop_ctx.get("stage_target", -1))
-	var pick_kind: String = str(drop_ctx.get("pick_kind", ""))
-	if phase != GameState.Phase.TURN_PLAY or stage_target == -1 or pick_kind == "table_meld":
-		return
-	var from_slot: int = int(drop_ctx.get("from_slot", -1))
-	var from_stage: int = int(drop_ctx.get("from_stage", -1))
-	if from_stage != -1 and bool(drop_ctx.get("rack_drop_intent", false)):
-		return
-	var table_pos: Vector2 = drop_ctx.get("table_pos", Vector2.ZERO) as Vector2
-	if from_slot != -1:
-		var move_to_stage_res: Dictionary = _game_table.overlay_move_rack_to_stage(from_slot, stage_target)
-		var handled: bool = bool(move_to_stage_res.get("ok", false))
-		if not handled and _game_table.has_method("get_stage_slots"):
-			var fallback_stage: int = _first_empty(_game_table.get_stage_slots())
-			if fallback_stage != -1 and fallback_stage != stage_target:
-				move_to_stage_res = _game_table.overlay_move_rack_to_stage(from_slot, fallback_stage)
-				handled = bool(move_to_stage_res.get("ok", false))
-		if handled:
-			drop_ctx["handled"] = true
-			drop_ctx["success_event"] = SFX_STAGE_MOVE
-			drop_ctx["snap_world"] = _table_local_to_world(table_pos, TILE_D * 0.9 + 0.006)
-	elif from_stage != -1 and from_stage != stage_target and _game_table.has_method("overlay_move_stage_slot"):
-		var move_stage_res: Dictionary = _game_table.overlay_move_stage_slot(from_stage, stage_target)
-		if bool(move_stage_res.get("ok", false)):
-			drop_ctx["handled"] = true
-			drop_ctx["success_event"] = SFX_STAGE_MOVE
-			drop_ctx["snap_world"] = _table_local_to_world(table_pos, TILE_D * 0.9 + 0.006)
-
-
-func _try_drop_to_committed_meld(drop_ctx: Dictionary) -> void:
-	if bool(drop_ctx.get("handled", false)):
-		return
-	var tile_id: int = int(drop_ctx.get("tile_id", -1))
-	var phase: int = int(drop_ctx.get("phase", -1))
-	var pick_kind: String = str(drop_ctx.get("pick_kind", ""))
-	if tile_id == -1 or phase != GameState.Phase.TURN_PLAY or pick_kind != "table_meld":
-		return
-	if not _game_table.has_method("overlay_add_to_meld"):
-		return
 	var pick: Dictionary = drop_ctx.get("pick", {})
-	var meld_index: int = int(pick.get("meld_index", -1))
-	if meld_index == -1:
+	var pick_kind: String = str(drop_ctx.get("pick_kind", ""))
+	var from_slot: int = int(drop_ctx.get("from_slot", -1))
+	var from_draft: int = int(drop_ctx.get("from_draft", -1))
+	var table_pick_valid: bool = bool(drop_ctx.get("table_pick_valid", false))
+	var follow_mode_for_drop: int = int(drop_ctx.get("follow_mode_for_drop", DRAG_FOLLOW_MODE_NONE))
+	var rack_drop_intent: bool = bool(drop_ctx.get("rack_drop_intent", false))
+	var rack_pick_intent: bool = rack_drop_intent
+	if from_slot != -1 and (follow_mode_for_drop == DRAG_FOLLOW_MODE_TABLE or table_pick_valid):
+		rack_pick_intent = false
+	if from_draft != -1 and rack_drop_intent:
+		rack_pick_intent = true
+	var rack_target_slot: int = _resolve_rack_target_slot_for_drop(drop_ctx, rack_pick_intent)
+	var draft_target_slot: int = int(drop_ctx.get("draft_target", -1))
+	var committed_meld_index: int = int(pick.get("meld_index", -1)) if pick_kind == "table_meld" else -1
+	return INTERACTION_RESOLVER.resolve_drop({
+		"is_my_turn": true,
+		"phase": phase,
+		"tile_id": int(drop_ctx.get("tile_id", -1)),
+		"from_rack_slot": from_slot,
+		"from_draft_slot": from_draft,
+		"discard_intent": _is_local_discard_drop_intent(drop_ctx),
+		"committed_meld_hit": pick_kind == "table_meld",
+		"committed_meld_index": committed_meld_index,
+		"draft_lane_intent": draft_target_slot != -1 and pick_kind != "table_meld",
+		"draft_target_slot": draft_target_slot,
+		"rack_intent": rack_pick_intent,
+		"rack_target_slot": rack_target_slot,
+		"allow_rack_reorder": _can_reorder_in_phase(phase),
+		"allow_end_play_then_discard": true,
+	})
+
+func _resolve_rack_target_slot_for_drop(drop_ctx: Dictionary, rack_pick_intent: bool) -> int:
+	var target_slot: int = -1
+	var screen_pos: Vector2 = drop_ctx.get("screen_pos", Vector2.ZERO) as Vector2
+	var rack_direct_slot: int = int(drop_ctx.get("rack_direct_slot", -1))
+	var rack_nearest_slot: int = int(drop_ctx.get("rack_nearest_slot", -1))
+	if target_slot == -1:
+		target_slot = rack_direct_slot
+	if target_slot == -1 and _drag_rack_row_lock != -1:
+		target_slot = _pick_nearest_rack_slot_in_row(screen_pos, _drag_rack_row_lock, SLOT_PICK_RADIUS_PX * 1.40)
+	if target_slot == -1:
+		target_slot = rack_nearest_slot
+	if target_slot == -1 and rack_pick_intent:
+		target_slot = _pick_nearest_rack_slot(screen_pos, SLOT_PICK_RADIUS_PX * 1.20)
+	return target_slot
+
+func _apply_drop_decision(drop_ctx: Dictionary, decision: Dictionary) -> void:
+	if bool(drop_ctx.get("handled", false)):
 		return
-	var add_res: Dictionary = _game_table.overlay_add_to_meld([tile_id], meld_index)
-	if bool(add_res.get("ok", false)):
-		drop_ctx["handled"] = true
-		drop_ctx["success_event"] = SFX_ADD_TO_MELD
-		drop_ctx["snap_world"] = (pick.get("world_pos", Vector3.ZERO) as Vector3) + Vector3(0.0, TILE_D * 1.2, 0.0)
-	else:
-		var screen_pos: Vector2 = drop_ctx.get("screen_pos", Vector2.ZERO) as Vector2
-		_trigger_invalid_feedback(tile_id, screen_pos)
+	var kind: StringName = decision.get("kind", &"") as StringName
+	var tile_id: int = int(drop_ctx.get("tile_id", -1))
+	var pick: Dictionary = drop_ctx.get("pick", {})
+	var table_pos: Vector2 = drop_ctx.get("table_pos", Vector2.ZERO) as Vector2
+	match kind:
+		INTERACTION_RESOLVER.DECISION_MOVE_RACK_TO_DRAFT:
+			var move_to_draft_res: Dictionary = _overlay_move_rack_to_draft(
+				int(decision.get("from_slot", -1)),
+				int(decision.get("to_draft_slot", -1))
+			)
+			if bool(move_to_draft_res.get("ok", false)):
+				drop_ctx["handled"] = true
+				drop_ctx["success_event"] = SFX_DRAFT_MOVE
+				drop_ctx["snap_world"] = _table_local_to_world(table_pos, TILE_D * 0.9 + 0.006)
+		INTERACTION_RESOLVER.DECISION_MOVE_DRAFT_SLOT:
+			var move_draft_res: Dictionary = _overlay_move_draft_slot(
+				int(decision.get("from_draft_slot", -1)),
+				int(decision.get("to_draft_slot", -1))
+			)
+			if bool(move_draft_res.get("ok", false)):
+				drop_ctx["handled"] = true
+				drop_ctx["success_event"] = SFX_DRAFT_MOVE
+				drop_ctx["snap_world"] = _table_local_to_world(table_pos, TILE_D * 0.9 + 0.006)
+		INTERACTION_RESOLVER.DECISION_ADD_TO_COMMITTED_MELD:
+			if not _game_table.has_method("overlay_add_to_meld"):
+				return
+			var meld_index: int = int(decision.get("meld_index", -1))
+			if meld_index == -1:
+				return
+			var add_res: Dictionary = _game_table.overlay_add_to_meld([tile_id], meld_index)
+			if bool(add_res.get("ok", false)):
+				drop_ctx["handled"] = true
+				drop_ctx["success_event"] = SFX_ADD_TO_MELD
+				drop_ctx["snap_world"] = (pick.get("world_pos", Vector3.ZERO) as Vector3) + Vector3(0.0, TILE_D * 1.2, 0.0)
+		INTERACTION_RESOLVER.DECISION_DISCARD:
+			var discard_res: Dictionary = _game_table.overlay_discard_tile(tile_id)
+			if bool(discard_res.get("ok", false)):
+				drop_ctx["handled"] = true
+				drop_ctx["success_event"] = SFX_DISCARD
+				drop_ctx["snap_world"] = _table_local_to_world(_table_local_discard_points[0], TILE_D * 0.9 + 0.005)
+		INTERACTION_RESOLVER.DECISION_END_PLAY_THEN_DISCARD:
+			var end_discard_res: Dictionary = _game_table.overlay_end_play_then_discard(tile_id)
+			if bool(end_discard_res.get("ok", false)):
+				drop_ctx["handled"] = true
+				drop_ctx["success_event"] = SFX_DISCARD
+				drop_ctx["snap_world"] = _table_local_to_world(_table_local_discard_points[0], TILE_D * 0.9 + 0.005)
+		INTERACTION_RESOLVER.DECISION_MOVE_RACK_SLOT:
+			var move_rack_res: Dictionary = _game_table.overlay_move_slot(
+				int(decision.get("from_slot", -1)),
+				int(decision.get("to_slot", -1))
+			)
+			if bool(move_rack_res.get("ok", false)):
+				var to_slot: int = int(decision.get("to_slot", -1))
+				drop_ctx["handled"] = true
+				drop_ctx["success_event"] = SFX_RACK_MOVE
+				drop_ctx["snap_world"] = _rack_slot_world_snap(to_slot, TILE_D * 0.8)
+		INTERACTION_RESOLVER.DECISION_MOVE_DRAFT_TO_RACK:
+			var move_to_rack_res: Dictionary = _overlay_move_draft_to_rack(
+				int(decision.get("from_draft_slot", -1)),
+				int(decision.get("to_slot", -1))
+			)
+			if bool(move_to_rack_res.get("ok", false)):
+				var to_slot2: int = int(decision.get("to_slot", -1))
+				drop_ctx["handled"] = true
+				drop_ctx["success_event"] = SFX_RACK_MOVE
+				drop_ctx["snap_world"] = _rack_slot_world_snap(to_slot2, TILE_D * 0.8)
+		_:
+			pass
 
 
 func _try_reposition_committed_meld(drop_ctx: Dictionary) -> void:
@@ -3756,9 +3813,9 @@ func _try_reposition_committed_meld(drop_ctx: Dictionary) -> void:
 	)
 	var base_center: Vector2 = _table_meld_base_centers.get(from_meld, clamped_pos) as Vector2
 	_table_meld_drag_offsets[from_meld] = clamped_pos - base_center
-	_last_world_stage_hash = -1
+	_last_world_draft_hash = -1
 	drop_ctx["handled"] = true
-	drop_ctx["success_event"] = SFX_STAGE_MOVE
+	drop_ctx["success_event"] = SFX_DRAFT_MOVE
 	drop_ctx["snap_world"] = _table_local_to_world(clamped_pos, TILE_D * 0.9 + 0.006)
 
 
@@ -3776,77 +3833,6 @@ func _is_local_discard_drop_intent(drop_ctx: Dictionary, margin: float = DISCARD
 	var table_pos_clamped: Vector2 = drop_ctx.get("table_pos_clamped", INVALID_TABLE_POS) as Vector2
 	return _is_in_discard_hotspot_expanded(table_pos_raw, 0, margin) \
 		or _is_in_discard_hotspot_expanded(table_pos_clamped, 0, margin)
-
-
-func _try_drop_to_discard(drop_ctx: Dictionary) -> void:
-	if bool(drop_ctx.get("handled", false)):
-		return
-	var from_slot: int = int(drop_ctx.get("from_slot", -1))
-	if from_slot == -1:
-		return
-	var phase: int = int(drop_ctx.get("phase", -1))
-	var tile_id: int = int(drop_ctx.get("tile_id", -1))
-	if not _is_local_discard_drop_intent(drop_ctx):
-		return
-	if phase == GameState.Phase.STARTER_DISCARD or phase == GameState.Phase.TURN_DISCARD:
-		var discard_res: Dictionary = _game_table.overlay_discard_tile(tile_id)
-		if bool(discard_res.get("ok", false)):
-			drop_ctx["handled"] = true
-			drop_ctx["success_event"] = SFX_DISCARD
-			drop_ctx["snap_world"] = _table_local_to_world(_table_local_discard_points[0], TILE_D * 0.9 + 0.005)
-		else:
-			var screen_pos: Vector2 = drop_ctx.get("screen_pos", Vector2.ZERO) as Vector2
-			_trigger_invalid_feedback(tile_id, screen_pos)
-	elif phase == GameState.Phase.TURN_PLAY:
-		var end_discard_res: Dictionary = _game_table.overlay_end_play_then_discard(tile_id)
-		if bool(end_discard_res.get("ok", false)):
-			drop_ctx["handled"] = true
-			drop_ctx["success_event"] = SFX_DISCARD
-			drop_ctx["snap_world"] = _table_local_to_world(_table_local_discard_points[0], TILE_D * 0.9 + 0.005)
-		else:
-			var screen_pos_end: Vector2 = drop_ctx.get("screen_pos", Vector2.ZERO) as Vector2
-			_trigger_invalid_feedback(tile_id, screen_pos_end)
-
-
-func _try_drop_to_rack(drop_ctx: Dictionary) -> void:
-	var handled: bool = bool(drop_ctx.get("handled", false))
-	var from_slot: int = int(drop_ctx.get("from_slot", -1))
-	var from_stage: int = int(drop_ctx.get("from_stage", -1))
-	var follow_mode_for_drop: int = int(drop_ctx.get("follow_mode_for_drop", DRAG_FOLLOW_MODE_NONE))
-	var table_pick_valid: bool = bool(drop_ctx.get("table_pick_valid", false))
-	var target_slot: int = -1
-	var screen_pos: Vector2 = drop_ctx.get("screen_pos", Vector2.ZERO) as Vector2
-	var rack_direct_slot: int = int(drop_ctx.get("rack_direct_slot", -1))
-	var rack_nearest_slot: int = int(drop_ctx.get("rack_nearest_slot", -1))
-	var rack_drop_intent: bool = bool(drop_ctx.get("rack_drop_intent", false))
-	var rack_pick_intent: bool = rack_drop_intent
-	if from_slot != -1 and (follow_mode_for_drop == DRAG_FOLLOW_MODE_TABLE or table_pick_valid):
-		rack_pick_intent = false
-	if from_stage != -1 and rack_drop_intent:
-		rack_pick_intent = true
-	if target_slot == -1:
-		target_slot = rack_direct_slot
-	if target_slot == -1 and _drag_rack_row_lock != -1:
-		target_slot = _pick_nearest_rack_slot_in_row(screen_pos, _drag_rack_row_lock, SLOT_PICK_RADIUS_PX * 1.40)
-	if target_slot == -1:
-		target_slot = rack_nearest_slot
-	if target_slot == -1 and rack_pick_intent:
-		target_slot = _pick_nearest_rack_slot(screen_pos, SLOT_PICK_RADIUS_PX * 1.20)
-	drop_ctx["target_slot"] = target_slot
-	if handled or target_slot == -1 or not rack_pick_intent:
-		return
-	if from_slot != -1 and target_slot != from_slot:
-		var move_rack_res: Dictionary = _game_table.overlay_move_slot(from_slot, target_slot)
-		if bool(move_rack_res.get("ok", false)):
-			drop_ctx["handled"] = true
-			drop_ctx["success_event"] = SFX_RACK_MOVE
-			drop_ctx["snap_world"] = _rack_slot_world_snap(target_slot, TILE_D * 0.8)
-	elif from_stage != -1:
-		var move_to_rack_res: Dictionary = _game_table.overlay_move_stage_to_rack(from_stage, target_slot)
-		if bool(move_to_rack_res.get("ok", false)):
-			drop_ctx["handled"] = true
-			drop_ctx["success_event"] = SFX_RACK_MOVE
-			drop_ctx["snap_world"] = _rack_slot_world_snap(target_slot, TILE_D * 0.8)
 
 
 func _finalize_drop_feedback(drop_ctx: Dictionary) -> void:
@@ -3869,7 +3855,7 @@ func _finalize_drop_feedback(drop_ctx: Dictionary) -> void:
 func _clear_drag_state() -> void:
 	_drag_candidate_tile_id = -1
 	_drag_candidate_slot = -1
-	_drag_candidate_stage_slot = -1
+	_drag_candidate_draft_slot = -1
 	_drag_candidate_meld_index = -1
 	_drag_candidate_meld_owner = -1
 	_drag_rack_row_lock = -1
@@ -4332,45 +4318,26 @@ func _on_local_rack_tile_clicked(hit: Dictionary) -> void:
 	if state.current_player_index != 0:
 		return
 
-	if _last_selected_tile_id != -1 and _can_reorder_in_phase(state.phase):
-		var from_slot: int = _find_in_slots(_game_table.get_rack_slots(), _last_selected_tile_id)
-		if from_slot != -1 and from_slot != slot:
-			_game_table.overlay_move_slot(from_slot, slot)
-			_last_selected_tile_id = tid
-			_play_sfx(SFX_RACK_MOVE)
-			var snap_world: Vector3 = _rack_slot_world_snap(slot, TILE_D * 0.8)
-			if snap_world != Vector3.ZERO:
-				_trigger_snap_feedback(tid, snap_world)
-			_force_sync()
-			return
-
 	_last_selected_tile_id = tid
 	_last_world_rack_hashes[0] = -1
 
 
-func _on_stage_tile_clicked(hit: Dictionary) -> void:
+func _on_draft_tile_clicked(hit: Dictionary) -> void:
 	if _game_table == null or not is_instance_valid(_game_table):
 		return
 	if _game_table.has_method("is_action_in_flight") and _game_table.is_action_in_flight():
 		return
-	var from_stage: int = int(hit.get("slot", -1))
-	if from_stage == -1:
+	var tile_id: int = int(hit.get("tile_id", -1))
+	if tile_id == -1:
 		return
 	var controller = _game_table.get_controller()
 	if controller == null or controller.state == null:
 		return
 	var state = controller.state
-	if state.current_player_index != 0 or state.phase != GameState.Phase.TURN_PLAY:
+	if state.current_player_index != 0:
 		return
-	var to_rack: int = _first_empty(_game_table.get_rack_slots())
-	if to_rack == -1:
-		return
-	_game_table.overlay_move_stage_to_rack(from_stage, to_rack)
-	_play_sfx(SFX_RACK_MOVE)
-	var snap_world: Vector3 = _rack_slot_world_snap(to_rack, TILE_D * 0.8)
-	if snap_world != Vector3.ZERO:
-		_trigger_snap_feedback(int(hit.get("tile_id", -1)), snap_world)
-	_force_sync()
+	_last_selected_tile_id = tile_id
+	_last_world_rack_hashes[0] = -1
 
 
 func _is_turn_draw_tap_zone(screen_pos: Vector2, table_pos: Vector2) -> bool:
@@ -4411,14 +4378,13 @@ func _handle_world_tap(pick: Dictionary, table_pos: Vector2, screen_pos: Vector2
 		return
 	if pick_kind == "local_slot":
 		return
-	if pick_kind == "stage_tile":
-		_on_stage_tile_clicked(pick)
+	if pick_kind == "draft_tile" or pick_kind == "stage_tile":
+		_on_draft_tile_clicked(pick)
 		return
 	if _handle_turn_draw_tap(pick, table_pos, screen_pos, state):
 		return
 	if _handle_turn_play_tap_with_selected_tile(pick, table_pos, phase):
 		return
-	_handle_discard_tap_with_selected_tile(pick, table_pos, phase)
 
 
 func _handle_turn_draw_tap(pick: Dictionary, table_pos: Vector2, screen_pos: Vector2, state) -> bool:
@@ -4480,7 +4446,6 @@ func _handle_turn_play_tap_with_selected_tile(pick: Dictionary, table_pos: Vecto
 	if phase != GameState.Phase.TURN_PLAY or _last_selected_tile_id == -1:
 		return false
 	var pick_kind: String = str(pick.get("kind", ""))
-	var pick_player: int = int(pick.get("player", -1))
 	if pick_kind == "table_meld" and _game_table.has_method("overlay_add_to_meld"):
 		var meld_index: int = int(pick.get("meld_index", -1))
 		if meld_index != -1:
@@ -4494,47 +4459,11 @@ func _handle_turn_play_tap_with_selected_tile(pick: Dictionary, table_pos: Vecto
 			else:
 				_trigger_invalid_feedback(_last_selected_tile_id, get_viewport().get_mouse_position())
 			return true
-	if (pick_kind == "meld_lane" and pick_player == 0) or _is_in_meld_lane(table_pos, 0):
-		var from_rack: int = _find_in_slots(_game_table.get_rack_slots(), _last_selected_tile_id)
-		var to_stage: int = _stage_slot_from_table_local(table_pos)
-		if to_stage == -1:
-			to_stage = _first_empty(_game_table.get_stage_slots())
-		if from_rack != -1 and to_stage != -1:
-			_game_table.overlay_move_rack_to_stage(from_rack, to_stage)
-			_play_sfx(SFX_STAGE_MOVE)
-			_trigger_snap_feedback(_last_selected_tile_id, _table_local_to_world(table_pos, TILE_D * 1.0 + 0.006))
-			_force_sync()
-		return true
 	return false
 
 
-func _handle_discard_tap_with_selected_tile(pick: Dictionary, table_pos: Vector2, phase: int) -> bool:
-	if _last_selected_tile_id == -1:
-		return false
-	var pick_kind: String = str(pick.get("kind", ""))
-	var pick_player: int = int(pick.get("player", -1))
-	if not ((pick_kind == "discard_zone" and pick_player == 0) or _is_in_discard_hotspot(table_pos, 0)):
-		return false
-	if phase == GameState.Phase.STARTER_DISCARD or phase == GameState.Phase.TURN_DISCARD:
-		var discard_res: Dictionary = _game_table.overlay_discard_tile(_last_selected_tile_id)
-		if bool(discard_res.get("ok", false)):
-			_play_sfx(SFX_DISCARD)
-			_trigger_snap_feedback(_last_selected_tile_id, _table_local_to_world(_table_local_discard_points[0], TILE_D * 1.0 + 0.006))
-			_last_selected_tile_id = -1
-			_force_sync()
-		else:
-			_trigger_invalid_feedback(_last_selected_tile_id, get_viewport().get_mouse_position())
-		return true
-	if phase == GameState.Phase.TURN_PLAY:
-		var end_discard_res: Dictionary = _game_table.overlay_end_play_then_discard(_last_selected_tile_id)
-		if bool(end_discard_res.get("ok", false)):
-			_play_sfx(SFX_DISCARD)
-			_trigger_snap_feedback(_last_selected_tile_id, _table_local_to_world(_table_local_discard_points[0], TILE_D * 1.0 + 0.006))
-			_last_selected_tile_id = -1
-			_force_sync()
-		else:
-			_trigger_invalid_feedback(_last_selected_tile_id, get_viewport().get_mouse_position())
-	return true
+func _handle_discard_tap_with_selected_tile(_pick: Dictionary, _table_pos: Vector2, _phase: int) -> bool:
+	return false
 
 func _is_valid_table_local_pos(table_pos: Vector2) -> bool:
 	return table_pos.x > INVALID_TABLE_POS.x * 0.5
@@ -4601,40 +4530,61 @@ func _is_in_meld_lane_expanded(table_pos: Vector2, player_index: int, margin: fl
 	return _table_local_meld_lanes[player_index].grow(maxf(0.0, margin)).has_point(table_pos)
 
 
-func _stage_slot_from_table_local(table_pos: Vector2) -> int:
+func _draft_slot_from_table_local(table_pos: Vector2) -> int:
 	if _table_local_meld_lanes.is_empty():
 		return -1
-	var slot_count: int = _stage_slot_count()
+	var slot_count: int = _draft_slot_count()
 	if slot_count <= 0:
 		return -1
 	var lane: Rect2 = _table_local_meld_lanes[0]
-	if not lane.grow(MELD_DRAG_LANE_MARGIN).has_point(table_pos):
-		return -1
-	var cols: int = _stage_grid_cols(slot_count)
-	var rows: int = maxi(1, int(ceil(float(slot_count) / float(cols))))
-	if cols <= 0 or rows <= 0:
-		return -1
-	var rel_x: float = (table_pos.x - lane.position.x) / maxf(0.0001, lane.size.x)
-	var rel_y: float = (table_pos.y - lane.position.y) / maxf(0.0001, lane.size.y)
-	var col: int = clampi(int(floor(clampf(rel_x, 0.0, 0.9999) * float(cols))), 0, cols - 1)
-	var row: int = clampi(int(floor(clampf(rel_y, 0.0, 0.9999) * float(rows))), 0, rows - 1)
-	var idx: int = row * cols + col
-	if idx >= slot_count:
-		idx = slot_count - 1
-	return idx
+	return DRAFT_GRID.point_to_slot(table_pos, lane, slot_count, _draft_row_slots(), MELD_DRAG_LANE_MARGIN)
 
+func _draft_slots() -> Array:
+	if _game_table == null or not is_instance_valid(_game_table):
+		return []
+	if _game_table.has_method("get_draft_slots"):
+		return _game_table.get_draft_slots()
+	if _game_table.has_method("get_stage_slots"):
+		return _game_table.get_stage_slots()
+	return []
 
-func _stage_slot_count() -> int:
-	if _game_table != null and is_instance_valid(_game_table) and _game_table.has_method("get_stage_slots"):
-		var slots: Array = _game_table.get_stage_slots()
-		return slots.size()
-	return 24
+func _draft_slot_count() -> int:
+	var slots: Array = _draft_slots()
+	if slots.is_empty():
+		return 24
+	return slots.size()
 
+func _draft_row_slots() -> int:
+	if _game_table != null and is_instance_valid(_game_table) and _game_table.has_method("get_draft_row_slots"):
+		return int(_game_table.get_draft_row_slots())
+	return 12
 
-func _stage_grid_cols(slot_count: int) -> int:
-	var safe_count: int = maxi(1, slot_count)
-	var rows: int = maxi(1, STAGE_GRID_TARGET_ROWS)
-	return maxi(1, int(ceil(float(safe_count) / float(rows))))
+func _overlay_move_rack_to_draft(from_slot: int, to_draft_slot: int) -> Dictionary:
+	if _game_table == null or not is_instance_valid(_game_table):
+		return {"ok": false, "reason": "no_table"}
+	if _game_table.has_method("overlay_move_rack_to_draft"):
+		return _game_table.overlay_move_rack_to_draft(from_slot, to_draft_slot)
+	if _game_table.has_method("overlay_move_rack_to_stage"):
+		return _game_table.overlay_move_rack_to_stage(from_slot, to_draft_slot)
+	return {"ok": false, "reason": "missing_api"}
+
+func _overlay_move_draft_to_rack(from_draft_slot: int, to_rack_slot: int) -> Dictionary:
+	if _game_table == null or not is_instance_valid(_game_table):
+		return {"ok": false, "reason": "no_table"}
+	if _game_table.has_method("overlay_move_draft_to_rack"):
+		return _game_table.overlay_move_draft_to_rack(from_draft_slot, to_rack_slot)
+	if _game_table.has_method("overlay_move_stage_to_rack"):
+		return _game_table.overlay_move_stage_to_rack(from_draft_slot, to_rack_slot)
+	return {"ok": false, "reason": "missing_api"}
+
+func _overlay_move_draft_slot(from_draft_slot: int, to_draft_slot: int) -> Dictionary:
+	if _game_table == null or not is_instance_valid(_game_table):
+		return {"ok": false, "reason": "no_table"}
+	if _game_table.has_method("overlay_move_draft_slot"):
+		return _game_table.overlay_move_draft_slot(from_draft_slot, to_draft_slot)
+	if _game_table.has_method("overlay_move_stage_slot"):
+		return _game_table.overlay_move_stage_slot(from_draft_slot, to_draft_slot)
+	return {"ok": false, "reason": "missing_api"}
 
 
 func _can_reorder_in_phase(phase: int) -> bool:
@@ -4667,7 +4617,7 @@ func _first_empty(slots: Array) -> int:
 
 func _force_sync() -> void:
 	_last_world_rack_hashes = [-1, -1, -1, -1]
-	_last_world_stage_hash = -1
+	_last_world_draft_hash = -1
 	_last_world_deck_hash = -1
 	_last_world_discard_hashes = [-1, -1, -1, -1]
 	_last_world_label_hash = -1
@@ -5175,3 +5125,5 @@ func _resize_subviewport() -> void:
 	var width: int = maxi(1280, int(round(visible.x)))
 	var height: int = maxi(720, int(round(visible.y)))
 	_game_viewport.size = Vector2i(width, height)
+
+

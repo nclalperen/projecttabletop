@@ -1,6 +1,6 @@
 # Chat Handoff - SeOkey 11 Project Snapshot
 
-Last updated: 2026-02-09
+Last updated: 2026-02-24
 Branch: master
 Base commit seen: 90f0108
 
@@ -55,7 +55,8 @@ Current UI is functional at baseline drag/drop level, but still not at the inten
 - Table backdrop/polygon shaping exists.
 - Corner discard slots exist and are interactive.
 - Rack uses fixed slot rows (no auto-sort expected by user).
-- Staging pipeline still exists in code (stage rows + stage slot logic), even after attempts to move toward direct-to-felt interaction.
+- Draft Grid is now canonical for temporary felt placement (stage names remain compatibility wrappers).
+- 2D and 3D drop intent resolution is unified through `InteractionResolver`.
 
 ## 3) Known unresolved issues from recent session
 
@@ -63,9 +64,9 @@ Current UI is functional at baseline drag/drop level, but still not at the inten
 - Current board still does not match the requested "35-degree seated POV" aesthetic.
 - Proportions and composition are still perceived as off.
 
-2. Interaction model still mixed:
-- User requested "no staging panels / direct to table feel" at points.
-- Code still contains staging-first logic in several paths (`_stage_slots`, `_build_melds_from_stage_slots`, etc.).
+2. Interaction model migration:
+- Draft-first naming is active in interaction APIs (`get_draft_slots`, `overlay_move_*_draft`).
+- Stage-named methods are still callable wrappers during stabilization.
 
 3. Layout drift during iterations:
 - Multiple geometry passes happened quickly; some runs appeared to regress.
@@ -134,10 +135,10 @@ Use this exact order to avoid further UI loops:
   - player nameplates.
 - Do not change gameplay code in this step.
 
-3. Remove mixed interaction paths
-- Choose one interaction model and delete dead branches.
-- If staging is removed, remove all stage-slot paths fully (not partially).
-- If staging remains, make it explicit and minimal.
+3. Keep a single interaction contract
+- Preserve resolver precedence and draft-lane targeting rules.
+- Avoid reintroducing implicit fallback placement paths.
+- Remove compatibility wrappers only after downstream callers are migrated.
 
 4. Reintroduce meld rendering in owner zones only
 - Separate per-player opened meld rows from neutral felt center.
@@ -152,8 +153,13 @@ Use this exact order to avoid further UI loops:
   - `./tools/godot.cmd --headless --path . --quit`
 - Full tests:
   - `./tools/godot.cmd --headless --path . -s res://tests/run_tests.gd`
+- Interaction probes:
+  - `./tools/godot.cmd --headless --path . -s res://tests/probe_gametable3d_interaction_matrix.gd`
+  - `./tools/godot.cmd --headless --path . -s res://tests/probe_gametable2d_interaction_matrix.gd`
+- Probe note:
+  - 3D probe may print renderer RID/resource warnings on shutdown in headless Forward+ mode; rely on scenario summary and process exit code.
 - Search UI hotspots:
-  - `rg -n "stage|meld|discard|PERSPECTIVE|_layout_table" ui/GameTable.gd`
+  - `rg -n "draft|stage|meld|discard|PERSPECTIVE|_layout_table" ui/GameTable.gd`
 
 ## 7) Explicit context to carry into new chat
 

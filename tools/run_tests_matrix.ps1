@@ -1,6 +1,7 @@
 param(
     [string]$GodotExe = "C:\Users\Alperen\Desktop\godot_notnet\Godot_v4.6-stable_win64.exe",
-    [string]$ProjectPath = "."
+    [string]$ProjectPath = ".",
+    [bool]$IncludeInteractionProbes = $true
 )
 
 $ErrorActionPreference = "Stop"
@@ -85,6 +86,25 @@ func _init() -> void:
     }
 }
 
+function Invoke-Probe {
+    param(
+        [string]$ProbePath,
+        [string]$ExePath,
+        [string]$RepoPath
+    )
+
+    $args = @("--headless", "--path", $RepoPath, "-s", $ProbePath)
+    $proc = Start-Process -FilePath $ExePath -ArgumentList $args -Wait -NoNewWindow -PassThru
+    $status = "FAIL"
+    if ($proc.ExitCode -eq 0) {
+        $status = "PASS"
+    }
+    return [PSCustomObject]@{
+        Test = $ProbePath
+        Status = $status
+    }
+}
+
 $repo = (Resolve-Path $ProjectPath).Path
 $runTests = Join-Path $repo "tests/run_tests.gd"
 
@@ -103,6 +123,16 @@ if ($tests.Count -eq 0) {
 $results = @()
 foreach ($test in $tests) {
     $results += Invoke-OneTest -TestPath $test -ExePath $GodotExe -RepoPath $repo
+}
+
+if ($IncludeInteractionProbes) {
+    $probeScripts = @(
+        "res://tests/probe_gametable3d_interaction_matrix.gd",
+        "res://tests/probe_gametable2d_interaction_matrix.gd"
+    )
+    foreach ($probe in $probeScripts) {
+        $results += Invoke-Probe -ProbePath $probe -ExePath $GodotExe -RepoPath $repo
+    }
 }
 
 $failures = $results | Where-Object { $_.Status -ne "PASS" }

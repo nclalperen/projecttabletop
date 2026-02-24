@@ -6,6 +6,12 @@ const REQUIRED_WINDOWS_EDITOR_KEYS := [
 	"windows.debug.editor.x86_64",
 	"windows.release.editor.x86_64",
 ]
+const REQUIRED_ANDROID_RUNTIME_KEYS := [
+	"android.debug.arm64",
+	"android.release.arm64",
+	"android.debug.x86_64",
+	"android.release.x86_64",
+]
 
 
 func run() -> bool:
@@ -32,6 +38,24 @@ func run() -> bool:
 		if not FileAccess.file_exists(full_path):
 			push_error("EOS mapped library does not exist: %s -> %s" % [key, full_path])
 			return false
+	for key in REQUIRED_ANDROID_RUNTIME_KEYS:
+		if not libraries.has(key):
+			push_error("Missing required EOS Android library mapping key: %s" % key)
+			return false
+		var android_path: String = String(libraries[key]).strip_edges()
+		if android_path == "":
+			push_error("EOS Android mapping must not be empty: %s" % key)
+			return false
+		if not android_path.begins_with("bin/android/") or not android_path.ends_with(".so"):
+			push_error("EOS Android mapping should resolve to a .so under bin/android: %s -> %s" % [key, android_path])
+			return false
+		var android_full_path := EOS_ADDON_ROOT + android_path
+		if not FileAccess.file_exists(android_full_path):
+			push_error("EOS mapped Android library does not exist: %s -> %s" % [key, android_full_path])
+			return false
+	if not FileAccess.file_exists(EOS_ADDON_ROOT + "bin/android/eossdk-StaticSTDC-release.aar"):
+		push_error("EOS Android SDK AAR is missing from addon bin/android.")
+		return false
 	return true
 
 

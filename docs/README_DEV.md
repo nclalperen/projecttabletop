@@ -13,6 +13,32 @@ Recommended project wrapper usage:
 .\tools\godot.cmd --headless --path . -s res://tests/run_tests.gd
 ```
 
+Interaction probes (drag/drop matrices):
+
+```powershell
+.\tools\godot.cmd --headless --path . -s res://tests/probe_gametable3d_interaction_matrix.gd
+.\tools\godot.cmd --headless --path . -s res://tests/probe_gametable2d_interaction_matrix.gd
+```
+
+Note: the 3D probe can print renderer RID/resource leak warnings on process exit in headless Forward+ runs. Use scenario pass/fail summary and process exit code as the authoritative signal.
+
+## Android Build Readiness Gate
+
+Run the Android gate in this order:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check_android_env.ps1
+.\tools\godot.cmd --headless --path . --quit
+.\tools\godot.cmd --headless --path . -s res://tests/run_tests.gd
+.\tools\godot.cmd --headless --path . --export-debug "Android" "exports/android/project101-debug.apk"
+```
+
+Or use the combined helper:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\export_android_debug.ps1
+```
+
 ### Mono Headless Crash (Windows)
 If the mono build crashes on startup in headless mode, use the standard (non-mono) Godot
 console executable to run GDScript tests, or run tests from the editor.
@@ -37,6 +63,23 @@ You can run tests from the editor with the dedicated scene:
 SeOkey11 gameplay rules are defined in:
 
 - `docs/SEOKEY11_CANONICAL.md`
+
+## Interaction Model (Draft Grid Canonical)
+
+- Canonical internal placement surface is the Draft Grid (`24` slots, `12` row slots).
+- Shared drag/drop intent resolution lives in:
+  - `res://ui/game_table/InteractionResolver.gd`
+  - `res://ui/game_table/DraftGrid.gd`
+  - `res://ui/game_table/InteractionTuning.gd`
+- `GameTable` exposes draft-first APIs:
+  - `get_draft_slots()`
+  - `overlay_move_rack_to_draft(...)`
+  - `overlay_move_draft_to_rack(...)`
+  - `overlay_move_draft_slot(...)`
+- Stage-named methods remain as compatibility wrappers for one stabilization cycle.
+- Tap policy is targeted-only:
+  - allowed: draw/take/select/add-to-meld shortcut
+  - disallowed: tap-to-draft placement and tap-to-discard
 
 ## Renderer Policy (Forward+ Migration)
 

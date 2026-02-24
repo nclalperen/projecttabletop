@@ -47,6 +47,7 @@ var _shadow_quality_option: OptionButton = null
 var _ssr_enabled_check: CheckBox = null
 var _resolution_scale_spin: SpinBox = null
 var _postfx_strength_spin: SpinBox = null
+var _presentation_mode_option: OptionButton = null
 var _display_monitor_option: OptionButton = null
 var _display_mode_option: OptionButton = null
 var _display_resolution_option: OptionButton = null
@@ -305,6 +306,7 @@ func _bind_audio_feedback() -> void:
 		_aa_mode_option,
 		_ssao_quality_option,
 		_shadow_quality_option,
+		_presentation_mode_option,
 		_display_resolution_option,
 		_display_refresh_option,
 		_display_vsync_option,
@@ -413,11 +415,13 @@ func save_config(display_override: Dictionary = {}):
 		var music_volume: float = clampf(float(_music_volume_spin.value) / 100.0, 0.0, 1.0) if _music_volume_spin != null else 0.30
 		var visual_settings: Dictionary = _collect_visual_settings_from_controls()
 		var display_settings: Dictionary = _collect_display_settings_from_controls()
+		var presentation_mode: String = _collect_presentation_mode_from_controls()
 		if not display_override.is_empty():
 			display_settings = UI_SETTINGS_SCRIPT.sanitize_display_settings(display_override)
-		UI_SETTINGS_SCRIPT.save_to_disk(sfx_volume, music_volume, visual_settings, display_settings)
+		UI_SETTINGS_SCRIPT.save_to_disk(sfx_volume, music_volume, visual_settings, display_settings, presentation_mode)
 		_ui_settings["sfx_volume"] = sfx_volume
 		_ui_settings["music_volume"] = music_volume
+		_ui_settings["presentation_mode"] = presentation_mode
 		for key in visual_settings.keys():
 			_ui_settings[key] = visual_settings[key]
 		for key in display_settings.keys():
@@ -563,6 +567,14 @@ func _ensure_display_rows() -> void:
 		monitor_row.get("row").name = "DisplayMonitor"
 		settings_list.add_child(monitor_row.get("row"))
 		_display_monitor_option = monitor_row.get("option") as OptionButton
+	if _presentation_mode_option == null:
+		var presentation_row := _build_option_row("Presentation Mode", [
+			{"label": "2D Table", "id": "2d"},
+			{"label": "3D Table", "id": "3d"},
+		])
+		presentation_row.get("row").name = "DisplayPresentationMode"
+		settings_list.add_child(presentation_row.get("row"))
+		_presentation_mode_option = presentation_row.get("option") as OptionButton
 	if _display_mode_option == null:
 		var mode_row := _build_option_row("Display Mode", [
 			{"label": "Windowed", "id": DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED},
@@ -607,6 +619,7 @@ func _ensure_display_rows() -> void:
 		settings_list.add_child(fps_row.get("row"))
 		_display_fps_cap_option = fps_row.get("option") as OptionButton
 	_populate_display_controls()
+	_sync_display_platform_capabilities()
 
 
 func _sync_visual_controls_from_settings() -> void:
@@ -658,6 +671,10 @@ func _sync_display_controls_from_settings() -> void:
 	if _ui_settings == null:
 		_ui_settings = UI_SETTINGS_SCRIPT.load_from_disk()
 	var display: Dictionary = UI_SETTINGS_SCRIPT.sanitize_display_settings(_ui_settings)
+	_select_option_by_id(
+		_presentation_mode_option,
+		UI_SETTINGS_SCRIPT.sanitize_presentation_mode(str(_ui_settings.get("presentation_mode", UI_SETTINGS_SCRIPT.default_presentation_mode())))
+	)
 	_select_option_by_id(_display_monitor_option, int(display.get("monitor_index", 0)))
 	_rebuild_resolution_and_refresh_options_for_selected_monitor()
 	_select_option_by_id(_display_mode_option, str(display.get("display_mode", DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED)))
@@ -668,6 +685,7 @@ func _sync_display_controls_from_settings() -> void:
 	_select_option_by_id(_display_refresh_option, int(display.get("refresh_rate_hz", 0)))
 	_select_option_by_id(_display_vsync_option, str(display.get("vsync_mode", DISPLAY_SETTINGS_SCRIPT.VSYNC_ENABLED)))
 	_select_option_by_id(_display_fps_cap_option, int(display.get("fps_cap", 0)))
+	_sync_display_platform_capabilities()
 	_update_display_mode_hints()
 
 
@@ -704,9 +722,18 @@ func _collect_display_settings_from_controls() -> Dictionary:
 	return UI_SETTINGS_SCRIPT.sanitize_display_settings(raw)
 
 
+func _collect_presentation_mode_from_controls() -> String:
+	return UI_SETTINGS_SCRIPT.sanitize_presentation_mode(
+		str(_selected_option_id(_presentation_mode_option, UI_SETTINGS_SCRIPT.default_presentation_mode()))
+	)
+
+
 func _update_display_mode_hints() -> void:
 	_refresh_display_control_enabled_state()
 	if _preview_active:
+		return
+	if not DISPLAY_SETTINGS_SCRIPT.supports_desktop_window_controls():
+		_set_status_text("This platform manages window size automatically. Use presentation mode and visual quality options.")
 		return
 	var mode: String = str(_selected_option_id(_display_mode_option, DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED))
 	match mode:
@@ -719,6 +746,21 @@ func _update_display_mode_hints() -> void:
 
 
 func _refresh_display_control_enabled_state() -> void:
+	var supports_window_controls: bool = DISPLAY_SETTINGS_SCRIPT.supports_desktop_window_controls()
+	if _display_monitor_option != null:
+		_display_monitor_option.disabled = not supports_window_controls
+		_display_monitor_option.tooltip_text = "Managed automatically on this platform." if not supports_window_controls else ""
+	if _display_mode_option != null:
+		_display_mode_option.disabled = not supports_window_controls
+		_display_mode_option.tooltip_text = "Managed automatically on this platform." if not supports_window_controls else ""
+	if not supports_window_controls:
+		if _display_resolution_option != null:
+			_display_resolution_option.disabled = true
+			_display_resolution_option.tooltip_text = "Managed automatically on this platform."
+		if _display_refresh_option != null:
+			_display_refresh_option.disabled = true
+			_display_refresh_option.tooltip_text = "Managed automatically on this platform."
+		return
 	var mode: String = str(_selected_option_id(_display_mode_option, DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED))
 	var borderless: bool = mode == DISPLAY_SETTINGS_SCRIPT.MODE_BORDERLESS
 	if _display_resolution_option != null:
@@ -727,6 +769,22 @@ func _refresh_display_control_enabled_state() -> void:
 	if _display_refresh_option != null:
 		_display_refresh_option.disabled = borderless
 		_display_refresh_option.tooltip_text = "Unavailable in borderless mode." if borderless else ""
+
+
+func _sync_display_platform_capabilities() -> void:
+	var supports_window_controls: bool = DISPLAY_SETTINGS_SCRIPT.supports_desktop_window_controls()
+	_set_row_visible("DisplayMonitor", supports_window_controls)
+	_set_row_visible("DisplayMode", supports_window_controls)
+	_set_row_visible("DisplayResolution", supports_window_controls)
+	_set_row_visible("DisplayRefreshRate", supports_window_controls)
+
+
+func _set_row_visible(row_name: String, visible: bool) -> void:
+	if settings_list == null:
+		return
+	var row: Control = settings_list.get_node_or_null(row_name) as Control
+	if row != null:
+		row.visible = visible
 
 
 func _build_percent_row(label_text: String) -> Dictionary:

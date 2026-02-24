@@ -8,9 +8,10 @@ signal peer_disconnected(peer_puid)
 signal packet_received(from_puid, message)
 
 const EOS_RAW_SCRIPT: Script = preload("res://net/eos/EOSRaw.gd")
+const EOS_BACKEND_POLICY_SCRIPT: Script = preload("res://net/EOSBackendPolicy.gd")
 const BACKEND_MOCK: String = "mock"
 const BACKEND_IEOS_RAW: String = "ieos_raw"
-const RUNTIME_ENABLE_ENV: String = "PROJECT101_EOS_RUNTIME"
+const RUNTIME_PLATFORMS: PackedStringArray = ["Windows", "Android"]
 const RTC_ENVELOPE_VERSION: int = 1
 const INVALID_NOTIFICATION_ID: int = -1
 const RTC_DATA_STATUS_ENABLED: int = 1
@@ -23,6 +24,7 @@ var local_puid: String = ""
 var opened: bool = false
 var channel_name: String = "default"
 var backend_mode: String = BACKEND_MOCK
+var backend_policy: String = EOS_BACKEND_POLICY_SCRIPT.current_policy()
 
 var _runtime_ieos = null
 var _runtime_bootstrapped: bool = false
@@ -35,6 +37,7 @@ var _runtime_notif_data_received: int = INVALID_NOTIFICATION_ID
 var _runtime_notif_participant_updated: int = INVALID_NOTIFICATION_ID
 
 func _init() -> void:
+	backend_policy = EOS_BACKEND_POLICY_SCRIPT.current_policy()
 	if OS.has_feature("editor"):
 		_test_tracked_instances.append(self)
 
@@ -45,6 +48,13 @@ func set_backend_mode(mode: String) -> void:
 	if normalized == "ieos":
 		normalized = BACKEND_IEOS_RAW
 	backend_mode = normalized
+
+func set_backend_policy(policy: String) -> void:
+	var normalized: String = EOS_BACKEND_POLICY_SCRIPT.sanitize(policy)
+	if normalized == "":
+		backend_policy = EOS_BACKEND_POLICY_SCRIPT.current_policy()
+		return
+	backend_policy = normalized
 
 func get_backend_mode() -> String:
 	return backend_mode
@@ -61,7 +71,13 @@ func get_runtime_context() -> Dictionary:
 
 func open_endpoint(puid: String, channel: String = "default") -> Dictionary:
 	if String(puid).strip_edges() == "":
-		return {"ok": false, "code": "invalid_puid", "reason": "puid is required", "backend_mode": backend_mode}
+		return {
+			"ok": false,
+			"code": "invalid_puid",
+			"reason": "puid is required",
+			"backend_mode": backend_mode,
+			"backend_policy": backend_policy,
+		}
 	if opened:
 		close_endpoint()
 	local_puid = String(puid)
@@ -70,20 +86,41 @@ func open_endpoint(puid: String, channel: String = "default") -> Dictionary:
 	if _use_runtime():
 		var runtime_res: Dictionary = _open_runtime_endpoint()
 		if not bool(runtime_res.get("ok", false)):
-			var fallback_reason: String = "RTC runtime unavailable (%s): %s" % [
-				String(runtime_res.get("code", "runtime_unavailable")),
-				String(runtime_res.get("reason", "unknown")),
-			]
-			backend_mode = BACKEND_MOCK
-			_registry[_registry_key(local_puid, channel_name)] = self
-			opened = true
-			emit_signal("endpoint_opened", local_puid)
-			return {"ok": true, "code": "fallback_mock", "reason": fallback_reason, "backend_mode": backend_mode}
+			if _can_fallback_to_mock():
+				var fallback_reason: String = "RTC runtime unavailable (%s): %s" % [
+					String(runtime_res.get("code", "runtime_unavailable")),
+					String(runtime_res.get("reason", "unknown")),
+				]
+				backend_mode = BACKEND_MOCK
+				_registry[_registry_key(local_puid, channel_name)] = self
+				opened = true
+				emit_signal("endpoint_opened", local_puid)
+				return {
+					"ok": true,
+					"code": "fallback_mock",
+					"reason": fallback_reason,
+					"backend_mode": backend_mode,
+					"backend_policy": backend_policy,
+				}
+			local_puid = ""
+			return {
+				"ok": false,
+				"code": String(runtime_res.get("code", "runtime_unavailable")),
+				"reason": String(runtime_res.get("reason", "RTC runtime unavailable")),
+				"backend_mode": backend_mode,
+				"backend_policy": backend_policy,
+			}
 	else:
 		_registry[_registry_key(local_puid, channel_name)] = self
 		opened = true
 		emit_signal("endpoint_opened", local_puid)
-	return {"ok": true, "code": "ok", "reason": "", "backend_mode": backend_mode}
+	return {
+		"ok": true,
+		"code": "ok",
+		"reason": "",
+		"backend_mode": backend_mode,
+		"backend_policy": backend_policy,
+	}
 
 func close_endpoint() -> void:
 	if not opened:
@@ -100,23 +137,53 @@ func close_endpoint() -> void:
 
 func send_packet(peer_puid: String, message: Dictionary, reliable: bool = true) -> Dictionary:
 	if not opened:
-		return {"ok": false, "code": "endpoint_closed", "reason": "endpoint not open", "backend_mode": backend_mode}
+		return {
+			"ok": false,
+			"code": "endpoint_closed",
+			"reason": "endpoint not open",
+			"backend_mode": backend_mode,
+			"backend_policy": backend_policy,
+		}
 	if String(peer_puid).strip_edges() == "":
-		return {"ok": false, "code": "invalid_peer", "reason": "peer_puid required", "backend_mode": backend_mode}
+		return {
+			"ok": false,
+			"code": "invalid_peer",
+			"reason": "peer_puid required",
+			"backend_mode": backend_mode,
+			"backend_policy": backend_policy,
+		}
 	if typeof(message) != TYPE_DICTIONARY:
-		return {"ok": false, "code": "invalid_message", "reason": "message must be dictionary", "backend_mode": backend_mode}
+		return {
+			"ok": false,
+			"code": "invalid_message",
+			"reason": "message must be dictionary",
+			"backend_mode": backend_mode,
+			"backend_policy": backend_policy,
+		}
 	if _use_runtime():
 		return _runtime_send_packet(peer_puid, message, reliable)
 
 	var target = _registry.get(_registry_key(String(peer_puid), channel_name), null)
 	if target == null:
-		return {"ok": false, "code": "peer_unreachable", "reason": "peer endpoint not found", "backend_mode": backend_mode}
+		return {
+			"ok": false,
+			"code": "peer_unreachable",
+			"reason": "peer endpoint not found",
+			"backend_mode": backend_mode,
+			"backend_policy": backend_policy,
+		}
 	var payload: Dictionary = message.duplicate(true)
 	# reliable is retained for protocol clarity; mock transport is always reliable.
 	if not reliable:
 		pass
 	target._deliver(local_puid, payload)
-	return {"ok": true, "code": "ok", "reason": "", "backend_mode": backend_mode}
+	return {
+		"ok": true,
+		"code": "ok",
+		"reason": "",
+		"backend_mode": backend_mode,
+		"backend_policy": backend_policy,
+	}
 
 func _deliver(from_puid: String, payload: Dictionary) -> void:
 	emit_signal("packet_received", from_puid, payload)
@@ -137,11 +204,14 @@ static func free_test_tracked_instances() -> void:
 func _use_runtime() -> bool:
 	if backend_mode != BACKEND_IEOS_RAW:
 		return false
-	if OS.get_name() != "Windows":
+	if not RUNTIME_PLATFORMS.has(OS.get_name()):
 		return false
 	if DisplayServer.get_name() == "headless":
 		return false
-	return EOS_RAW_SCRIPT.bool_env_enabled(RUNTIME_ENABLE_ENV, false)
+	return true
+
+func _can_fallback_to_mock() -> bool:
+	return EOS_BACKEND_POLICY_SCRIPT.allows_mock_fallback(backend_policy)
 
 func _open_runtime_endpoint() -> Dictionary:
 	var boot: Dictionary = _runtime_bootstrap()
@@ -175,7 +245,10 @@ func _open_runtime_endpoint() -> Dictionary:
 	_runtime_update_sending(true)
 	opened = true
 	emit_signal("endpoint_opened", local_puid)
-	return EOS_RAW_SCRIPT.ok_with({"backend_mode": backend_mode})
+	return EOS_RAW_SCRIPT.ok_with({
+		"backend_mode": backend_mode,
+		"backend_policy": backend_policy,
+	})
 
 func _close_runtime_endpoint() -> void:
 	_runtime_update_sending(false)
@@ -239,9 +312,15 @@ func _runtime_update_receiving(participant_id: String, enabled: bool) -> void:
 
 func _runtime_send_packet(peer_puid: String, message: Dictionary, reliable: bool) -> Dictionary:
 	if _runtime_ieos == null:
-		return EOS_RAW_SCRIPT.fail("runtime_missing", "IEOS runtime is not initialized.", {"backend_mode": backend_mode})
+		return EOS_RAW_SCRIPT.fail("runtime_missing", "IEOS runtime is not initialized.", {
+			"backend_mode": backend_mode,
+			"backend_policy": backend_policy,
+		})
 	if _runtime_room_name == "":
-		return EOS_RAW_SCRIPT.fail("rtc_room_missing", "RTC room name is missing.", {"backend_mode": backend_mode})
+		return EOS_RAW_SCRIPT.fail("rtc_room_missing", "RTC room name is missing.", {
+			"backend_mode": backend_mode,
+			"backend_policy": backend_policy,
+		})
 	_runtime_send_seq += 1
 	var envelope: Dictionary = {
 		"v": RTC_ENVELOPE_VERSION,
@@ -266,8 +345,15 @@ func _runtime_send_packet(peer_puid: String, message: Dictionary, reliable: bool
 		return EOS_RAW_SCRIPT.fail("send_failed", "RTC data send failed.", {
 			"result_code": EOS_RAW_SCRIPT.result_code(send_ret),
 			"backend_mode": backend_mode,
+			"backend_policy": backend_policy,
 		})
-	return {"ok": true, "code": "ok", "reason": "", "backend_mode": backend_mode}
+	return {
+		"ok": true,
+		"code": "ok",
+		"reason": "",
+		"backend_mode": backend_mode,
+		"backend_policy": backend_policy,
+	}
 
 func _on_runtime_participant_updated(data: Dictionary) -> void:
 	if not opened:

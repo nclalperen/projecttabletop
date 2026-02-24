@@ -7,6 +7,8 @@ const LOBBY_SERVICE_SCRIPT: Script = preload("res://net/LobbyServiceEOS.gd")
 const P2P_TRANSPORT_SCRIPT: Script = preload("res://net/P2PTransportEOS.gd")
 const HOST_MATCH_CONTROLLER_SCRIPT: Script = preload("res://net/HostMatchController.gd")
 const CLIENT_MATCH_CONTROLLER_SCRIPT: Script = preload("res://net/ClientMatchController.gd")
+const PROTOCOL_SCRIPT: Script = preload("res://net/Protocol.gd")
+const EOS_BACKEND_POLICY_SCRIPT: Script = preload("res://net/EOSBackendPolicy.gd")
 const MENU_AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/MenuAudioService.gd")
 const MENU_STYLE: Script = preload("res://ui/services/MenuStyleRegistry.gd")
 const PLAYER_CHIP_SCENE: PackedScene = preload("res://ui/widgets/LobbyPlayerChip.tscn")
@@ -40,12 +42,17 @@ const EMOTE_DATA: Array[Dictionary] = [
 	{"id": "trophy", "label": "GG", "icon_id": ASSET_IDS.UI_ICON_TROPHY},
 ]
 
+const ATTR_PROTOCOL_REV: String = "protocol_rev"
+const ATTR_BUILD_FAMILY: String = "build_family"
+const ATTR_DISPLAY_NAME: String = "display_name"
+
 const STATUS_COPY := {
 	&"online_unavailable": "Online unavailable: {reason}",
-	&"online_ready": "Online ready ({mode} backend). Sign in to continue.",
-	&"login_pending": "Signing in via EOS Dev Auth...",
-	&"login_success": "Logged in as {puid} ({mode}).",
-	&"signed_in": "Signed in: {puid}",
+	&"online_ready": "Online ready ({mode}, policy: {policy}). {reason}",
+	&"online_required": "Online requires EOS runtime in this build. {reason}",
+	&"login_pending": "Signing in via EOS Account Portal...",
+	&"login_success": "Logged in as {display_name} ({puid}, {mode}).",
+	&"signed_in": "Signed in: {display_name} ({puid})",
 	&"login_failed": "Login failed: {reason}",
 	&"operation_failed": "{reason}",
 	&"sign_in_required": "Sign in first.",
@@ -65,12 +72,14 @@ const STATUS_COPY := {
 	&"start_not_host": "Only lobby creator can start.",
 	&"start_need_players": "Need {count} players to start.",
 	&"start_need_ready": "All players must be ready.",
+	&"start_incompatible": "Cannot start: {reason}",
 	&"start_publish": "Publishing match start...",
 	&"attr_update": "Updating lobby: {key}...",
 	&"attr_update_failed": "Failed to update lobby attrs: {reason}",
 	&"lobby_error": "Lobby error ({code}): {reason}",
 	&"seat_map_missing": "Seat map missing local player.",
 	&"start_missing_host": "Match start missing host.",
+	&"join_incompatible": "Lobby incompatible: {reason}",
 	&"emote": "Emote: {label}",
 	&"emote_generic": "Emote sent.",
 }
@@ -156,11 +165,25 @@ func _ready() -> void:
 	var init_res: Dictionary = _online_service.initialize()
 	if _lobby_service.has_method("set_backend_mode"):
 		_lobby_service.call("set_backend_mode", _online_service.get_backend_mode())
+	if _lobby_service.has_method("set_backend_policy"):
+		_lobby_service.call("set_backend_policy", _online_service.get_backend_policy())
 	if not bool(init_res.get("ok", false)):
-		_set_status(&"online_unavailable", {"reason": String(init_res.get("reason", "Online unavailable"))})
+		var policy: String = String(init_res.get("backend_policy", _online_service.get_backend_policy()))
+		var unavailable_reason: String = String(init_res.get("reason", "Online unavailable"))
+		if policy == EOS_BACKEND_POLICY_SCRIPT.POLICY_RUNTIME_REQUIRED:
+			_set_status(&"online_required", {"reason": unavailable_reason})
+		else:
+			_set_status(&"online_unavailable", {"reason": unavailable_reason})
 	else:
 		var mode: String = String(init_res.get("backend_mode", "mock"))
-		_set_status(&"online_ready", {"mode": mode})
+		var policy_name: String = String(init_res.get("backend_policy", _online_service.get_backend_policy()))
+		var reason: String = String(init_res.get("reason", "")).strip_edges()
+		_set_status(&"online_ready", {
+			"mode": mode,
+			"policy": policy_name,
+			"reason": reason if reason != "" else "Sign in to continue.",
+		})
+	_apply_runtime_profile_to_lobby_service()
 	_refresh_button_states()
 
 
@@ -289,13 +312,22 @@ func _on_lobby_button_up(button: Button) -> void:
 func _build_prompt_strip() -> void:
 	for child in _prompt_strip.get_children():
 		child.queue_free()
-	var prompts: Array[Dictionary] = [
-		{"icon": _texture(PROMPT_ESC_ID), "text": "ESC Back"},
-		{"icon": _texture(PROMPT_ENTER_ID), "text": "ENTER Start"},
-		{"icon": _texture(PROMPT_SPACE_ID), "text": "SPACE Ready"},
-		{"icon": _texture(PROMPT_LMB_ID), "text": "LMB Select"},
-		{"icon": _texture(PROMPT_RMB_ID), "text": "RMB Menu"},
-	]
+	var prompts: Array[Dictionary] = []
+	if OS.get_name() == "Android":
+		prompts = [
+			{"icon": _texture(PROMPT_ESC_ID), "text": "Back"},
+			{"icon": _texture(PROMPT_SPACE_ID), "text": "Tap Ready"},
+			{"icon": _texture(PROMPT_ENTER_ID), "text": "Tap Start"},
+			{"icon": _texture(PROMPT_LMB_ID), "text": "Tap Select"},
+		]
+	else:
+		prompts = [
+			{"icon": _texture(PROMPT_ESC_ID), "text": "ESC Back"},
+			{"icon": _texture(PROMPT_ENTER_ID), "text": "ENTER Start"},
+			{"icon": _texture(PROMPT_SPACE_ID), "text": "SPACE Ready"},
+			{"icon": _texture(PROMPT_LMB_ID), "text": "LMB Select"},
+			{"icon": _texture(PROMPT_RMB_ID), "text": "RMB Menu"},
+		]
 	for entry in prompts:
 		var badge: Node = PROMPT_BADGE_SCENE.instantiate()
 		_prompt_strip.add_child(badge)
@@ -332,11 +364,24 @@ func _on_emote_selected(emote_id: String) -> void:
 
 
 func _on_online_availability_changed(available: bool, reason: String) -> void:
+	var policy_name: String = _online_service.get_backend_policy()
+	if _lobby_service != null and _lobby_service.has_method("set_backend_policy"):
+		_lobby_service.call("set_backend_policy", policy_name)
+	if _lobby_service != null and _lobby_service.has_method("set_backend_mode"):
+		_lobby_service.call("set_backend_mode", _online_service.get_backend_mode())
 	if not available:
-		_set_status(&"online_unavailable", {"reason": reason})
+		if policy_name == EOS_BACKEND_POLICY_SCRIPT.POLICY_RUNTIME_REQUIRED:
+			_set_status(&"online_required", {"reason": reason})
+		else:
+			_set_status(&"online_unavailable", {"reason": reason})
 	else:
 		var mode: String = _online_service.get_backend_mode()
-		_set_status(&"online_ready", {"mode": mode})
+		var detail: String = reason.strip_edges()
+		_set_status(&"online_ready", {
+			"mode": mode,
+			"policy": policy_name,
+			"reason": detail if detail != "" else "Sign in to continue.",
+		})
 	_refresh_button_states()
 
 
@@ -348,7 +393,7 @@ func _on_login_pressed() -> void:
 			_menu_audio.play_error()
 		_set_status(&"online_unavailable", {"reason": _online_service.get_unavailable_reason()})
 		return
-	var login_res: Dictionary = _online_service.login_dev_auth("dev_player")
+	var login_res: Dictionary = _online_service.login_account_portal()
 	if not bool(login_res.get("ok", false)):
 		if _menu_audio != null:
 			_menu_audio.play_error()
@@ -359,13 +404,22 @@ func _on_login_pressed() -> void:
 		return
 	_set_status(&"login_success", {
 		"puid": String(login_res.get("local_puid", "")),
+		"display_name": String(login_res.get("display_name", "Player")),
 		"mode": String(login_res.get("backend_mode", _online_service.get_backend_mode())),
 	})
 
 
 func _on_login_succeeded(local_puid: String) -> void:
 	_lobby_service.set_local_puid(local_puid)
-	_set_status(&"signed_in", {"puid": local_puid})
+	if _lobby_service.has_method("set_backend_mode"):
+		_lobby_service.call("set_backend_mode", _online_service.get_backend_mode())
+	if _lobby_service.has_method("set_backend_policy"):
+		_lobby_service.call("set_backend_policy", _online_service.get_backend_policy())
+	_apply_runtime_profile_to_lobby_service()
+	_set_status(&"signed_in", {
+		"puid": local_puid,
+		"display_name": _resolved_local_display_name(),
+	})
 	_refresh_button_states()
 
 
@@ -390,6 +444,8 @@ func _on_quick_match_pressed() -> void:
 		"version": str(ProjectSettings.get_setting("application/config/version", "0.0.0")),
 		"phase": "FILLING",
 		"open_slots": 1,
+		ATTR_PROTOCOL_REV: _local_protocol_revision(),
+		ATTR_BUILD_FAMILY: _local_build_family(),
 	})
 	if not bool(search.get("ok", false)):
 		_quick_match_pending = false
@@ -416,6 +472,8 @@ func _on_private_lobby_pressed() -> void:
 		"version": str(ProjectSettings.get_setting("application/config/version", "0.0.0")),
 		"phase": "FILLING",
 		"privacy": "INVITE_ONLY",
+		ATTR_PROTOCOL_REV: _local_protocol_revision(),
+		ATTR_BUILD_FAMILY: _local_build_family(),
 	})
 	if not bool(create_res.get("ok", false)):
 		if _menu_audio != null:
@@ -468,6 +526,12 @@ func _on_start_pressed() -> void:
 			_menu_audio.play_error()
 		_set_status(&"start_need_ready")
 		return
+	var compatibility_reason: String = _compatibility_reason_for_lobby(lobby)
+	if compatibility_reason != "":
+		if _menu_audio != null:
+			_menu_audio.play_error()
+		_set_status(&"start_incompatible", {"reason": compatibility_reason})
+		return
 	if _launch_started:
 		return
 	_start_attr_queue.clear()
@@ -500,7 +564,14 @@ func _on_lobby_list_updated(lobbies: Array) -> void:
 func _handle_quick_search_result(lobbies: Array) -> void:
 	_quick_match_pending = false
 	if not lobbies.is_empty():
-		var lobby_id: String = String(lobbies[0].get("lobby_id", ""))
+		var compatible_lobby: Dictionary = _first_compatible_lobby(lobbies)
+		if compatible_lobby.is_empty():
+			if _menu_audio != null:
+				_menu_audio.play_error()
+			var mismatch_reason: String = _compatibility_reason_for_lobby(lobbies[0] as Dictionary)
+			_set_status(&"join_incompatible", {"reason": mismatch_reason})
+			return
+		var lobby_id: String = String(compatible_lobby.get("lobby_id", ""))
 		if lobby_id == "":
 			if _menu_audio != null:
 				_menu_audio.play_error()
@@ -520,6 +591,8 @@ func _handle_quick_search_result(lobbies: Array) -> void:
 		"version": str(ProjectSettings.get_setting("application/config/version", "0.0.0")),
 		"phase": "FILLING",
 		"privacy": "PUBLIC",
+		ATTR_PROTOCOL_REV: _local_protocol_revision(),
+		ATTR_BUILD_FAMILY: _local_build_family(),
 	})
 	if not bool(create_res.get("ok", false)):
 		if _menu_audio != null:
@@ -607,6 +680,10 @@ func _maybe_launch_match_from_lobby(lobby: Dictionary) -> void:
 	var attrs: Dictionary = lobby.get("attrs", {})
 	if String(attrs.get("phase", "")) != "MATCH_STARTING":
 		return
+	var compatibility_reason: String = _compatibility_reason_for_lobby(lobby)
+	if compatibility_reason != "":
+		_set_status(&"join_incompatible", {"reason": compatibility_reason})
+		return
 	var seat_by_puid: Dictionary = _extract_or_build_seat_map(lobby)
 	if not seat_by_puid.has(_online_service.local_puid):
 		if _menu_audio != null:
@@ -627,6 +704,8 @@ func _maybe_launch_match_from_lobby(lobby: Dictionary) -> void:
 	var transport = P2P_TRANSPORT_SCRIPT.new()
 	if transport.has_method("set_backend_mode"):
 		transport.call("set_backend_mode", _online_service.get_backend_mode())
+	if transport.has_method("set_backend_policy"):
+		transport.call("set_backend_policy", _online_service.get_backend_policy())
 	if transport.has_method("set_runtime_context"):
 		transport.call("set_runtime_context", String(lobby.get("lobby_id", "")), String(attrs.get("rtc_room_name", "")))
 
@@ -721,12 +800,15 @@ func _refresh_button_states() -> void:
 	var start_enabled: bool = false
 	var start_reason: String = "Join or create a lobby first."
 	if in_lobby:
+		var compatibility_reason: String = _compatibility_reason_for_lobby(lobby)
 		if not local_host:
 			start_reason = "Only the host can start."
 		elif int(lobby.get("members", []).size()) != _player_count:
 			start_reason = "Need %d players to start." % _player_count
 		elif not _all_members_ready(lobby):
 			start_reason = "All players must be ready."
+		elif compatibility_reason != "":
+			start_reason = compatibility_reason
 		else:
 			start_enabled = true
 			start_reason = ""
@@ -761,6 +843,70 @@ func _refresh_ready_button_visual() -> void:
 		"Ready" if not is_ready else "Unready",
 		0
 	)
+
+func _apply_runtime_profile_to_lobby_service() -> void:
+	if _lobby_service == null:
+		return
+	if _lobby_service.has_method("set_runtime_profile"):
+		_lobby_service.call("set_runtime_profile", {
+			ATTR_DISPLAY_NAME: _resolved_local_display_name(),
+			ATTR_BUILD_FAMILY: _local_build_family(),
+			ATTR_PROTOCOL_REV: _local_protocol_revision(),
+		})
+
+func _resolved_local_display_name() -> String:
+	var display_name: String = ""
+	if _online_service != null and _online_service.has_method("get_local_display_name"):
+		display_name = String(_online_service.call("get_local_display_name")).strip_edges()
+	if display_name != "":
+		return display_name
+	if _online_service != null:
+		var puid: String = String(_online_service.local_puid)
+		if puid.strip_edges() != "":
+			return puid
+	return "Player"
+
+func _local_protocol_revision() -> int:
+	return int(PROTOCOL_SCRIPT.PROTOCOL_VERSION)
+
+func _local_build_family() -> String:
+	return EOS_BACKEND_POLICY_SCRIPT.build_family()
+
+func _first_compatible_lobby(lobbies: Array) -> Dictionary:
+	for entry in lobbies:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var lobby: Dictionary = entry as Dictionary
+		if _compatibility_reason_for_lobby(lobby) == "":
+			return lobby
+	return {}
+
+func _compatibility_reason_for_lobby(lobby: Dictionary) -> String:
+	if lobby.is_empty():
+		return ""
+	var attrs: Dictionary = lobby.get("attrs", {})
+	var expected_protocol: int = _local_protocol_revision()
+	var expected_build: String = _local_build_family()
+	var lobby_protocol: int = int(attrs.get(ATTR_PROTOCOL_REV, expected_protocol))
+	if lobby_protocol != expected_protocol:
+		return "protocol mismatch (local=%d lobby=%d)" % [expected_protocol, lobby_protocol]
+	var lobby_build: String = String(attrs.get(ATTR_BUILD_FAMILY, expected_build)).strip_edges().to_lower()
+	if lobby_build == "":
+		lobby_build = expected_build
+	if lobby_build != expected_build:
+		return "build family mismatch (local=%s lobby=%s)" % [expected_build, lobby_build]
+	for member in lobby.get("members", []):
+		if typeof(member) != TYPE_DICTIONARY:
+			continue
+		var member_dict: Dictionary = member as Dictionary
+		var member_attrs: Dictionary = member_dict.get("attrs", {})
+		var member_protocol: int = int(member_attrs.get(ATTR_PROTOCOL_REV, lobby_protocol))
+		if member_protocol != expected_protocol:
+			return "member %s protocol mismatch (%d)" % [String(member_dict.get("puid", "?")), member_protocol]
+		var member_build: String = String(member_attrs.get(ATTR_BUILD_FAMILY, lobby_build)).strip_edges().to_lower()
+		if member_build != "" and member_build != expected_build:
+			return "member %s build mismatch (%s)" % [String(member_dict.get("puid", "?")), member_build]
+	return ""
 
 
 func _notification(what: int) -> void:

@@ -31,6 +31,7 @@ func _test_default_keys_present() -> bool:
 		"refresh_rate_hz",
 		"vsync_mode",
 		"fps_cap",
+		"presentation_mode",
 	]
 	for key in required_keys:
 		if not settings.has(key):

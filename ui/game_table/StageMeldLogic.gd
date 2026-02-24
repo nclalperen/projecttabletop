@@ -1,12 +1,20 @@
 class_name StageMeldLogic
 extends RefCounted
 
-func submit_staged_melds(
+var _compat_stage_api_warned: Dictionary = {}
+
+func _warn_stage_api_once(stage_api: String, draft_api: String) -> void:
+	if _compat_stage_api_warned.has(stage_api):
+		return
+	_compat_stage_api_warned[stage_api] = true
+	push_warning("%s is deprecated; use %s instead." % [stage_api, draft_api])
+
+func submit_draft_melds(
 	controller,
 	state,
 	hand: Array,
 	slots,
-	stage_row_slots: int,
+	draft_row_slots: int,
 	pair_key_fn: Callable
 ) -> Dictionary:
 	if state == null:
@@ -15,15 +23,15 @@ func submit_staged_melds(
 		return {"ok": false, "reason": "No players"}
 
 	var player = state.players[0]
-	var staged_ids: Array = slots.all_staged_tile_ids()
-	if staged_ids.is_empty():
-		return {"ok": false, "reason": "No staged tiles"}
+	var draft_ids: Array = slots.all_draft_tile_ids()
+	if draft_ids.is_empty():
+		return {"ok": false, "reason": "No draft tiles"}
 
-	# Opening submission: all staged tiles must be consumed by valid opening melds.
+	# Opening submission: all draft tiles must be consumed by valid opening melds.
 	if not bool(player.has_opened):
-		var open_melds: Array = build_melds_from_stage_slots(state, hand, slots.stage_slots, stage_row_slots, pair_key_fn)
+		var open_melds: Array = build_melds_from_draft_slots(state, hand, slots.draft_slots, draft_row_slots, pair_key_fn)
 		if open_melds.is_empty():
-			return {"ok": false, "reason": "Staged groups are invalid (check color/sequence/group gaps)"}
+			return {"ok": false, "reason": "Draft groups are invalid (check color/sequence/group gaps)"}
 
 		var open_by_pairs: bool = true
 		for meld_dict in open_melds:
@@ -36,9 +44,9 @@ func submit_staged_melds(
 			for tid in meld_dict.get("tile_ids", []):
 				used_ids_open[int(tid)] = true
 
-		for tid in staged_ids:
+		for tid in draft_ids:
 			if not used_ids_open.has(int(tid)):
-				return {"ok": false, "reason": "Opening stage has extra tiles. Move extras back to rack or complete valid groups."}
+				return {"ok": false, "reason": "Opening draft has extra tiles. Move extras back to rack or complete valid groups."}
 
 		var open_action: Action = Action.new(Action.ActionType.OPEN_MELDS, {
 			"melds": open_melds,
@@ -46,27 +54,27 @@ func submit_staged_melds(
 		})
 		var open_result: Dictionary = controller.apply_action_if_valid(0, open_action)
 		if not bool(open_result.get("ok", false)):
-			return {"ok": false, "reason": str(open_result.get("reason", "Staged melds rejected"))}
+			return {"ok": false, "reason": str(open_result.get("reason", "Draft melds rejected"))}
 
-		slots.clear_stage_slots()
+		slots.clear_draft_slots()
 		return {"ok": true, "reason": ""}
 
-	# Opened by pairs cannot create new staged melds; only direct layoff is allowed.
+	# Opened by pairs cannot create new draft melds; only direct layoff is allowed.
 	if bool(player.opened_by_pairs):
-		return {"ok": false, "reason": "Opened by pairs: add tiles directly onto table melds instead of staging."}
+		return {"ok": false, "reason": "Opened by pairs: add tiles directly onto table melds instead of draft area."}
 
-	var new_melds: Array = build_new_melds_from_stage_slots_opened(state, hand, slots.stage_slots, stage_row_slots)
+	var new_melds: Array = build_new_melds_from_draft_slots_opened(state, hand, slots.draft_slots, draft_row_slots)
 	if new_melds.is_empty():
-		return {"ok": false, "reason": "No valid new melds in staging"}
+		return {"ok": false, "reason": "No valid new melds in draft area"}
 
 	var used_ids: Dictionary = {}
 	for meld_dict in new_melds:
 		for tid in meld_dict.get("tile_ids", []):
 			used_ids[int(tid)] = true
 
-	for tid in staged_ids:
+	for tid in draft_ids:
 		if not used_ids.has(int(tid)):
-			return {"ok": false, "reason": "Staging has orphan tiles. Use contiguous groups for new melds."}
+			return {"ok": false, "reason": "Draft area has orphan tiles. Use contiguous groups for new melds."}
 
 	var new_action: Action = Action.new(Action.ActionType.OPEN_MELDS, {
 		"melds": new_melds,
@@ -76,14 +84,26 @@ func submit_staged_melds(
 	if not bool(new_result.get("ok", false)):
 		return {"ok": false, "reason": str(new_result.get("reason", "New melds rejected"))}
 
-	slots.clear_stage_slots()
+	slots.clear_draft_slots()
 	return {"ok": true, "reason": ""}
 
-func build_new_melds_from_stage_slots_opened(
+# Compatibility wrapper. Remove after stage API deprecation window.
+func submit_staged_melds(
+	controller,
 	state,
 	hand: Array,
-	stage_slots: Array[int],
-	stage_row_slots: int
+	slots,
+	stage_row_slots: int,
+	pair_key_fn: Callable
+) -> Dictionary:
+	_warn_stage_api_once("submit_staged_melds()", "submit_draft_melds()")
+	return submit_draft_melds(controller, state, hand, slots, stage_row_slots, pair_key_fn)
+
+func build_new_melds_from_draft_slots_opened(
+	state,
+	hand: Array,
+	draft_slots: Array[int],
+	draft_row_slots: int
 ) -> Array:
 	if state == null:
 		return []
@@ -96,11 +116,11 @@ func build_new_melds_from_stage_slots_opened(
 	var out: Array = []
 
 	for row_idx in range(2):
-		var start_idx: int = row_idx * stage_row_slots
-		var end_idx: int = min(stage_slots.size(), start_idx + stage_row_slots)
+		var start_idx: int = row_idx * draft_row_slots
+		var end_idx: int = min(draft_slots.size(), start_idx + draft_row_slots)
 		var current: Array[int] = []
 		for i in range(start_idx, end_idx):
-			var tid: int = int(stage_slots[i])
+			var tid: int = int(draft_slots[i])
 			if tid == -1:
 				if current.size() >= 3:
 					var meld_dict: Dictionary = _validate_new_meld_candidate(current, hand_by_id, validator, state)
@@ -116,11 +136,24 @@ func build_new_melds_from_stage_slots_opened(
 
 	return out
 
-func build_melds_from_stage_slots(
+# Compatibility wrapper. Remove after stage API deprecation window.
+func build_new_melds_from_stage_slots_opened(
 	state,
 	hand: Array,
 	stage_slots: Array[int],
-	stage_row_slots: int,
+	stage_row_slots: int
+) -> Array:
+	_warn_stage_api_once(
+		"build_new_melds_from_stage_slots_opened()",
+		"build_new_melds_from_draft_slots_opened()"
+	)
+	return build_new_melds_from_draft_slots_opened(state, hand, stage_slots, stage_row_slots)
+
+func build_melds_from_draft_slots(
+	state,
+	hand: Array,
+	draft_slots: Array[int],
+	draft_row_slots: int,
 	pair_key_fn: Callable
 ) -> Array:
 	if state == null:
@@ -132,11 +165,11 @@ func build_melds_from_stage_slots(
 
 	var groups: Array = []
 	for row_idx in range(2):
-		var start_idx: int = row_idx * stage_row_slots
-		var end_idx: int = min(stage_slots.size(), start_idx + stage_row_slots)
+		var start_idx: int = row_idx * draft_row_slots
+		var end_idx: int = min(draft_slots.size(), start_idx + draft_row_slots)
 		var current: Array[int] = []
 		for i in range(start_idx, end_idx):
-			var tid: int = int(stage_slots[i])
+			var tid: int = int(draft_slots[i])
 			if tid == -1:
 				if not current.is_empty():
 					groups.append(current)
@@ -190,6 +223,17 @@ func build_melds_from_stage_slots(
 	if out.is_empty():
 		return []
 	return out
+
+# Compatibility wrapper. Remove after stage API deprecation window.
+func build_melds_from_stage_slots(
+	state,
+	hand: Array,
+	stage_slots: Array[int],
+	stage_row_slots: int,
+	pair_key_fn: Callable
+) -> Array:
+	_warn_stage_api_once("build_melds_from_stage_slots()", "build_melds_from_draft_slots()")
+	return build_melds_from_draft_slots(state, hand, stage_slots, stage_row_slots, pair_key_fn)
 
 func _validate_new_meld_candidate(
 	ids: Array,

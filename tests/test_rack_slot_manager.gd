@@ -60,6 +60,27 @@ func run() -> bool:
 		"clear_stage_slots should reset stage"
 	) and ok
 
+	# Draft aliases (compatibility migration).
+	var draft_slots = RACK_SLOT_MANAGER.new()
+	draft_slots.init_rack_slots(4)
+	draft_slots.init_draft_slots(4)
+	ok = _expect(draft_slots.draft_slots.size() == 4, "init_draft_slots size mismatch") and ok
+	draft_slots.rack_slots[0] = 10
+	draft_slots.rack_slots[1] = 20
+	ok = _expect(draft_slots.move_rack_to_draft(0, 1, 2, 4), "move_rack_to_draft should succeed") and ok
+	ok = _expect(int(draft_slots.draft_slots[1]) == 10, "move_rack_to_draft should place tile in draft") and ok
+	ok = _expect(draft_slots.move_draft_to_rack(1, 2), "move_draft_to_rack should succeed") and ok
+	ok = _expect(int(draft_slots.rack_slots[2]) == 10, "move_draft_to_rack should place tile into rack") and ok
+	draft_slots.draft_slots[0] = 30
+	draft_slots.draft_slots[1] = 40
+	ok = _expect(draft_slots.move_draft_slot(0, 1), "move_draft_slot should succeed") and ok
+	ok = _expect(int(draft_slots.draft_slots[0]) == 40 and int(draft_slots.draft_slots[1]) == 30, "move_draft_slot should swap draft slots") and ok
+	ok = _expect(draft_slots.has_draft_tiles(), "has_draft_tiles should be true when draft contains tiles") and ok
+	var draft_ids: Array = draft_slots.all_draft_tile_ids()
+	ok = _expect(draft_ids.has(30) and draft_ids.has(40), "all_draft_tile_ids should return draft tile ids") and ok
+	draft_slots.clear_draft_slots()
+	ok = _expect(not draft_slots.has_draft_tiles(), "clear_draft_slots should clear all draft tiles") and ok
+
 	if ok:
 		print("  PASS  test_rack_slot_manager")
 	else:

@@ -1,18 +1,33 @@
-# EOS Runtime Setup (Windows Dev-Auth)
+# EOS Runtime Setup (Policy-Driven, Account Portal First)
 
-This project keeps EOS runtime **opt-in** and mock-safe by default.
+This project uses a centralized backend policy with three modes:
 
-## 1) Prerequisites
-- Windows desktop.
-- `addons/epic-online-services-godot` present and plugin enabled in `project.godot`.
-- EOS Developer Authentication Tool running (default endpoint: `localhost:4545`).
-- Not headless for runtime smoke/login.
+- `mock_allowed`: editor/dev default, deterministic local workflow.
+- `runtime_preferred`: exported debug/internal QA default, attempt EOS runtime and fallback to mock if unavailable.
+- `runtime_required`: release/public gate, runtime must initialize (no silent mock fallback).
 
-## 2) Required Environment Variables
-Set these in your shell before launching Godot:
+Policy override env var:
 
 ```powershell
-$env:PROJECT101_EOS_RUNTIME="1"
+$env:PROJECT101_EOS_BACKEND_POLICY="runtime_preferred"  # or mock_allowed / runtime_required
+```
+
+Legacy compatibility override still works:
+
+```powershell
+$env:PROJECT101_EOS_RUNTIME="1"  # implies runtime_preferred
+```
+
+## 1) Prerequisites
+- Windows desktop for current runtime lane automation.
+- `addons/epic-online-services-godot` present and plugin enabled in `project.godot`.
+- Not headless for runtime login/lobby tests.
+- EOS credentials configured for your deployment.
+
+## 2) Required Environment Variables
+Set before launching runtime lane commands:
+
+```powershell
 $env:EOS_PRODUCT_NAME="project101"
 $env:EOS_PRODUCT_VERSION="0.1.0"
 $env:EOS_PRODUCT_ID="<product-id>"
@@ -26,37 +41,55 @@ Optional:
 
 ```powershell
 $env:EOS_ENCRYPTION_KEY="<64-hex-chars>"
-$env:EOS_DEV_AUTH_HOST="localhost:4545"
-$env:EOS_DEV_AUTH_CREDENTIAL="dev_player"
+$env:PROJECT101_BUILD_FAMILY="dev"
 ```
 
-## 3) Runtime Behavior
-- If runtime init/login fails, services downgrade to `mock` backend and stay usable.
-- Offline flow remains unchanged.
-- Runtime path is guarded off in headless mode.
+Runtime lane currently uses internal DevAuth helper credentials for automation:
 
-## 4) Known Limitation
-- On this machine, EOS extension teardown can occasionally crash on shutdown.
-- This is treated as an external baseline; test gates remain mock/headless-safe.
+```powershell
+$env:EOS_DEV_AUTH_HOST="localhost:4545"
+$env:EOS_DEV_AUTH_CREDENTIAL_HOST="dev_host"
+$env:EOS_DEV_AUTH_CREDENTIAL_CLIENT="dev_client"
+```
 
-## 5) Verification Commands
-Fast gate:
+## 3) Authentication Modes
+- App UI path defaults to **Account Portal** (`OnlineLobby` login button).
+- DevAuth remains available as internal helper for runtime automation and integration debugging.
+
+## 4) Test Lanes
+### Core deterministic lane (headless)
 
 ```powershell
 ./tools/godot.cmd --headless --path . --quit
-./tools/godot.cmd --headless --path . -s res://tests/run_tests_fast.gd
-./tools/godot.cmd --headless --path . -s res://tests/_tmp_probe_round_click.gd
-./tools/godot.cmd --headless --path . -s res://tests/probe_gametable3d_interaction_matrix.gd
-```
-
-Long/full gate:
-
-```powershell
 ./tools/godot.cmd --headless --path . -s res://tests/run_tests.gd
 ```
 
-Manual runtime smoke (non-headless, EOS env configured):
+### Runtime EOS lane (non-headless)
 
 ```powershell
-./tools/godot.cmd --path . -s res://tests/eos_runtime_smoke.gd
+./tools/run_eos_runtime_lane.ps1
 ```
+
+Runner script: `res://tests/run_tests_runtime_eos.gd`
+
+What it validates:
+- runtime init on host/client services,
+- login,
+- lobby create/join,
+- ready convergence,
+- match-start attr publish (`phase = MATCH_STARTING`).
+
+## 5) Windows <-> Android Crossplay Checklist (Manual)
+1. Export/install Android debug build with same `build_family` and protocol version as Windows build.
+2. On both devices, login to EOS (Account Portal path preferred).
+3. Host on Windows creates lobby.
+4. Android client discovers/joins lobby.
+5. Verify both clients show each other in roster with expected platform markers.
+6. Ready all players and start match.
+7. Confirm initial snapshot arrives and table opens on both devices.
+
+## 6) Release Gate (Deferred No-Mock Cutover)
+Before public release, set production lane to `runtime_required` and verify:
+- no silent fallback to mock in runtime app paths,
+- startup fails clearly if EOS runtime is unavailable,
+- runtime lane is green on supported platforms.

@@ -102,6 +102,10 @@ func _test_mock_online_lobby_flow() -> bool:
 		if member_puid == "":
 			continue
 		var attrs: Dictionary = member.get("attrs", {})
+		if not attrs.has("display_name") or not attrs.has("build_family") or not attrs.has("protocol_rev"):
+			push_error("Member compatibility metadata missing for %s: %s" % [member_puid, str(attrs)])
+			_cleanup_online_lobby_flow(online_services, lobby_services, original_runtime_env)
+			return false
 		seat_by_puid[member_puid] = int(attrs.get("seat", -1))
 		if bool(attrs.get("ready", false)):
 			ready_count += 1
@@ -139,6 +143,14 @@ func _test_mock_online_lobby_flow() -> bool:
 		return false
 	if String(attrs.get("match_id", "")) != match_id:
 		push_error("Lobby match_id mismatch after update.")
+		_cleanup_online_lobby_flow(online_services, lobby_services, original_runtime_env)
+		return false
+	if int(attrs.get("protocol_rev", 0)) <= 0:
+		push_error("Lobby protocol_rev metadata missing or invalid: %s" % str(attrs))
+		_cleanup_online_lobby_flow(online_services, lobby_services, original_runtime_env)
+		return false
+	if String(attrs.get("build_family", "")).strip_edges() == "":
+		push_error("Lobby build_family metadata missing: %s" % str(attrs))
 		_cleanup_online_lobby_flow(online_services, lobby_services, original_runtime_env)
 		return false
 

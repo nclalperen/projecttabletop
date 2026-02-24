@@ -1,6 +1,8 @@
 extends RefCounted
 class_name DisplaySettingsService
 
+const PLATFORM_PROFILE_SCRIPT: Script = preload("res://ui/services/PlatformProfile.gd")
+
 const MODE_WINDOWED: String = "windowed"
 const MODE_BORDERLESS: String = "borderless"
 const MODE_EXCLUSIVE: String = "exclusive"
@@ -16,6 +18,14 @@ const DEFAULT_FPS_CAPS: Array[int] = [0, 30, 60, 90, 120, 144, 165, 240]
 
 static func is_headless() -> bool:
 	return DisplayServer.get_name().to_lower().find("headless") != -1
+
+
+static func supports_desktop_window_controls() -> bool:
+	return PLATFORM_PROFILE_SCRIPT.supports_desktop_window_controls()
+
+
+static func supports_desktop_window_controls_for_platform(platform_name: String) -> bool:
+	return PLATFORM_PROFILE_SCRIPT.supports_desktop_window_controls_for_platform(platform_name)
 
 
 static func default_settings() -> Dictionary:
@@ -34,12 +44,14 @@ static func default_settings() -> Dictionary:
 
 
 static func sanitize(raw: Dictionary) -> Dictionary:
+	var allow_window_controls: bool = supports_desktop_window_controls()
 	var monitors: Array[Dictionary] = list_monitors()
 	var monitor_count: int = max(1, monitors.size())
 	var out: Dictionary = {}
 	var display_mode: String = str(raw.get("display_mode", MODE_WINDOWED)).to_lower()
 	if not PackedStringArray([MODE_WINDOWED, MODE_BORDERLESS, MODE_EXCLUSIVE]).has(display_mode):
 		display_mode = MODE_WINDOWED
+	display_mode = safe_mode_for_platform(display_mode)
 	var monitor_index: int = clampi(int(raw.get("monitor_index", 0)), 0, monitor_count - 1)
 	var resolution_width: int = max(1, int(raw.get("resolution_width", 1280)))
 	var resolution_height: int = max(1, int(raw.get("resolution_height", 720)))
@@ -60,6 +72,13 @@ static func sanitize(raw: Dictionary) -> Dictionary:
 	var valid_rates: PackedInt32Array = list_refresh_rates(monitor_index)
 	if refresh_rate_hz != 0 and not valid_rates.has(refresh_rate_hz):
 		refresh_rate_hz = 0
+	if not allow_window_controls:
+		display_mode = MODE_BORDERLESS
+		monitor_index = 0
+		refresh_rate_hz = 0
+		var monitor_size: Vector2i = _monitor_size_for(0)
+		if monitor_size != Vector2i.ZERO:
+			nearest_res = monitor_size
 
 	out["display_mode"] = display_mode
 	out["monitor_index"] = monitor_index
@@ -174,36 +193,47 @@ static func apply(settings: Dictionary) -> Dictionary:
 	if is_headless():
 		return {"ok": true, "code": "headless_noop", "applied": sanitized}
 
-	var monitor_index: int = int(sanitized.get("monitor_index", 0))
-	if DisplayServer.has_method("window_set_current_screen"):
-		DisplayServer.window_set_current_screen(monitor_index)
+	var code: String = "applied"
+	if supports_desktop_window_controls():
+		var monitor_index: int = int(sanitized.get("monitor_index", 0))
+		if DisplayServer.has_method("window_set_current_screen"):
+			DisplayServer.window_set_current_screen(monitor_index)
 
-	var mode: String = str(sanitized.get("display_mode", MODE_WINDOWED))
-	var size := Vector2i(
-		int(sanitized.get("resolution_width", 1280)),
-		int(sanitized.get("resolution_height", 720))
-	)
-	if mode == MODE_EXCLUSIVE:
-		# Attempt to seed exclusive fullscreen with requested mode.
-		DisplayServer.window_set_size(size)
-	_apply_window_mode(mode)
+		var mode: String = str(sanitized.get("display_mode", MODE_WINDOWED))
+		var size := Vector2i(
+			int(sanitized.get("resolution_width", 1280)),
+			int(sanitized.get("resolution_height", 720))
+		)
+		if mode == MODE_EXCLUSIVE:
+			# Attempt to seed exclusive fullscreen with requested mode.
+			DisplayServer.window_set_size(size)
+		_apply_window_mode(mode)
 
-	if mode == MODE_WINDOWED:
-		DisplayServer.window_set_size(size)
-	elif mode == MODE_BORDERLESS:
-		# Borderless follows monitor native size.
-		var native: Vector2i = _monitor_size_for(monitor_index)
-		if native != Vector2i.ZERO:
-			DisplayServer.window_set_size(native)
-			sanitized["resolution_width"] = native.x
-			sanitized["resolution_height"] = native.y
-	elif mode == MODE_EXCLUSIVE:
-		# Re-apply after mode switch for platforms honoring it.
-		DisplayServer.window_set_size(size)
+		if mode == MODE_WINDOWED:
+			DisplayServer.window_set_size(size)
+		elif mode == MODE_BORDERLESS:
+			# Borderless follows monitor native size.
+			var native: Vector2i = _monitor_size_for(monitor_index)
+			if native != Vector2i.ZERO:
+				DisplayServer.window_set_size(native)
+				sanitized["resolution_width"] = native.x
+				sanitized["resolution_height"] = native.y
+		elif mode == MODE_EXCLUSIVE:
+			# Re-apply after mode switch for platforms honoring it.
+			DisplayServer.window_set_size(size)
+	else:
+		code = "limited_apply_non_desktop"
+		sanitized["monitor_index"] = 0
+		sanitized["display_mode"] = MODE_BORDERLESS
+		sanitized["refresh_rate_hz"] = 0
+		var native_size: Vector2i = _monitor_size_for(0)
+		if native_size != Vector2i.ZERO:
+			sanitized["resolution_width"] = native_size.x
+			sanitized["resolution_height"] = native_size.y
 
 	DisplayServer.window_set_vsync_mode(_vsync_enum_from_id(str(sanitized.get("vsync_mode", VSYNC_ENABLED))))
 	Engine.max_fps = int(sanitized.get("fps_cap", 0))
-	return {"ok": true, "code": "applied", "applied": sanitized}
+	return {"ok": true, "code": code, "applied": sanitized}
 
 
 static func apply_safe(settings: Dictionary) -> Dictionary:
@@ -218,7 +248,7 @@ static func apply_safe(settings: Dictionary) -> Dictionary:
 	if not bool(result.get("ok", false)):
 		return result
 
-	if str(safe.get("display_mode", MODE_WINDOWED)) == MODE_EXCLUSIVE:
+	if supports_desktop_window_controls() and str(safe.get("display_mode", MODE_WINDOWED)) == MODE_EXCLUSIVE:
 		var runtime_mode: String = str(current_runtime_settings().get("display_mode", MODE_WINDOWED))
 		if runtime_mode != MODE_EXCLUSIVE:
 			safe["display_mode"] = MODE_BORDERLESS
@@ -234,7 +264,7 @@ static func safe_mode_for_platform(requested_mode: String, platform_name: String
 	if not PackedStringArray([MODE_WINDOWED, MODE_BORDERLESS, MODE_EXCLUSIVE]).has(mode):
 		mode = MODE_WINDOWED
 	var platform: String = platform_name if platform_name != "" else OS.get_name()
-	if mode == MODE_EXCLUSIVE and not DESKTOP_PLATFORMS.has(platform):
+	if mode == MODE_EXCLUSIVE and not supports_desktop_window_controls_for_platform(platform):
 		return MODE_BORDERLESS
 	return mode
 

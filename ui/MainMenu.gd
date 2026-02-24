@@ -21,6 +21,7 @@ const ONLINE_SERVICE_SCRIPT: Script = preload("res://net/OnlineServiceEOS.gd")
 const MENU_AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/MenuAudioService.gd")
 const UI_SETTINGS_SCRIPT: Script = preload("res://ui/services/UISettings.gd")
 const DISPLAY_SETTINGS_SCRIPT: Script = preload("res://ui/services/DisplaySettingsService.gd")
+const PLATFORM_PROFILE_SCRIPT: Script = preload("res://ui/services/PlatformProfile.gd")
 const MENU_STYLE: Script = preload("res://ui/services/MenuStyleRegistry.gd")
 const ICON_BUTTON_SCENE: PackedScene = preload("res://ui/widgets/IconTextButton.tscn")
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
@@ -42,7 +43,7 @@ var player_count: int = 4
 var game_seed: int = -1  # -1 means random
 var rule_config: RuleConfig = null
 var _animations_enabled: bool = true
-var presentation_mode: String = "3d" # "2d" | "3d"
+var presentation_mode: String = PLATFORM_PROFILE_SCRIPT.default_presentation_mode() # "2d" | "3d"
 var _online_button: Button = null
 var _menu_audio = null
 
@@ -57,7 +58,9 @@ func _ready() -> void:
 
 	# Initialize default config.
 	rule_config = RuleConfig.new()
-	_apply_runtime_display_settings()
+	var ui_settings: Dictionary = UI_SETTINGS_SCRIPT.load_from_disk()
+	_sync_presentation_mode_from_settings(ui_settings)
+	_apply_runtime_display_settings(ui_settings)
 	_apply_background_pattern()
 	_apply_panel_shell()
 	_ensure_online_button()
@@ -315,6 +318,7 @@ func _on_online_pressed() -> void:
 
 func _on_settings_changed(new_config: RuleConfig):
 	rule_config = new_config
+	_sync_presentation_mode_from_settings()
 	_refresh_settings_summary()
 	_sync_meta_chips()
 	if _banner != null and _banner.has_method("set_text"):
@@ -374,12 +378,16 @@ func _ensure_online_button() -> void:
 	var init_res: Dictionary = online_service.initialize()
 	online_service.free()
 	var available: bool = bool(init_res.get("ok", false))
+	var policy: String = String(init_res.get("backend_policy", ""))
 	_online_button.disabled = not available
 	if not available:
 		_online_button.tooltip_text = String(init_res.get("reason", "Online unavailable"))
 		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_LOCKED_ID), "Online (EOS)", 0)
 	else:
-		_online_button.tooltip_text = "Backend: %s" % String(init_res.get("backend_mode", "mock"))
+		_online_button.tooltip_text = "Backend: %s | Policy: %s" % [
+			String(init_res.get("backend_mode", "mock")),
+			policy,
+		]
 		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_UNLOCKED_ID), "Online (EOS)", 0)
 	_sync_meta_chips()
 
@@ -414,9 +422,20 @@ func _style_vector(id: StringName) -> Vector2:
 	return MENU_STYLE.vector(id)
 
 
-func _apply_runtime_display_settings() -> void:
-	var settings: Dictionary = UI_SETTINGS_SCRIPT.load_from_disk()
-	var display_settings: Dictionary = UI_SETTINGS_SCRIPT.sanitize_display_settings(settings)
+func _sync_presentation_mode_from_settings(settings: Dictionary = {}) -> void:
+	var loaded: Dictionary = settings
+	if loaded.is_empty():
+		loaded = UI_SETTINGS_SCRIPT.load_from_disk()
+	presentation_mode = UI_SETTINGS_SCRIPT.sanitize_presentation_mode(
+		str(loaded.get("presentation_mode", PLATFORM_PROFILE_SCRIPT.default_presentation_mode()))
+	)
+
+
+func _apply_runtime_display_settings(settings: Dictionary = {}) -> void:
+	var loaded: Dictionary = settings
+	if loaded.is_empty():
+		loaded = UI_SETTINGS_SCRIPT.load_from_disk()
+	var display_settings: Dictionary = UI_SETTINGS_SCRIPT.sanitize_display_settings(loaded)
 	var result: Dictionary = DISPLAY_SETTINGS_SCRIPT.apply_safe(display_settings)
 	if not bool(result.get("ok", false)):
 		if _banner != null and _banner.has_method("set_text"):

@@ -50,6 +50,9 @@ func _test_mock_lobby_model_shape_and_deterministic_seats() -> bool:
 		if not attrs.has("seat") or not attrs.has("ready") or not attrs.has("status") or not attrs.has("platform"):
 			push_error("Member attrs contract incomplete for %s." % puid)
 			return false
+		if not attrs.has("display_name") or not attrs.has("build_family") or not attrs.has("protocol_rev"):
+			push_error("Member compatibility attrs missing for %s." % puid)
+			return false
 		seat_by_puid[puid] = int(attrs.get("seat", -1))
 
 	if seat_by_puid.get("P0", -1) != 0 or seat_by_puid.get("P1", -1) != 1:
