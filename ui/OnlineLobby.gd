@@ -553,6 +553,8 @@ func _on_start_pressed() -> void:
 func _on_back_pressed() -> void:
 	if _menu_audio != null:
 		_menu_audio.play_back()
+	if _lobby_service != null and _lobby_service.current_lobby_id != "":
+		_lobby_service.leave_lobby()
 	get_tree().change_scene_to_file("res://ui/Main.tscn")
 
 

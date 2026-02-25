@@ -111,7 +111,7 @@ const TILE_TUNE_DUMP_KEY: Key = KEY_F10
 const TILE_TUNE_HELP_KEY: Key = KEY_F11
 const MANUAL_CAPTURE_KEY: Key = KEY_F12
 const TILE_TUNE_WATCH_INTERVAL_SEC: float = 0.5
-const AUTO_CAPTURE_DEFAULT_ENABLED: bool = true
+const AUTO_CAPTURE_DEFAULT_ENABLED: bool = false
 const AUTO_CAPTURE_INTERVAL_SEC: float = 20.0
 const AUTO_CAPTURE_MAX_PER_SESSION: int = 120
 const AUTO_CAPTURE_PROJECT_PATH: String = "res://ai agent docs/screenshots/auto"
@@ -169,9 +169,9 @@ const MELD_DRAG_LANE_MARGIN: float = INTERACTION_TUNING.DRAFT_LANE_MARGIN_3D
 const DRAG_START_DISTANCE_PX: float = INTERACTION_TUNING.DRAG_START_DISTANCE_3D_PX
 const INTERACT_COLLISION_LAYER: int = 1
 const INTERACT_RAY_LENGTH: float = 5.0
-const RACK_TILE_PICK_SIZE: Vector3 = Vector3(TILE_W * 0.98, TILE_H * 1.00, TILE_D * 3.8)
+const RACK_TILE_PICK_SIZE: Vector3 = Vector3(TILE_W * 0.98, TILE_H * 1.00, TILE_D * 5.5)
 const STAGE_TILE_PICK_SIZE: Vector3 = Vector3(TILE_W * 0.94, TILE_H * 0.92, TILE_D * 4.8)
-const RACK_SLOT_PICK_SIZE: Vector3 = Vector3(TILE_W * 0.95, TILE_H * 1.02, TILE_D * 8.0)
+const RACK_SLOT_PICK_SIZE: Vector3 = Vector3(TILE_W * 0.95, TILE_H * 1.02, TILE_D * 12.0)
 const DRAW_PICK_SIZE: Vector3 = Vector3(0.11, 0.035, 0.11)
 const DISCARD_PICK_SIZE: Vector3 = Vector3(0.11, 0.032, 0.11)
 const MELD_PICK_HEIGHT: float = 0.028
@@ -181,7 +181,7 @@ const TILE_COLOR_MAP: Dictionary = {
 	0: Color(0.85, 0.12, 0.10), # Red
 	1: Color(0.10, 0.40, 0.75), # Blue
 	2: Color(0.12, 0.12, 0.15), # Black
-	3: Color(0.28, 0.17, 0.02), # Yellow (higher contrast)
+	3: Color(0.82, 0.62, 0.05), # Yellow (bright golden)
 }
 
 @onready var _camera: Camera3D = $World/Camera3D
@@ -199,6 +199,7 @@ var _game_table: Node = null
 var _pending_rule_config: RuleConfig = null
 var _pending_seed: int = 0
 var _pending_player_count: int = 4
+var _pending_bot_difficulties: Array = []
 var _has_pending_config: bool = false
 var _pending_controller = null
 var _has_pending_controller: bool = false
@@ -418,10 +419,11 @@ func _ready() -> void:
 	set_process(true)
 
 
-func configure_game(rule_config: RuleConfig, game_seed: int, player_count: int) -> void:
+func configure_game(rule_config: RuleConfig, game_seed: int, player_count: int, bot_difficulties: Array = []) -> void:
 	_pending_rule_config = rule_config
 	_pending_seed = game_seed
 	_pending_player_count = player_count
+	_pending_bot_difficulties = bot_difficulties
 	_has_pending_config = true
 	_apply_pending_config_if_ready()
 
@@ -615,8 +617,8 @@ func _configure_environment() -> void:
 	env.sky = _make_tabletop_sky()
 	env.background_color = Color(0.12, 0.07, 0.045, 1.0)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.92, 0.85, 0.78, 1.0)
-	env.ambient_light_energy = 0.76
+	env.ambient_light_color = Color(0.96, 0.94, 0.92, 1.0)
+	env.ambient_light_energy = 0.88
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	VISUAL_QUALITY_SCRIPT.apply_to_environment(env, _visual_settings)
 	_world_environment = env
@@ -1638,7 +1640,7 @@ func _number_tint_for_color(color_idx: int) -> Color:
 		int(Tile.TileColor.BLACK):
 			return _apply_number_readability(Color(0.10, 0.10, 0.13, 1.0))
 		int(Tile.TileColor.YELLOW):
-			return _apply_number_readability(Color(0.22, 0.14, 0.01, 1.0))
+			return _apply_number_readability(Color(0.82, 0.62, 0.05, 1.0))
 		_:
 			return _apply_number_readability(Color(0.20, 0.20, 0.22, 1.0))
 
@@ -1669,7 +1671,7 @@ func _material_with_number_tint(src_mat: Material, tint: Color) -> Material:
 	mat.albedo_color = tint
 	mat.roughness = _tune_number_roughness
 	mat.metallic_specular = _tune_number_specular
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED if _tune_number_unshaded else BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.emission_enabled = false
 	mat.emission = Color.BLACK
 	_apply_tile_finish_filter(mat, true)
@@ -2868,7 +2870,7 @@ func _render_local_rack_tiles(rack_slots: Array, by_id: Dictionary) -> void:
 
 	var row0_slots: int = mini(15, rack_slots.size())
 	var row1_slots: int = maxi(0, mini(30, rack_slots.size()) - 15)
-	var usable_len: float = RACK_LEN - 0.060
+	var usable_len: float = RACK_LEN - 0.080
 	var spacing0: float = usable_len / 15.0
 	var start0: float = -usable_len * 0.5 + spacing0 * 0.5
 	var row0_anchor: Vector3 = _rack_row0_anchor_tuned()
@@ -3211,11 +3213,11 @@ func _sync_world_discards() -> void:
 			var tile := _create_tile_face_up(td, false)
 			var spread_col: int = i % rot_pattern.size()
 			var spread_row: int = int(floor(float(i) / float(maxi(rot_pattern.size(), 1))))
-			var x_off: float = (float(spread_col) - (float(rot_pattern.size()) - 1.0) * 0.5) * 0.0019
-			var z_off: float = (float(spread_row) - 1.0) * 0.0016
+			var x_off: float = (float(spread_col) - (float(rot_pattern.size()) - 1.0) * 0.5) * 0.0055
+			var z_off: float = (float(spread_row) - 1.0) * 0.0045
 			tile.position = Vector3(
 				x_off,
-				float(i) * TILE_D * 0.28,
+				float(i) * TILE_D * 1.2,
 				z_off
 			)
 			tile.rotation_degrees.y = base_rot[pi] + rot_pattern[spread_col]
@@ -4807,6 +4809,14 @@ func _create_hud_overlay() -> void:
 	right_box.add_child(_hud_phase)
 	right_box.add_child(_hud_deck)
 	right_box.add_child(_hud_okey)
+
+	var menu_btn := Button.new()
+	menu_btn.name = "HudMenuButton"
+	menu_btn.text = "Menu"
+	menu_btn.custom_minimum_size = Vector2(80, 0)
+	menu_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	menu_btn.pressed.connect(_on_hud_menu_pressed)
+	right_box.add_child(menu_btn)
 	if OS.is_debug_build():
 		_hud_debug_telemetry = Label.new()
 		_hud_debug_telemetry.name = "DebugTelemetry"
@@ -4820,6 +4830,10 @@ func _create_hud_overlay() -> void:
 		_hud_debug_telemetry.add_theme_constant_override("outline_size", 1)
 		_hud_layer.add_child(_hud_debug_telemetry)
 	_layout_hud()
+
+
+func _on_hud_menu_pressed() -> void:
+	get_tree().change_scene_to_file("res://ui/Main.tscn")
 
 
 func _make_hud_stat(text: String, min_w: float, color: Color = Color(0.92, 0.85, 0.66, 1.0)) -> Label:
@@ -5087,7 +5101,7 @@ func _apply_pending_config_if_ready() -> void:
 		return
 	_apply_pending_controller_if_ready()
 	if _game_table.has_method("configure_game"):
-		_game_table.call("configure_game", _pending_rule_config, _pending_seed, _pending_player_count)
+		_game_table.call("configure_game", _pending_rule_config, _pending_seed, _pending_player_count, _pending_bot_difficulties)
 	_has_pending_config = false
 	_force_sync()
 

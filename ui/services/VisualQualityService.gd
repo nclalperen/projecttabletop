@@ -168,26 +168,26 @@ static func apply_to_lights(key_light: Light3D, rim_light: Light3D, fill_light: 
 	var profile: String = str(s["graphics_profile"])
 	var postfx: float = float(s["postfx_strength"])
 	var shadow_quality: int = int(s["shadow_quality"])
-	var key_energy: float = 1.20
-	var rim_energy: float = 0.52
-	var fill_energy: float = 0.34
+	var key_energy: float = 1.50
+	var rim_energy: float = 0.60
+	var fill_energy: float = 0.45
 	match profile:
 		PROFILE_LOW:
-			key_energy = 1.08
-			rim_energy = 0.40
-			fill_energy = 0.26
+			key_energy = 1.35
+			rim_energy = 0.48
+			fill_energy = 0.35
 		PROFILE_MEDIUM:
-			key_energy = 1.24
-			rim_energy = 0.60
-			fill_energy = 0.40
+			key_energy = 1.50
+			rim_energy = 0.65
+			fill_energy = 0.48
 		PROFILE_HIGH:
-			key_energy = 1.34
-			rim_energy = 0.68
-			fill_energy = 0.41
+			key_energy = 1.60
+			rim_energy = 0.72
+			fill_energy = 0.50
 		PROFILE_ULTRA:
-			key_energy = 1.42
-			rim_energy = 0.76
-			fill_energy = 0.47
+			key_energy = 1.70
+			rim_energy = 0.80
+			fill_energy = 0.55
 	key_energy += postfx * 0.05
 	rim_energy += postfx * 0.03
 	fill_energy += postfx * 0.03

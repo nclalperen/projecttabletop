@@ -47,6 +47,10 @@ const _COLORS := {
 	&"field_text": Color(0.95, 0.9, 0.82, 1.0),
 	&"field_placeholder": Color(0.76, 0.69, 0.57, 0.76),
 	&"field_shadow": Color(0, 0, 0, 0.25),
+	&"online_status_offline": Color(0.85, 0.22, 0.18, 1.0),
+	&"online_status_idle": Color(0.30, 0.50, 0.85, 1.0),
+	&"online_status_online": Color(0.30, 0.78, 0.35, 1.0),
+	&"welcome_text": Color(0.88, 0.82, 0.68, 0.90),
 }
 
 const _SCALARS := {

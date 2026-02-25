@@ -5,10 +5,10 @@ var CONTRACTS: Array[Dictionary] = [
 		"scene": "res://ui/MainMenu.tscn",
 		"nodes": PackedStringArray([
 			"StatusBanner",
-			"CenterContainer/MenuCard/MarginContainer/VBoxContainer/SettingsSummary",
-			"CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons/StartButton",
-			"CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons/SettingsButton",
-			"CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons/QuitButton",
+			"LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/SettingsSummary",
+			"LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons/StartButton",
+			"LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons/SettingsButton",
+			"LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons/QuitButton",
 		]),
 	},
 	{

@@ -55,8 +55,9 @@ const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 # ─── Game logic ───
 var _controller = LOCAL_CONTROLLER_SCRIPT.new()
 var _controller_injected_external: bool = false
-var _bot: BotHeuristic = BotHeuristic.new()
+var _bots: Array = []  # per-seat bot instances (index 0 unused, seats 1..N-1)
 var _bot_fallback: BotRandom = BotRandom.new(7007)
+var _bot_difficulties: Array = []
 var _rule_config: RuleConfig = null
 var _game_seed: int = -1
 var _player_count: int = 4
@@ -77,7 +78,7 @@ var _round_index: int = 0
 # ─── UI state ───
 var _action_in_flight: bool = false
 var _bot_loop_running: bool = false
-var _round_dialog: AcceptDialog = null
+var _round_dialog: PanelContainer = null
 var _round_controls: HBoxContainer = null
 var _round_new_btn: Button = null
 var _round_menu_btn: Button = null
@@ -757,10 +758,23 @@ func _create_rack_depth_shell() -> void:
 	_rack_depth_shell.add_theme_stylebox_override("panel", _rack_depth_shell_style)
 	add_child(_rack_depth_shell)
 
-func configure_game(rule_config: RuleConfig, game_seed: int, player_count: int) -> void:
+func configure_game(rule_config: RuleConfig, game_seed: int, player_count: int, bot_difficulties: Array = []) -> void:
 	_rule_config = rule_config
 	_game_seed = game_seed
 	_player_count = player_count
+	_bot_difficulties = bot_difficulties
+	_init_bots()
+
+
+func _init_bots() -> void:
+	_bots.clear()
+	_bots.append(null)  # seat 0 = human player
+	for i in range(1, _player_count):
+		var diff: String = "Normal"
+		if i - 1 < _bot_difficulties.size():
+			diff = str(_bot_difficulties[i - 1])
+		_bots.append(BotBase.create(diff, _game_seed + i))
+
 
 # ═══════════════════════════════════════════
 # OPPONENT AREAS (dynamic, positioned in TableArea)
@@ -2130,6 +2144,8 @@ func _maybe_auto_bot_turn() -> void:
 		return
 	if _controller.state == null:
 		return
+	if _bots.is_empty():
+		_init_bots()
 	_bot_loop_running = true
 	var safety: int = 0
 	while _controller.state != null and _controller.state.phase != GameState.Phase.ROUND_END and _controller.state.current_player_index != 0 and safety < 96:
@@ -2138,7 +2154,8 @@ func _maybe_auto_bot_turn() -> void:
 		if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END or _controller.state.current_player_index == 0:
 			break
 		var bot_index: int = int(_controller.state.current_player_index)
-		var action = await _compute_bot_action_async(_bot, _controller.state, bot_index)
+		var seat_bot = _bots[bot_index] if bot_index < _bots.size() and _bots[bot_index] != null else BotHeuristic.new()
+		var action = await _compute_bot_action_async(seat_bot, _controller.state, bot_index)
 		if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END or _controller.state.current_player_index == 0:
 			break
 		if action == null:
@@ -2217,22 +2234,179 @@ func _unbind_controller_signals() -> void:
 func _show_round_end_dialog() -> void:
 	if _controller.state == null:
 		return
-	# Headless test/probe runs have no real window; avoid popup warnings there.
 	if DisplayServer.get_name() == "headless":
 		return
-	if _round_dialog == null:
-		_round_dialog = AcceptDialog.new()
-		_round_dialog.title = "Round End"
-		add_child(_round_dialog)
-	var lines: Array[String] = []
-	lines.append("Round complete")
+	if _round_dialog != null:
+		_round_dialog.queue_free()
+		_round_dialog = null
+
+	var overlay := ColorRect.new()
+	overlay.name = "ScoreOverlay"
+	overlay.color = Color(0.0, 0.0, 0.0, 0.5)
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(overlay)
+
+	_round_dialog = PanelContainer.new()
+	_round_dialog.name = "RoundEndScoreboard"
+	_round_dialog.custom_minimum_size = Vector2(420, 0)
+	_round_dialog.set_anchors_preset(Control.PRESET_CENTER)
+	_round_dialog.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_round_dialog.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.14, 0.12, 0.09, 0.96)
+	panel_style.border_width_top = 2
+	panel_style.border_width_bottom = 2
+	panel_style.border_width_left = 2
+	panel_style.border_width_right = 2
+	panel_style.border_color = Color(0.92, 0.80, 0.59, 0.92)
+	panel_style.corner_radius_top_left = 10
+	panel_style.corner_radius_top_right = 10
+	panel_style.corner_radius_bottom_left = 10
+	panel_style.corner_radius_bottom_right = 10
+	panel_style.content_margin_left = 24
+	panel_style.content_margin_right = 24
+	panel_style.content_margin_top = 20
+	panel_style.content_margin_bottom = 20
+	_round_dialog.add_theme_stylebox_override("panel", panel_style)
+	overlay.add_child(_round_dialog)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+	_round_dialog.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Round Complete"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(0.96, 0.90, 0.78, 1.0))
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(0.92, 0.80, 0.59, 0.5))
+	vbox.add_child(sep)
+
+	# Header row
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 8)
+	var h_name := Label.new()
+	h_name.text = "Player"
+	h_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h_name.add_theme_font_size_override("font_size", 18)
+	h_name.add_theme_color_override("font_color", Color(0.82, 0.77, 0.67, 0.88))
+	header.add_child(h_name)
+	var h_round := Label.new()
+	h_round.text = "Round"
+	h_round.custom_minimum_size = Vector2(80, 0)
+	h_round.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	h_round.add_theme_font_size_override("font_size", 18)
+	h_round.add_theme_color_override("font_color", Color(0.82, 0.77, 0.67, 0.88))
+	header.add_child(h_round)
+	var h_total := Label.new()
+	h_total.text = "Total"
+	h_total.custom_minimum_size = Vector2(80, 0)
+	h_total.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	h_total.add_theme_font_size_override("font_size", 18)
+	h_total.add_theme_color_override("font_color", Color(0.82, 0.77, 0.67, 0.88))
+	header.add_child(h_total)
+	vbox.add_child(header)
+
+	# Find winner (lowest total score)
+	var winner_idx: int = 0
+	var lowest_total: float = INF
+	for i in range(_controller.state.players.size()):
+		var total: float = float(_controller.state.players[i].score_total)
+		if total < lowest_total:
+			lowest_total = total
+			winner_idx = i
+
+	# Player rows
 	for i in range(_controller.state.players.size()):
 		var p = _controller.state.players[i]
-		var label: String = "You" if i == 0 else "P%d" % i
-		lines.append("%s: round=%d total=%d" % [label, int(p.score_round), int(p.score_total)])
-	_round_dialog.dialog_text = "\n".join(lines)
-	if not _round_dialog.visible:
-		_round_dialog.popup_centered(Vector2i(420, 260))
+		var is_you: bool = (i == 0)
+		var is_winner: bool = (i == winner_idx)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+
+		var row_bg := StyleBoxFlat.new()
+		if is_winner:
+			row_bg.bg_color = Color(0.28, 0.22, 0.08, 0.6)
+		elif is_you:
+			row_bg.bg_color = Color(0.18, 0.16, 0.12, 0.4)
+		else:
+			row_bg.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+		row_bg.content_margin_left = 8
+		row_bg.content_margin_right = 8
+		row_bg.content_margin_top = 4
+		row_bg.content_margin_bottom = 4
+		row_bg.corner_radius_top_left = 4
+		row_bg.corner_radius_top_right = 4
+		row_bg.corner_radius_bottom_left = 4
+		row_bg.corner_radius_bottom_right = 4
+		var row_panel := PanelContainer.new()
+		row_panel.add_theme_stylebox_override("panel", row_bg)
+		row_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+		var row_inner := HBoxContainer.new()
+		row_inner.add_theme_constant_override("separation", 8)
+
+		var player_name := Label.new()
+		var name_text: String = "You" if is_you else "Bot %d" % i
+		if is_winner:
+			name_text += " (Winner)"
+		player_name.text = name_text
+		player_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		player_name.add_theme_font_size_override("font_size", 20)
+		var name_color: Color = Color(0.99, 0.91, 0.74) if is_you else Color(0.92, 0.87, 0.78, 0.95)
+		player_name.add_theme_color_override("font_color", name_color)
+		row_inner.add_child(player_name)
+
+		var round_score := Label.new()
+		round_score.text = str(int(p.score_round))
+		round_score.custom_minimum_size = Vector2(80, 0)
+		round_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		round_score.add_theme_font_size_override("font_size", 20)
+		var score_color: Color = Color(0.65, 0.85, 0.55) if int(p.score_round) < 0 else Color(0.95, 0.65, 0.55)
+		round_score.add_theme_color_override("font_color", score_color)
+		row_inner.add_child(round_score)
+
+		var total_score := Label.new()
+		total_score.text = str(int(p.score_total))
+		total_score.custom_minimum_size = Vector2(80, 0)
+		total_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		total_score.add_theme_font_size_override("font_size", 20)
+		total_score.add_theme_color_override("font_color", Color(0.96, 0.90, 0.78))
+		row_inner.add_child(total_score)
+
+		row_panel.add_child(row_inner)
+		vbox.add_child(row_panel)
+
+	var sep2 := HSeparator.new()
+	sep2.add_theme_color_override("separator", Color(0.92, 0.80, 0.59, 0.3))
+	vbox.add_child(sep2)
+
+	var btn_row := HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 16)
+	var new_round_btn := Button.new()
+	new_round_btn.text = "New Round"
+	new_round_btn.custom_minimum_size = Vector2(140, 40)
+	new_round_btn.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_round_dialog = null
+		_start_round()
+	)
+	btn_row.add_child(new_round_btn)
+	var menu_btn := Button.new()
+	menu_btn.text = "Return to Menu"
+	menu_btn.custom_minimum_size = Vector2(160, 40)
+	menu_btn.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_round_dialog = null
+		_return_to_main_menu()
+	)
+	btn_row.add_child(menu_btn)
+	vbox.add_child(btn_row)
 
 func _return_to_main_menu() -> void:
 	get_tree().change_scene_to_file("res://ui/Main.tscn")
@@ -2257,6 +2431,22 @@ func _create_round_controls() -> void:
 	_round_menu_btn.custom_minimum_size = Vector2(132, 34)
 	_round_menu_btn.pressed.connect(_return_to_main_menu)
 	_round_controls.add_child(_round_menu_btn)
+
+	var persistent_menu_btn := Button.new()
+	persistent_menu_btn.name = "PersistentMenuButton"
+	persistent_menu_btn.text = "Menu"
+	persistent_menu_btn.custom_minimum_size = Vector2(80, 34)
+	persistent_menu_btn.anchor_left = 1.0
+	persistent_menu_btn.anchor_top = 0.0
+	persistent_menu_btn.anchor_right = 1.0
+	persistent_menu_btn.anchor_bottom = 0.0
+	persistent_menu_btn.offset_left = -94
+	persistent_menu_btn.offset_top = 10
+	persistent_menu_btn.offset_right = -10
+	persistent_menu_btn.offset_bottom = 44
+	persistent_menu_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	persistent_menu_btn.pressed.connect(_return_to_main_menu)
+	add_child(persistent_menu_btn)
 
 func _render_round_controls() -> void:
 	if _round_controls == null or _controller.state == null:

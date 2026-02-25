@@ -2,18 +2,19 @@ extends Control
 
 @onready var _banner: Node = $StatusBanner
 @onready var _background: TextureRect = $Background
-@onready var _start_button: Button = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons/StartButton
-@onready var _buttons_box: VBoxContainer = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons
-@onready var _settings_button: Button = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons/SettingsButton
-@onready var _quit_button: Button = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons/QuitButton
-@onready var _menu_card: PanelContainer = $CenterContainer/MenuCard
-@onready var _settings_summary: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/SettingsSummary
-@onready var _players_chip_icon: TextureRect = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips/PlayersChipIcon
-@onready var _players_chip: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips/PlayersChip
-@onready var _timer_chip_icon: TextureRect = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips/TimerChipIcon
-@onready var _timer_chip: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips/TimerChip
-@onready var _online_chip_icon: TextureRect = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips/OnlineChipIcon
-@onready var _online_chip: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips/OnlineChip
+@onready var _start_button: Button = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons/StartButton
+@onready var _buttons_box: VBoxContainer = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons
+@onready var _settings_button: Button = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons/SettingsButton
+@onready var _quit_button: Button = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons/QuitButton
+@onready var _menu_card: PanelContainer = $LayoutSplit/CardArea/MenuCard
+@onready var _settings_summary: Label = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/SettingsSummary
+@onready var _players_chip_icon: TextureRect = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/PlayersChipIcon
+@onready var _players_chip: Label = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/PlayersChip
+@onready var _timer_chip_icon: TextureRect = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/TimerChipIcon
+@onready var _timer_chip: Label = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/TimerChip
+@onready var _online_chip_icon: TextureRect = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/OnlineChipIcon
+@onready var _online_chip: Label = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/OnlineChip
+@onready var _branding_area: Control = $LayoutSplit/BrandingArea
 
 const SETTINGS_MENU_SCENE: PackedScene = preload("res://ui/SettingsMenu.tscn")
 const ONLINE_LOBBY_SCENE: PackedScene = preload("res://ui/OnlineLobby.tscn")
@@ -26,6 +27,7 @@ const MENU_STYLE: Script = preload("res://ui/services/MenuStyleRegistry.gd")
 const ICON_BUTTON_SCENE: PackedScene = preload("res://ui/widgets/IconTextButton.tscn")
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
+const PLAYER_PROFILE: Script = preload("res://ui/services/PlayerProfile.gd")
 
 const PANEL_BORDER_ID: StringName = ASSET_IDS.UI_PANEL_BORDER_GREY_DETAIL
 const PANEL_FILL_ID: StringName = ASSET_IDS.UI_PANEL_GREY_DARK
@@ -38,14 +40,37 @@ const ICON_TIMER_ID: StringName = ASSET_IDS.UI_ICON_TIMER_100
 const ICON_ONLINE_LOCKED_ID: StringName = ASSET_IDS.UI_ICON_LOCK_CLOSED
 const ICON_ONLINE_UNLOCKED_ID: StringName = ASSET_IDS.UI_ICON_LOCK_OPEN
 
+const WELCOME_MESSAGES: Array[String] = [
+	"Welcome %s, be careful not to discard your okey tile :)",
+	"Welcome %s! May your runs be long and your sets be full.",
+	"Welcome %s, today's the day you master 101.",
+	"Welcome %s! Remember: 101 points to open, patience to win.",
+	"Welcome %s, the tiles are shuffled and ready!",
+	"Welcome %s! A wise player never discards a joker... right?",
+	"Welcome %s, may the indicator be in your favor!",
+	"Welcome %s! Let's see if the bots stand a chance today.",
+	"Welcome %s, the table is set. Time to play!",
+	"Welcome %s! Pro tip: pairs can save your opening.",
+]
+
 # Game configuration
 var player_count: int = 4
 var game_seed: int = -1  # -1 means random
 var rule_config: RuleConfig = null
 var _animations_enabled: bool = true
-var presentation_mode: String = PLATFORM_PROFILE_SCRIPT.default_presentation_mode() # "2d" | "3d"
+var presentation_mode: String = PLATFORM_PROFILE_SCRIPT.default_presentation_mode()
 var _online_button: Button = null
+var _customize_button: Button = null
 var _menu_audio = null
+var _online_available: bool = false
+var _logged_in: bool = false
+
+# Online status UI
+var _status_dot: ColorRect = null
+var _login_btn: Button = null
+var _welcome_label: Label = null
+var _quit_x_btn: Button = null
+
 
 func _ready() -> void:
 	if _menu_audio == null:
@@ -56,7 +81,6 @@ func _ready() -> void:
 	_settings_button.pressed.connect(_on_settings_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
 
-	# Initialize default config.
 	rule_config = RuleConfig.new()
 	var ui_settings: Dictionary = UI_SETTINGS_SCRIPT.load_from_disk()
 	_sync_presentation_mode_from_settings(ui_settings)
@@ -64,13 +88,16 @@ func _ready() -> void:
 	_apply_background_pattern()
 	_apply_panel_shell()
 	_ensure_online_button()
+	_ensure_customize_button()
 	_apply_kenney_fonts()
 	_apply_meta_chip_icons()
 	_apply_main_button_icons()
+	_build_top_right_status()
+	_build_branding_welcome()
 	_apply_responsive_layout()
 
 	if _banner != null and _banner.has_method("set_text"):
-		_banner.call("set_text", "Welcome to Okey 101!")
+		_banner.call("set_text", "")
 
 	_refresh_settings_summary()
 	_sync_meta_chips()
@@ -131,15 +158,17 @@ func _on_menu_button_up(button: Button) -> void:
 
 
 func _button_list() -> Array:
-	return [_start_button, _online_button, _settings_button, _quit_button]
+	return [_start_button, _online_button, _customize_button, _settings_button, _quit_button]
 
 
 func _apply_main_button_icons() -> void:
-	_set_icon_text_button(_start_button, _texture(ICON_START_ID), "Start Game", 0)
+	_set_icon_text_button(_start_button, _texture(ICON_START_ID), "Play with Bots", 0)
 	_set_icon_text_button(_settings_button, _texture(ICON_SETTINGS_ID), "Settings", 1)
 	_set_icon_text_button(_quit_button, _texture(ICON_QUIT_ID), "Quit", 1)
 	if _online_button != null:
-		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_ID), "Online (EOS)", 0)
+		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_ID), "Play Online", 0)
+	if _customize_button != null:
+		_set_icon_text_button(_customize_button, _texture(ICON_SETTINGS_ID), "Customize", 1)
 
 
 func _set_icon_text_button(button: Button, icon_texture: Texture2D, label_text: String, variant: int = 0) -> void:
@@ -234,13 +263,13 @@ func _update_online_chip_icon() -> void:
 
 
 func _apply_kenney_fonts() -> void:
-	var title: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Title
-	var subtitle: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Subtitle
-	var version: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/Version
-	var summary: Label = $CenterContainer/MenuCard/MarginContainer/VBoxContainer/SettingsSummary
-	title.add_theme_font_size_override("font_size", 56)
+	var title: Label = _menu_card.get_node("MarginContainer/VBoxContainer/Title")
+	var subtitle: Label = _menu_card.get_node("MarginContainer/VBoxContainer/Subtitle")
+	var version: Label = _menu_card.get_node("MarginContainer/VBoxContainer/Version")
+	var summary: Label = _menu_card.get_node("MarginContainer/VBoxContainer/SettingsSummary")
+	title.add_theme_font_size_override("font_size", 48)
 	title.add_theme_color_override("font_color", _style_color(&"title_text"))
-	subtitle.add_theme_font_size_override("font_size", 23)
+	subtitle.add_theme_font_size_override("font_size", 20)
 	subtitle.add_theme_color_override("font_color", _style_color(&"subtitle_text"))
 	version.add_theme_font_size_override("font_size", 15)
 	version.add_theme_color_override("font_color", _style_color(&"muted_text"))
@@ -252,13 +281,155 @@ func _apply_kenney_fonts() -> void:
 			chip.add_theme_color_override("font_color", _style_color(&"chip_text"))
 
 
+# ═══════════════════════════════════════════
+# TOP-RIGHT STATUS AREA
+# ═══════════════════════════════════════════
+
+func _build_top_right_status() -> void:
+	var container := VBoxContainer.new()
+	container.name = "TopRightStatus"
+	container.anchor_left = 1.0
+	container.anchor_top = 0.0
+	container.anchor_right = 1.0
+	container.anchor_bottom = 0.0
+	container.offset_left = -180
+	container.offset_top = 16
+	container.offset_right = -16
+	container.offset_bottom = 120
+	container.add_theme_constant_override("separation", 8)
+	add_child(container)
+
+	# Quit X button row
+	var quit_row := HBoxContainer.new()
+	quit_row.alignment = BoxContainer.ALIGNMENT_END
+	container.add_child(quit_row)
+	_quit_x_btn = Button.new()
+	_quit_x_btn.text = "X"
+	_quit_x_btn.custom_minimum_size = Vector2(32, 32)
+	_quit_x_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	_quit_x_btn.add_theme_color_override("font_color", Color(0.9, 0.3, 0.25))
+	_quit_x_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.4, 0.3))
+	_quit_x_btn.pressed.connect(_on_quit_pressed)
+	quit_row.add_child(_quit_x_btn)
+
+	# Status dot + label row
+	var status_row := HBoxContainer.new()
+	status_row.alignment = BoxContainer.ALIGNMENT_END
+	status_row.add_theme_constant_override("separation", 6)
+	container.add_child(status_row)
+
+	_status_dot = ColorRect.new()
+	_status_dot.custom_minimum_size = Vector2(12, 12)
+	_status_dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	status_row.add_child(_status_dot)
+
+	var status_label := Label.new()
+	status_label.name = "StatusLabel"
+	status_label.add_theme_font_size_override("font_size", 14)
+	status_label.add_theme_color_override("font_color", _style_color(&"muted_text"))
+	status_row.add_child(status_label)
+
+	# Login button
+	_login_btn = Button.new()
+	_login_btn.name = "LoginButton"
+	_login_btn.text = "Login"
+	_login_btn.custom_minimum_size = Vector2(100, 32)
+	_login_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	_login_btn.pressed.connect(_on_login_pressed)
+	container.add_child(_login_btn)
+
+	# Welcome message
+	_welcome_label = Label.new()
+	_welcome_label.name = "WelcomeLabel"
+	_welcome_label.add_theme_font_size_override("font_size", 13)
+	_welcome_label.add_theme_color_override("font_color", _style_color(&"welcome_text"))
+	_welcome_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_welcome_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_welcome_label.visible = false
+	container.add_child(_welcome_label)
+
+	_update_online_status_display()
+
+
+func _update_online_status_display() -> void:
+	if _status_dot == null:
+		return
+	var status_label: Label = _status_dot.get_parent().get_node_or_null("StatusLabel")
+	if not _online_available:
+		_status_dot.color = _style_color(&"online_status_offline")
+		if status_label != null:
+			status_label.text = "Offline"
+		_login_btn.visible = false
+		_welcome_label.visible = false
+	elif not _logged_in:
+		_status_dot.color = _style_color(&"online_status_idle")
+		if status_label != null:
+			status_label.text = "Not logged in"
+		_login_btn.visible = true
+		_welcome_label.visible = false
+	else:
+		_status_dot.color = _style_color(&"online_status_online")
+		if status_label != null:
+			status_label.text = "Online"
+		_login_btn.visible = false
+		_welcome_label.visible = true
+		var msg: String = WELCOME_MESSAGES[randi() % WELCOME_MESSAGES.size()]
+		_welcome_label.text = msg % PLAYER_PROFILE.display_name
+
+
+func _on_login_pressed() -> void:
+	if _menu_audio != null:
+		_menu_audio.play_confirm()
+	# Open online lobby which handles EOS login flow
+	_on_online_pressed()
+
+
+# ═══════════════════════════════════════════
+# BRANDING AREA (LEFT SIDE)
+# ═══════════════════════════════════════════
+
+func _build_branding_welcome() -> void:
+	if _branding_area == null:
+		return
+	# The branding area already has a large faint "Okey 101" label in the tscn.
+	# Add a subtitle below it.
+	var subtitle := Label.new()
+	subtitle.text = "Turkish Tile Rummy"
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.anchor_left = 0.5
+	subtitle.anchor_top = 0.5
+	subtitle.anchor_right = 0.5
+	subtitle.anchor_bottom = 0.5
+	subtitle.offset_left = -150
+	subtitle.offset_top = 50
+	subtitle.offset_right = 150
+	subtitle.offset_bottom = 80
+	subtitle.add_theme_font_size_override("font_size", 22)
+	subtitle.add_theme_color_override("font_color", _style_color(&"subtitle_text").darkened(0.5))
+	subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_branding_area.add_child(subtitle)
+
+
+# ═══════════════════════════════════════════
+# BUTTON HANDLERS
+# ═══════════════════════════════════════════
+
 func _on_start_pressed() -> void:
 	if _menu_audio != null:
 		_menu_audio.play_confirm()
-	# Generate random seed if not set.
-	var actual_seed: int = game_seed if game_seed >= 0 else randi()
+	var lobby := preload("res://ui/PreGameLobby.gd").new()
+	lobby.set_defaults(player_count, game_seed)
+	if rule_config != null:
+		lobby.set_rule_config(rule_config)
+	lobby.game_started.connect(_on_lobby_game_started)
+	lobby.back_pressed.connect(func() -> void: lobby.queue_free())
+	add_child(lobby)
 
-	# Load GameTable scene and pass configuration.
+
+func _on_lobby_game_started(pc: int, seed_val: int, bot_difficulties: Array = [], _practice_mode: bool = false) -> void:
+	player_count = pc
+	var actual_seed: int = seed_val if seed_val >= 0 else randi()
+
 	var scene_path: String = "res://ui/GameTable3D.tscn" if presentation_mode == "3d" else "res://ui/GameTable.tscn"
 	var launched_mode: String = presentation_mode
 	var game_table_scene: PackedScene = load(scene_path)
@@ -273,7 +444,7 @@ func _on_start_pressed() -> void:
 	var game_table: Node = game_table_scene.instantiate()
 
 	if game_table.has_method("configure_game"):
-		game_table.configure_game(rule_config, actual_seed, player_count)
+		game_table.configure_game(rule_config, actual_seed, player_count, bot_difficulties)
 	if _banner != null and _banner.has_method("set_text"):
 		_banner.call("set_text", "Starting %s mode (%s players, %s seed)" % [_presentation_label_from(launched_mode), player_count, "random" if game_seed < 0 else str(game_seed)])
 
@@ -316,6 +487,13 @@ func _on_online_pressed() -> void:
 		queue_free()
 
 
+func _on_customize_pressed() -> void:
+	if _menu_audio != null:
+		_menu_audio.play_confirm()
+	if _banner != null and _banner.has_method("set_text"):
+		_banner.call("set_text", "Customize coming in a future update!")
+
+
 func _on_settings_changed(new_config: RuleConfig):
 	rule_config = new_config
 	_sync_presentation_mode_from_settings()
@@ -330,6 +508,63 @@ func _on_quit_pressed() -> void:
 		_menu_audio.play_back()
 	get_tree().quit()
 
+
+# ═══════════════════════════════════════════
+# ONLINE + CUSTOMIZE BUTTONS
+# ═══════════════════════════════════════════
+
+func _ensure_online_button() -> void:
+	if _buttons_box == null:
+		return
+	if _online_button == null:
+		var button_node: Node = ICON_BUTTON_SCENE.instantiate()
+		_online_button = button_node as Button
+		if _online_button == null:
+			_online_button = Button.new()
+		_online_button.name = "OnlineButton"
+		_online_button.custom_minimum_size = _style_vector(&"icon_button_min")
+		_buttons_box.add_child(_online_button)
+		_buttons_box.move_child(_online_button, 1)
+		_online_button.pressed.connect(_on_online_pressed)
+	_set_icon_text_button(_online_button, _texture(ICON_ONLINE_ID), "Play Online", 0)
+
+	var online_service = ONLINE_SERVICE_SCRIPT.new()
+	var init_res: Dictionary = online_service.initialize()
+	online_service.free()
+	_online_available = bool(init_res.get("ok", false))
+	var policy: String = String(init_res.get("backend_policy", ""))
+	_online_button.disabled = not _online_available
+	if not _online_available:
+		_online_button.tooltip_text = String(init_res.get("reason", "Online unavailable"))
+		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_LOCKED_ID), "Play Online", 0)
+	else:
+		_online_button.tooltip_text = "Backend: %s | Policy: %s" % [
+			String(init_res.get("backend_mode", "mock")),
+			policy,
+		]
+		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_UNLOCKED_ID), "Play Online", 0)
+	_sync_meta_chips()
+
+
+func _ensure_customize_button() -> void:
+	if _buttons_box == null:
+		return
+	if _customize_button == null:
+		var button_node: Node = ICON_BUTTON_SCENE.instantiate()
+		_customize_button = button_node as Button
+		if _customize_button == null:
+			_customize_button = Button.new()
+		_customize_button.name = "CustomizeButton"
+		_customize_button.custom_minimum_size = _style_vector(&"icon_button_min")
+		_buttons_box.add_child(_customize_button)
+		_buttons_box.move_child(_customize_button, 2)
+		_customize_button.pressed.connect(_on_customize_pressed)
+	_set_icon_text_button(_customize_button, _texture(ICON_SETTINGS_ID), "Customize", 1)
+
+
+# ═══════════════════════════════════════════
+# STATE HELPERS
+# ═══════════════════════════════════════════
 
 func _refresh_settings_summary() -> void:
 	if _settings_summary == null:
@@ -359,39 +594,6 @@ func _presentation_label_from(mode: String) -> String:
 	return "3D" if mode == "3d" else "2D"
 
 
-func _ensure_online_button() -> void:
-	if _buttons_box == null:
-		return
-	if _online_button == null:
-		var button_node: Node = ICON_BUTTON_SCENE.instantiate()
-		_online_button = button_node as Button
-		if _online_button == null:
-			_online_button = Button.new()
-		_online_button.name = "OnlineButton"
-		_online_button.custom_minimum_size = _style_vector(&"icon_button_min")
-		_buttons_box.add_child(_online_button)
-		_buttons_box.move_child(_online_button, 1)
-		_online_button.pressed.connect(_on_online_pressed)
-	_set_icon_text_button(_online_button, _texture(ICON_ONLINE_ID), "Online (EOS)", 0)
-
-	var online_service = ONLINE_SERVICE_SCRIPT.new()
-	var init_res: Dictionary = online_service.initialize()
-	online_service.free()
-	var available: bool = bool(init_res.get("ok", false))
-	var policy: String = String(init_res.get("backend_policy", ""))
-	_online_button.disabled = not available
-	if not available:
-		_online_button.tooltip_text = String(init_res.get("reason", "Online unavailable"))
-		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_LOCKED_ID), "Online (EOS)", 0)
-	else:
-		_online_button.tooltip_text = "Backend: %s | Policy: %s" % [
-			String(init_res.get("backend_mode", "mock")),
-			policy,
-		]
-		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_UNLOCKED_ID), "Online (EOS)", 0)
-	_sync_meta_chips()
-
-
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_apply_responsive_layout()
@@ -401,13 +603,9 @@ func _apply_responsive_layout() -> void:
 	if _menu_card == null:
 		return
 	var viewport_size: Vector2 = get_viewport_rect().size
-	var width_pad: float = 84.0 if viewport_size.x >= 1366.0 else 46.0
-	var height_pad: float = 98.0 if viewport_size.y >= 768.0 else 52.0
-	var min_size: Vector2 = _style_vector(&"main_menu_min")
-	var max_size: Vector2 = _style_vector(&"main_menu_max")
-	var width: float = clampf(viewport_size.x - width_pad * 2.0, min_size.x, max_size.x)
-	var height: float = clampf(viewport_size.y - height_pad * 2.0, min_size.y, max_size.y)
-	_menu_card.custom_minimum_size = Vector2(width, height)
+	# On narrow screens, hide branding area
+	if _branding_area != null:
+		_branding_area.visible = viewport_size.x >= 900.0
 
 
 func _style_color(id: StringName) -> Color:

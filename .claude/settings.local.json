@@ -34,7 +34,15 @@
       "Bash(sort:*)",
       "Bash(./tools/godot.cmd:*)",
       "Bash(\"C:\\\\Users\\\\blade16\\\\OneDrive\\\\Desktop\\\\Godot\\\\Godot_v4.6.1-stable_win64_console.exe\" --headless --path \"c:/projects/project101\" -s res://tests/run_tests.gd)",
-      "Bash(\"C:\\\\Users\\\\blade16\\\\OneDrive\\\\Desktop\\\\Godot\\\\Godot_v4.6.1-stable_win64_console.exe\" --headless --path \"c:/projects/project101\" --quit)"
+      "Bash(\"C:\\\\Users\\\\blade16\\\\OneDrive\\\\Desktop\\\\Godot\\\\Godot_v4.6.1-stable_win64_console.exe\" --headless --path \"c:/projects/project101\" --quit)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(python -c:*)",
+      "Bash(node --version:*)",
+      "Bash(winget install:*)",
+      "Bash(\"/c/Program Files/Eclipse Adoptium/jdk-17.0.18.8-hotspot/bin/keytool\" -genkeypair -v -keystore \"/c/Users/blade16/AppData/Roaming/Godot/keystores/debug.keystore\" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname \"CN=Debug,OU=Debug,O=Debug,L=Debug,ST=Debug,C=US\")",
+      "Bash(timeout:*)",
+      "Bash(git status:*)"
     ]
   }
 }

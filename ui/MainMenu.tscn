@@ -1,145 +1,197 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene format=3 uid="uid://mivm8hug1hpm"]
 
 [ext_resource type="PackedScene" path="res://ui/widgets/StatusBanner.tscn" id="1"]
-[ext_resource type="Script" path="res://ui/MainMenu.gd" id="2"]
+[ext_resource type="Script" uid="uid://2lyp1r7xli6q" path="res://ui/MainMenu.gd" id="2"]
 [ext_resource type="Theme" path="res://ui/themes/okey_theme_kenney.tres" id="3"]
 [ext_resource type="PackedScene" path="res://ui/widgets/IconTextButton.tscn" id="4"]
 
 [sub_resource type="Gradient" id="1"]
+offsets = PackedFloat32Array(0, 0, 1)
 colors = PackedColorArray(0.09, 0.11, 0.08, 1, 0.15, 0.17, 0.11, 1, 0.21, 0.2, 0.13, 1)
 
 [sub_resource type="GradientTexture2D" id="2"]
+gradient = SubResource("1")
 width = 4
 height = 4
-gradient = SubResource("1")
 
-[node name="MainMenu" type="Control"]
+[node name="MainMenu" type="Control" unique_id=517934236]
+layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_right = 0.0
-offset_bottom = 0.0
 theme = ExtResource("3")
 script = ExtResource("2")
 
-[node name="Background" type="TextureRect" parent="."]
-anchors_preset = 15
+[node name="Background" type="TextureRect" parent="." unique_id=663981983]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
+mouse_filter = 2
 texture = SubResource("2")
 expand_mode = 1
 stretch_mode = 5
-mouse_filter = 2
 
-[node name="BackdropTint" type="ColorRect" parent="."]
-anchors_preset = 15
+[node name="BackdropTint" type="ColorRect" parent="." unique_id=1358222646]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 color = Color(0.07, 0.06, 0.04, 0.68)
 
-[node name="StatusBanner" parent="." instance=ExtResource("1")]
+[node name="StatusBanner" parent="." unique_id=2059126916 instance=ExtResource("1")]
+layout_mode = 0
+anchors_preset = 0
 
-[node name="CenterContainer" type="CenterContainer" parent="."]
+[node name="LayoutSplit" type="HBoxContainer" parent="." unique_id=1521971604]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 0
+
+[node name="BrandingArea" type="Control" parent="LayoutSplit" unique_id=856038983]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="BrandTitle" type="Label" parent="LayoutSplit/BrandingArea" unique_id=2013924831]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -124.00006
+offset_top = -95.0
+offset_right = 484.0
+offset_bottom = 56.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.96, 0.9, 0.78, 0.15)
+theme_override_font_sizes/font_size = 72
+text = "Okey 101"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CardArea" type="Control" parent="LayoutSplit" unique_id=1418051203]
+custom_minimum_size = Vector2(480, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+
+[node name="MenuCard" type="PanelContainer" parent="LayoutSplit/CardArea" unique_id=1175053708]
+layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = -1349.0
+offset_top = 249.0
+offset_right = -1383.0
+offset_bottom = -183.0
+grow_horizontal = 2
+grow_vertical = 2
 
-[node name="MenuCard" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(660, 640)
-
-[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/MenuCard"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
+[node name="MarginContainer" type="MarginContainer" parent="LayoutSplit/CardArea/MenuCard" unique_id=1010021676]
+layout_mode = 2
 theme_override_constants/margin_left = 34
 theme_override_constants/margin_top = 26
 theme_override_constants/margin_right = 34
 theme_override_constants/margin_bottom = 24
 
-[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/MenuCard/MarginContainer"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-alignment = 1
+[node name="VBoxContainer" type="VBoxContainer" parent="LayoutSplit/CardArea/MenuCard/MarginContainer" unique_id=1664188455]
+layout_mode = 2
 theme_override_constants/separation = 12
+alignment = 1
 
-[node name="Title" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
+[node name="Title" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1507955233]
+custom_minimum_size = Vector2(0, 82)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.9, 0.78, 1)
+theme_override_font_sizes/font_size = 48
 text = "Okey 101"
 horizontal_alignment = 1
-custom_minimum_size = Vector2(0, 98)
-theme_override_font_sizes/font_size = 56
-theme_override_colors/font_color = Color(0.96, 0.9, 0.78, 1)
 
-[node name="Subtitle" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
+[node name="Subtitle" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1458299081]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.85, 0.75, 0.95)
+theme_override_font_sizes/font_size = 20
 text = "Classic Turkish Table"
 horizontal_alignment = 1
-custom_minimum_size = Vector2(0, 36)
-theme_override_font_sizes/font_size = 22
-theme_override_colors/font_color = Color(0.9, 0.85, 0.75, 0.95)
 
-[node name="Version" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
+[node name="Version" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1322442475]
+modulate = Color(0.86, 0.93, 0.95, 0.82)
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
 text = "v0.1.0"
 horizontal_alignment = 1
-custom_minimum_size = Vector2(0, 22)
-theme_override_font_sizes/font_size = 14
-modulate = Color(0.86, 0.93, 0.95, 0.82)
 
-[node name="SettingsSummary" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
+[node name="SettingsSummary" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1074498550]
+custom_minimum_size = Vector2(0, 26)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
 text = "101-Okey"
 horizontal_alignment = 1
-custom_minimum_size = Vector2(0, 30)
-theme_override_font_sizes/font_size = 16
 autowrap_mode = 2
 
-[node name="MetaChips" type="HBoxContainer" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 32)
+[node name="MetaChips" type="HBoxContainer" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1350599277]
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
 size_flags_horizontal = 4
-alignment = 1
 theme_override_constants/separation = 10
+alignment = 1
 
-[node name="PlayersChipIcon" type="TextureRect" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips"]
+[node name="PlayersChipIcon" type="TextureRect" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=1169313948]
 custom_minimum_size = Vector2(22, 22)
+layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="PlayersChip" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips"]
+[node name="PlayersChip" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=912237505]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
 text = "4 Players"
-theme_override_font_sizes/font_size = 14
 
-[node name="TimerChipIcon" type="TextureRect" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips"]
+[node name="TimerChipIcon" type="TextureRect" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=694248675]
 custom_minimum_size = Vector2(22, 22)
+layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="TimerChip" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips"]
+[node name="TimerChip" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=211025412]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
 text = "45s Turn"
-theme_override_font_sizes/font_size = 14
 
-[node name="OnlineChipIcon" type="TextureRect" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips"]
+[node name="OnlineChipIcon" type="TextureRect" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=2089669140]
 custom_minimum_size = Vector2(22, 22)
+layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="OnlineChip" type="Label" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/MetaChips"]
-text = "Online: Checking"
+[node name="OnlineChip" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=1007595325]
+layout_mode = 2
 theme_override_font_sizes/font_size = 14
+text = "Online: Checking"
 
-[node name="Spacer1" type="Control" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 18)
+[node name="Spacer1" type="Control" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1487578678]
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
 
-[node name="Buttons" type="VBoxContainer" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 0)
-separation = 14
+[node name="Buttons" type="VBoxContainer" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=140870896]
+layout_mode = 2
 
-[node name="StartButton" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons" instance=ExtResource("4")]
-text = "Start Game"
-button_label = "Start Game"
+[node name="StartButton" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons" unique_id=2027999593 instance=ExtResource("4")]
+layout_mode = 2
+text = "Play with Bots"
+button_label = "Play with Bots"
 
-[node name="SettingsButton" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons" instance=ExtResource("4")]
+[node name="SettingsButton" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons" unique_id=80249520 instance=ExtResource("4")]
+layout_mode = 2
 text = "Settings"
 button_label = "Settings"
 
-[node name="QuitButton" parent="CenterContainer/MenuCard/MarginContainer/VBoxContainer/Buttons" instance=ExtResource("4")]
+[node name="QuitButton" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons" unique_id=1510276772 instance=ExtResource("4")]
+layout_mode = 2
 text = "Quit"
 button_label = "Quit"
