@@ -63,13 +63,16 @@ func _apply_kenney_button_skin() -> void:
 		pressed_tint = MENU_STYLE.color(&"button_secondary_pressed_tint")
 		disabled_tint = MENU_STYLE.color(&"button_disabled_tint")
 	var texture: Texture2D = ASSET_REGISTRY.texture(texture_id)
-	if texture == null:
-		return
-
-	add_theme_stylebox_override("normal", _make_button_style(texture, normal_tint))
-	add_theme_stylebox_override("hover", _make_button_style(texture, hover_tint))
-	add_theme_stylebox_override("pressed", _make_button_style(texture, pressed_tint))
-	add_theme_stylebox_override("disabled", _make_button_style(texture, disabled_tint))
+	if texture != null:
+		add_theme_stylebox_override("normal", _make_button_style(texture, normal_tint))
+		add_theme_stylebox_override("hover", _make_button_style(texture, hover_tint))
+		add_theme_stylebox_override("pressed", _make_button_style(texture, pressed_tint))
+		add_theme_stylebox_override("disabled", _make_button_style(texture, disabled_tint))
+	else:
+		add_theme_stylebox_override("normal", _make_button_flat(normal_tint))
+		add_theme_stylebox_override("hover", _make_button_flat(hover_tint))
+		add_theme_stylebox_override("pressed", _make_button_flat(pressed_tint))
+		add_theme_stylebox_override("disabled", _make_button_flat(disabled_tint))
 	add_theme_color_override("font_color", font_normal)
 	add_theme_color_override("font_hover_color", font_hover)
 	add_theme_color_override("font_pressed_color", font_normal.darkened(0.08))
@@ -94,4 +97,23 @@ func _make_button_style(texture: Texture2D, tint: Color) -> StyleBoxTexture:
 	style.content_margin_top = panel_margin - 2.0
 	style.content_margin_right = panel_margin + 2.0
 	style.content_margin_bottom = panel_margin - 2.0
+	return style
+
+
+func _make_button_flat(tint: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = tint
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.border_color = tint.darkened(0.28)
+	style.content_margin_left = 14
+	style.content_margin_top = 10
+	style.content_margin_right = 14
+	style.content_margin_bottom = 10
 	return style

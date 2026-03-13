@@ -1,38 +1,7 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://ui/OnlineLobby.gd" id="1_lobby"]
 [ext_resource type="Theme" path="res://ui/themes/okey_theme_kenney.tres" id="2_theme"]
-[ext_resource type="PackedScene" path="res://ui/widgets/IconTextButton.tscn" id="3_btn"]
-
-[sub_resource type="StyleBoxFlat" id="1_card_style"]
-bg_color = Color(0.23, 0.19, 0.14, 0.96)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.9, 0.75, 0.5, 1)
-corner_radius_top_left = 14
-corner_radius_top_right = 14
-corner_radius_bottom_right = 14
-corner_radius_bottom_left = 14
-shadow_color = Color(0, 0, 0, 0.32)
-shadow_size = 6
-
-[sub_resource type="StyleBoxFlat" id="2_roster_style"]
-bg_color = Color(0.16, 0.13, 0.1, 0.58)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.9, 0.78, 0.58, 0.26)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
-content_margin_left = 10
-content_margin_top = 10
-content_margin_right = 10
-content_margin_bottom = 10
 
 [node name="OnlineLobby" type="Control"]
 layout_mode = 3
@@ -49,7 +18,6 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-modulate = Color(0.27, 0.24, 0.16, 0.22)
 expand_mode = 1
 stretch_mode = 4
 mouse_filter = 2
@@ -62,6 +30,55 @@ anchor_bottom = 1.0
 mouse_filter = 2
 color = Color(0.07, 0.06, 0.04, 0.68)
 
+[node name="TopRightStatus" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -296.0
+offset_top = 18.0
+offset_right = -18.0
+offset_bottom = 188.0
+grow_horizontal = 0
+
+[node name="TopVBox" type="VBoxContainer" parent="TopRightStatus"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="QuitRow" type="HBoxContainer" parent="TopRightStatus/TopVBox"]
+layout_mode = 2
+alignment = 2
+
+[node name="QuitBtn" type="Button" parent="TopRightStatus/TopVBox/QuitRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(40, 40)
+text = "X"
+
+[node name="OnlineRow" type="HBoxContainer" parent="TopRightStatus/TopVBox"]
+layout_mode = 2
+alignment = 2
+theme_override_constants/separation = 8
+
+[node name="StatusDot" type="ColorRect" parent="TopRightStatus/TopVBox/OnlineRow"]
+custom_minimum_size = Vector2(12, 12)
+layout_mode = 2
+
+[node name="OnlineStatusLabel" type="Label" parent="TopRightStatus/TopVBox/OnlineRow"]
+layout_mode = 2
+text = "Not logged in"
+
+[node name="LoginBtn" type="Button" parent="TopRightStatus/TopVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 42)
+text = "Login"
+
+[node name="WelcomeLabel" type="Label" parent="TopRightStatus/TopVBox"]
+visible = false
+layout_mode = 2
+horizontal_alignment = 2
+autowrap_mode = 2
+text = "Signed in"
+
 [node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -69,114 +86,197 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 22
+
+[node name="RootCard" type="PanelContainer" parent="Margin"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+custom_minimum_size = Vector2(1240, 760)
+
+[node name="CardMargin" type="MarginContainer" parent="Margin/RootCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 22
+
+[node name="MainHBox" type="HBoxContainer" parent="Margin/RootCard/CardMargin"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 18
+
+[node name="SeatsPanel" type="PanelContainer" parent="Margin/RootCard/CardMargin/MainHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+custom_minimum_size = Vector2(420, 0)
+
+[node name="SeatsMargin" type="MarginContainer" parent="Margin/RootCard/CardMargin/MainHBox/SeatsPanel"]
+layout_mode = 2
 theme_override_constants/margin_left = 18
 theme_override_constants/margin_top = 18
 theme_override_constants/margin_right = 18
 theme_override_constants/margin_bottom = 18
 
-[node name="RootCard" type="PanelContainer" parent="Margin"]
+[node name="SeatsVBox" type="VBoxContainer" parent="Margin/RootCard/CardMargin/MainHBox/SeatsPanel/SeatsMargin"]
 layout_mode = 2
-custom_minimum_size = Vector2(1120, 700)
-size_flags_horizontal = 4
-size_flags_vertical = 4
-theme_override_styles/panel = SubResource("1_card_style")
+size_flags_vertical = 3
+theme_override_constants/separation = 10
 
-[node name="CardMargin" type="MarginContainer" parent="Margin/RootCard"]
+[node name="SeatsHeader" type="Label" parent="Margin/RootCard/CardMargin/MainHBox/SeatsPanel/SeatsMargin/SeatsVBox"]
 layout_mode = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 20
+text = "Seats"
+theme_override_font_sizes/font_size = 30
 
-[node name="VBox" type="VBoxContainer" parent="Margin/RootCard/CardMargin"]
+[node name="SeatsSubheader" type="Label" parent="Margin/RootCard/CardMargin/MainHBox/SeatsPanel/SeatsMargin/SeatsVBox"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Pick a table on the right, then fill the empty slots."
+
+[node name="SeatsScroll" type="ScrollContainer" parent="Margin/RootCard/CardMargin/MainHBox/SeatsPanel/SeatsMargin/SeatsVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="SeatsList" type="VBoxContainer" parent="Margin/RootCard/CardMargin/MainHBox/SeatsPanel/SeatsMargin/SeatsVBox/SeatsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="RightPanel" type="PanelContainer" parent="Margin/RootCard/CardMargin/MainHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="RightMargin" type="MarginContainer" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="RightVBox" type="VBoxContainer" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin"]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 14
 
-[node name="Title" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
+[node name="StageHeader" type="Label" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
 layout_mode = 2
-text = "Online Lobby"
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 40
-theme_override_colors/font_color = Color(0.96, 0.9, 0.78, 1)
+text = "Choose The Table"
+theme_override_font_sizes/font_size = 34
 
-[node name="Status" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
+[node name="SelectedGameTitle" type="Label" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 34)
-text = "Initializing online services..."
-autowrap_mode = 2
-theme_override_font_sizes/font_size = 16
+text = "Poker"
+theme_override_font_sizes/font_size = 28
 
-[node name="Buttons" type="GridContainer" parent="Margin/RootCard/CardMargin/VBox"]
+[node name="SelectedGameSubtitle" type="Label" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
 layout_mode = 2
-columns = 3
+text = "Texas Hold'em table"
+
+[node name="GameButtonsFlow" type="FlowContainer" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
+layout_mode = 2
 theme_override_constants/h_separation = 10
 theme_override_constants/v_separation = 10
 
-[node name="LoginBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
+[node name="SeatCountHeader" type="Label" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
 layout_mode = 2
-text = "Login"
-button_label = "Login"
+text = "Seat Count"
 
-[node name="QuickBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
+[node name="SeatCountRow" type="HBoxContainer" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
 layout_mode = 2
-text = "Quick Match"
-button_label = "Quick Match"
-
-[node name="PrivateBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
-layout_mode = 2
-text = "Private"
-button_label = "Private"
-
-[node name="ReadyBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
-layout_mode = 2
-text = "Ready"
-button_label = "Ready"
-
-[node name="StartBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
-layout_mode = 2
-text = "Start"
-button_label = "Start"
-
-[node name="BackBtn" parent="Margin/RootCard/CardMargin/VBox/Buttons" instance=ExtResource("3_btn")]
-layout_mode = 2
-text = "Back"
-button_label = "Back"
-
-[node name="RosterHeader" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
-layout_mode = 2
-text = "Players In Lobby"
-custom_minimum_size = Vector2(0, 28)
-theme_override_font_sizes/font_size = 20
-theme_override_colors/font_color = Color(0.95, 0.88, 0.76, 0.97)
-
-[node name="RosterScroll" type="ScrollContainer" parent="Margin/RootCard/CardMargin/VBox"]
-custom_minimum_size = Vector2(0, 300)
-layout_mode = 2
-size_flags_vertical = 3
-horizontal_scroll_mode = 0
-theme_override_styles/panel = SubResource("2_roster_style")
-
-[node name="RosterList" type="VBoxContainer" parent="Margin/RootCard/CardMargin/VBox/RosterScroll"]
-layout_mode = 2
-size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="PromptStrip" type="FlowContainer" parent="Margin/RootCard/CardMargin/VBox"]
+[node name="GameDescription" type="Label" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+autowrap_mode = 2
+text = "Description"
+
+[node name="LockLabel" type="Label" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Game can change until a guest joins."
+
+[node name="StatusHeader" type="Label" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
+layout_mode = 2
+text = "Lobby Status"
+
+[node name="Status" type="Label" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 78)
+autowrap_mode = 2
+text = "Preparing lobby..."
+
+[node name="ActionButtons" type="HBoxContainer" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="EmoteRow" type="HBoxContainer" parent="Margin/RootCard/CardMargin/VBox"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="EmoteLabel" type="Label" parent="Margin/RootCard/CardMargin/VBox/EmoteRow"]
-layout_mode = 2
-text = "Lobby Emotes"
-custom_minimum_size = Vector2(132, 0)
-theme_override_colors/font_color = Color(0.95, 0.97, 1, 0.92)
-
-[node name="EmoteButtons" type="FlowContainer" parent="Margin/RootCard/CardMargin/VBox/EmoteRow"]
+[node name="ReadyBtn" type="Button" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox/ActionButtons"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 6
+custom_minimum_size = Vector2(0, 50)
+text = "Ready"
+
+[node name="StartBtn" type="Button" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox/ActionButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 50)
+text = "Start Table"
+
+[node name="BackBtn" type="Button" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox/ActionButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 50)
+text = "Back"
+
+[node name="HintLabel" type="Label" parent="Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Select a table, then fill the empty seats from the left column."
+
+[node name="SeatActionMenu" type="PopupMenu" parent="."]
+
+[node name="InviteDialog" type="ConfirmationDialog" parent="."]
+title = "Invite Player"
+initial_position = 1
+size = Vector2i(560, 520)
+ok_button_text = "Send Invite"
+
+[node name="DialogVBox" type="VBoxContainer" parent="InviteDialog"]
+layout_mode = 2
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 12.0
+offset_bottom = 12.0
+theme_override_constants/separation = 10
+
+[node name="InviteInfo" type="Label" parent="InviteDialog/DialogVBox"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Choose a friend to invite into this seat."
+
+[node name="OverlayInviteBtn" type="Button" parent="InviteDialog/DialogVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 42)
+text = "Open Epic Friends"
+
+[node name="RefreshFriendsBtn" type="Button" parent="InviteDialog/DialogVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 42)
+text = "Refresh Friend List"
+
+[node name="FriendsList" type="ItemList" parent="InviteDialog/DialogVBox"]
+custom_minimum_size = Vector2(0, 260)
+layout_mode = 2
+size_flags_vertical = 3
+allow_reselect = true
+
+[node name="InviteStatus" type="Label" parent="InviteDialog/DialogVBox"]
+layout_mode = 2
+autowrap_mode = 2
+text = ""

@@ -1,0 +1,91 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ui/PlaceholderTable.gd" id="1_script"]
+[ext_resource type="Theme" path="res://ui/themes/okey_theme_kenney.tres" id="2_theme"]
+
+[node name="PlaceholderTable" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.05, 0.09, 0.08, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 36
+theme_override_constants/margin_top = 30
+theme_override_constants/margin_right = 36
+theme_override_constants/margin_bottom = 30
+
+[node name="RootCard" type="PanelContainer" parent="Margin"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="CardMargin" type="MarginContainer" parent="Margin/RootCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="VBox" type="VBoxContainer" parent="Margin/RootCard/CardMargin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Eyebrow" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
+layout_mode = 2
+text = "Multiplayer Table"
+
+[node name="Title" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
+layout_mode = 2
+text = "Tabletop"
+
+[node name="Subtitle" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
+layout_mode = 2
+text = "Connecting players..."
+
+[node name="Summary" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
+layout_mode = 2
+text = "This table is being prepared."
+autowrap_mode = 2
+
+[node name="RosterHeader" type="Label" parent="Margin/RootCard/CardMargin/VBox"]
+layout_mode = 2
+text = "Roster"
+
+[node name="RosterList" type="VBoxContainer" parent="Margin/RootCard/CardMargin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="Footer" type="HBoxContainer" parent="Margin/RootCard/CardMargin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="MatchMeta" type="Label" parent="Margin/RootCard/CardMargin/VBox/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Match"
+vertical_alignment = 1
+
+[node name="BackButton" type="Button" parent="Margin/RootCard/CardMargin/VBox/Footer"]
+layout_mode = 2
+text = "Return to Hub"
+custom_minimum_size = Vector2(170, 42)

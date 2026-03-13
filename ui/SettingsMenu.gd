@@ -13,6 +13,7 @@ const MENU_STYLE: Script = preload("res://ui/services/MenuStyleRegistry.gd")
 const PROMPT_BADGE_SCENE: PackedScene = preload("res://ui/widgets/InputPromptBadge.tscn")
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
+const IMPORTED_FLAGS_ROOT: String = "/root/ImportedFeatureFlags"
 
 const PANEL_BORDER_ID: StringName = ASSET_IDS.UI_PANEL_BORDER_GREY_DETAIL
 const PANEL_FILL_ID: StringName = ASSET_IDS.UI_PANEL_GREY_DARK
@@ -65,6 +66,7 @@ var _preview_seconds_left: int = 0
 var _preview_active: bool = false
 var _preview_previous_display: Dictionary = {}
 var _preview_candidate_display: Dictionary = {}
+var _imported_feature_checks: Dictionary = {}
 
 func _ready():
 	if _menu_audio == null:
@@ -76,6 +78,7 @@ func _ready():
 	_ensure_visual_rows()
 	_ensure_display_rows()
 	_ensure_audio_rows()
+	_ensure_imported_feature_rows()
 	_ensure_status_row()
 	_apply_kenney_fonts()
 	_apply_form_skin()
@@ -393,6 +396,7 @@ func load_config():
 		_music_volume_spin.value = round(float(_ui_settings.get("music_volume", 0.30)) * 100.0)
 	_sync_visual_controls_from_settings()
 	_sync_display_controls_from_settings()
+	_sync_imported_feature_controls_from_flags()
 	_suppress_feedback_audio = false
 
 
@@ -426,6 +430,7 @@ func save_config(display_override: Dictionary = {}):
 			_ui_settings[key] = visual_settings[key]
 		for key in display_settings.keys():
 			_ui_settings[key] = display_settings[key]
+	_save_imported_feature_controls_to_flags()
 
 
 func _on_save_pressed():
@@ -469,11 +474,67 @@ func _ensure_audio_rows() -> void:
 		var music_row := _build_percent_row("Music Volume")
 		settings_list.add_child(music_row.get("row"))
 		_music_volume_spin = music_row.get("spin") as SpinBox
-	if _ui_settings != null:
-		if _sfx_volume_spin != null:
-			_sfx_volume_spin.value = round(float(_ui_settings.get("sfx_volume", 0.82)) * 100.0)
-		if _music_volume_spin != null:
-			_music_volume_spin.value = round(float(_ui_settings.get("music_volume", 0.30)) * 100.0)
+
+
+func _ensure_imported_feature_rows() -> void:
+	if settings_list == null:
+		return
+	if settings_list.get_node_or_null("ImportedPrototypeLabel") != null:
+		return
+	var section := Label.new()
+	section.name = "ImportedPrototypeLabel"
+	section.text = "Imported Prototype Runtime"
+	section.add_theme_font_size_override("font_size", 20)
+	section.add_theme_color_override("font_color", _style_color(&"subtitle_text"))
+	settings_list.add_child(section)
+	var rows: Array[Dictionary] = [
+		{"id": "prototype_table_enabled", "label": "Route All Games To ImportedTable3D"},
+		{"id": "tabletop_club", "label": "Enable Tabletop Club Module"},
+		{"id": "buckshot", "label": "Enable Buckshot Module"},
+		{"id": "dome_keeper", "label": "Enable Dome Keeper Module"},
+		{"id": "halls_torment", "label": "Enable Halls Of Torment Module"},
+		{"id": "brotato", "label": "Enable Brotato Module"},
+		{"id": "slay2", "label": "Enable Slay2 Module"},
+		{"id": "cruelty_squad", "label": "Enable Cruelty Squad Module"},
+	]
+	for row in rows:
+		var line := HBoxContainer.new()
+		line.name = "ImportedFlag_%s" % String(row.get("id", "unknown"))
+		line.add_theme_constant_override("separation", 14)
+		var label := Label.new()
+		label.text = String(row.get("label", ""))
+		label.custom_minimum_size = Vector2(360, 0)
+		label.add_theme_font_size_override("font_size", 17)
+		line.add_child(label)
+		var check := CheckBox.new()
+		check.text = "Enabled"
+		check.button_pressed = false
+		check.toggled.connect(_on_visual_toggle_changed)
+		line.add_child(check)
+		settings_list.add_child(line)
+		_imported_feature_checks[StringName(row.get("id", ""))] = check
+
+
+func _sync_imported_feature_controls_from_flags() -> void:
+	var flags: Node = get_node_or_null(IMPORTED_FLAGS_ROOT)
+	if flags == null:
+		return
+	for feature_id in _imported_feature_checks.keys():
+		var check: CheckBox = _imported_feature_checks[feature_id]
+		if check == null:
+			continue
+		check.button_pressed = bool(flags.call("is_enabled", feature_id))
+
+
+func _save_imported_feature_controls_to_flags() -> void:
+	var flags: Node = get_node_or_null(IMPORTED_FLAGS_ROOT)
+	if flags == null:
+		return
+	for feature_id in _imported_feature_checks.keys():
+		var check: CheckBox = _imported_feature_checks[feature_id]
+		if check == null:
+			continue
+		flags.call("set_enabled", feature_id, check.button_pressed)
 
 
 func _ensure_visual_rows() -> void:

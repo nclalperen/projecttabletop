@@ -5,7 +5,16 @@ const REJOIN_WINDOW_SEC: int = 90
 const PROTOCOL_SCRIPT: Script = preload("res://net/Protocol.gd")
 const SEAT_ADAPTER_SCRIPT: Script = preload("res://core/network/SeatViewAdapter.gd")
 const STATE_CODEC_SCRIPT: Script = preload("res://core/network/StateCodec.gd")
+const BUCKSHOT_PACKET_VERIFICATION_SCRIPT: Script = preload("res://prototype/imported/buckshot/net/MP_PacketVerification.gd")
 static var _test_tracked_instances: Array = []
+const BUCKSHOT_PACKET_ID_BY_ACTION: Dictionary = {
+	"DRAW_FROM_DECK": 10,
+	"DISCARD": 12,
+	"TAKE_DISCARD": 17,
+	"PLACE_TILES": 19,
+	"OPEN_MELDS": 22,
+	"ADD_TO_MELD": 22,
+}
 
 var _core: LocalGameController = LocalGameController.new()
 var _transport = null
@@ -21,6 +30,7 @@ var _disconnect_expiry_by_puid: Dictionary = {}
 var _bot_ai: BotHeuristic = BotHeuristic.new()
 var _bot_fallback: BotRandom = BotRandom.new(20260221)
 var _bot_loop_running: bool = false
+var _packet_verifier = BUCKSHOT_PACKET_VERIFICATION_SCRIPT.new()
 
 func _init() -> void:
 	if OS.has_feature("editor"):
@@ -154,6 +164,17 @@ func _on_transport_packet(from_puid: String, message: Dictionary) -> void:
 		PROTOCOL_SCRIPT.C_ACTION_REQUEST:
 			var seq: int = int(message.get("seq", -1))
 			var action: Dictionary = message.get("action", {})
+			var verify_result: Dictionary = _verify_imported_action_packet(from_puid, action)
+			if not bool(verify_result.get("ok", false)):
+				_send_action_result(
+					from_puid,
+					seq,
+					false,
+					String(verify_result.get("code", "packet_verification_failed")),
+					String(verify_result.get("reason", "host packet verification failed")),
+					0
+				)
+				return
 			var res: Dictionary = _apply_client_action(from_puid, action, seq, true)
 			_send_action_result(from_puid, seq, bool(res.get("ok", false)), String(res.get("code", "unknown")), String(res.get("reason", "")), int(res.get("state_hash", 0)))
 		PROTOCOL_SCRIPT.C_REQUEST_NEW_ROUND:
@@ -337,3 +358,48 @@ func _envelope_from_action(player_index: int, action: Action) -> Dictionary:
 		"player_id": player_index,
 		"payload": action.payload.duplicate(true),
 	}
+
+
+func _verify_imported_action_packet(from_puid: String, action_envelope: Dictionary) -> Dictionary:
+	if _packet_verifier == null:
+		return {"ok": true, "code": "verifier_unavailable", "reason": ""}
+	if typeof(action_envelope) != TYPE_DICTIONARY:
+		return {"ok": false, "code": "invalid_envelope", "reason": "action envelope must be dictionary"}
+	var action_type: String = String(action_envelope.get("type", ""))
+	var packet_id: int = int(BUCKSHOT_PACKET_ID_BY_ACTION.get(action_type, -1))
+	if packet_id < 0:
+		return {"ok": true, "code": "packet_mapping_missing", "reason": ""}
+	var turn_owner_puid: String = _current_turn_owner_puid()
+	if turn_owner_puid == "":
+		return {"ok": true, "code": "turn_owner_unknown", "reason": ""}
+	var player_state: Dictionary = {}
+	for puid_key in _seat_by_puid.keys():
+		var puid: String = String(puid_key)
+		var has_turn: bool = puid == turn_owner_puid
+		player_state[puid] = {
+			"has_turn": has_turn,
+			"is_holding_main_item": has_turn,
+			"is_grabbing_items": has_turn,
+			"is_holding_item_to_place": has_turn,
+		}
+	var packet_data: Dictionary = {
+		"packet_id": packet_id,
+		"sender_puid": from_puid,
+	}
+	var payload: Dictionary = action_envelope.get("payload", {})
+	if payload.has("item_id"):
+		packet_data["item_id"] = payload.get("item_id")
+	var match_state: Dictionary = {"turn_owner_puid": turn_owner_puid}
+	var verified_packet = _packet_verifier.call("verify_packet", packet_data, player_state, match_state)
+	if typeof(verified_packet) != TYPE_DICTIONARY:
+		return {"ok": false, "code": "packet_verification_invalid_type", "reason": "verification did not return a dictionary"}
+	if (verified_packet as Dictionary).is_empty():
+		return {"ok": false, "code": "packet_verification_failed", "reason": "packet rejected by imported verification rules"}
+	return {"ok": true, "code": "ok", "reason": ""}
+
+
+func _current_turn_owner_puid() -> String:
+	if _core == null or _core.state == null:
+		return ""
+	var current_abs_seat: int = int(_core.state.current_player_index)
+	return String(_puid_by_seat.get(current_abs_seat, ""))

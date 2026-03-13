@@ -15,6 +15,7 @@ const AUTH_LOGIN_CREDENTIAL_DEVELOPER: int = 4
 const AUTH_LOGIN_CREDENTIAL_ACCOUNT_PORTAL: int = 6
 
 const EXTERNAL_CREDENTIAL_EPIC: int = 0
+const EXTERNAL_ACCOUNT_TYPE_EPIC: int = 0
 
 const LOBBY_PERMISSION_PUBLIC_ADVERTISED: int = 0
 const LOBBY_PERMISSION_INVITE_ONLY: int = 2
@@ -99,6 +100,50 @@ class ConnectCreateUserOptions:
 	var client_data = null
 
 
+class ConnectQueryExternalAccountMappingsOptions:
+	extends RefCounted
+	var local_user_id: String = ""
+	var account_id_type: int = EXTERNAL_ACCOUNT_TYPE_EPIC
+	var external_account_ids: Array = []
+
+
+class ConnectGetExternalAccountMappingsOptions:
+	extends RefCounted
+	var account_id_type: int = EXTERNAL_ACCOUNT_TYPE_EPIC
+	var local_user_id: String = ""
+	var target_external_user_id: String = ""
+
+
+class FriendsQueryFriendsOptions:
+	extends RefCounted
+	var local_user_id: String = ""
+	var client_data = null
+
+
+class FriendsGetFriendsCountOptions:
+	extends RefCounted
+	var local_user_id: String = ""
+
+
+class FriendsGetFriendAtIndexOptions:
+	extends RefCounted
+	var local_user_id: String = ""
+	var index: int = 0
+
+
+class UserInfoQueryUserInfoOptions:
+	extends RefCounted
+	var local_user_id: String = ""
+	var target_user_id: String = ""
+	var client_data = null
+
+
+class UserInfoCopyUserInfoOptions:
+	extends RefCounted
+	var local_user_id: String = ""
+	var target_user_id: String = ""
+
+
 class LobbyCreateOptions:
 	extends RefCounted
 	var bucket_id: String = ""
@@ -163,6 +208,20 @@ class LobbyGetRtcRoomNameOptions:
 	extends RefCounted
 	var local_user_id: String = ""
 	var lobby_id: String = ""
+
+
+class LobbySendInviteOptions:
+	extends RefCounted
+	var local_user_id: String = ""
+	var target_user_id: String = ""
+	var lobby_id: String = ""
+	var client_data = null
+
+
+class UIShowFriendsOptions:
+	extends RefCounted
+	var local_user_id: String = ""
+	var client_data = null
 
 
 class RTCDataAddNotifyDataReceivedOptions:

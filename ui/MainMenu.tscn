@@ -2,7 +2,7 @@
 
 [ext_resource type="PackedScene" path="res://ui/widgets/StatusBanner.tscn" id="1"]
 [ext_resource type="Script" uid="uid://2lyp1r7xli6q" path="res://ui/MainMenu.gd" id="2"]
-[ext_resource type="Theme" path="res://ui/themes/okey_theme_kenney.tres" id="3"]
+[ext_resource type="Theme" uid="uid://bjnxaxc45emnm" path="res://ui/themes/okey_theme_kenney.tres" id="3"]
 [ext_resource type="PackedScene" path="res://ui/widgets/IconTextButton.tscn" id="4"]
 
 [sub_resource type="Gradient" id="1"]
@@ -19,6 +19,8 @@ layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 theme = ExtResource("3")
 script = ExtResource("2")
 
@@ -41,16 +43,18 @@ color = Color(0.07, 0.06, 0.04, 0.68)
 [node name="StatusBanner" parent="." unique_id=2059126916 instance=ExtResource("1")]
 layout_mode = 0
 anchors_preset = 0
+anchor_right = 0.0
 
-[node name="LayoutSplit" type="HBoxContainer" parent="." unique_id=1521971604]
+[node name="LayoutSplit" type="Control" parent="." unique_id=1521971604]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_constants/separation = 0
 
 [node name="BrandingArea" type="Control" parent="LayoutSplit" unique_id=856038983]
-layout_mode = 2
-size_flags_horizontal = 3
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 mouse_filter = 2
 
 [node name="BrandTitle" type="Label" parent="LayoutSplit/BrandingArea" unique_id=2013924831]
@@ -68,14 +72,22 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_colors/font_color = Color(0.96, 0.9, 0.78, 0.15)
 theme_override_font_sizes/font_size = 72
-text = "Okey 101"
+text = "Project Tabletop"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="CardArea" type="Control" parent="LayoutSplit" unique_id=1418051203]
-custom_minimum_size = Vector2(480, 0)
-layout_mode = 2
-size_flags_horizontal = 0
+custom_minimum_size = Vector2(560, 900)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -640.0
+offset_top = -450.0
+offset_right = -80.0
+offset_bottom = 450.0
 mouse_filter = 2
 
 [node name="MenuCard" type="PanelContainer" parent="LayoutSplit/CardArea" unique_id=1175053708]
@@ -83,12 +95,6 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -1349.0
-offset_top = 249.0
-offset_right = -1383.0
-offset_bottom = -183.0
-grow_horizontal = 2
-grow_vertical = 2
 
 [node name="MarginContainer" type="MarginContainer" parent="LayoutSplit/CardArea/MenuCard" unique_id=1010021676]
 layout_mode = 2
@@ -107,7 +113,7 @@ custom_minimum_size = Vector2(0, 82)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.96, 0.9, 0.78, 1)
 theme_override_font_sizes/font_size = 48
-text = "Okey 101"
+text = "Project Tabletop"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1458299081]
@@ -115,7 +121,7 @@ custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.85, 0.75, 0.95)
 theme_override_font_sizes/font_size = 20
-text = "Classic Turkish Table"
+text = "Multiplayer tabletop hub"
 horizontal_alignment = 1
 
 [node name="Version" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1322442475]
@@ -130,7 +136,7 @@ horizontal_alignment = 1
 custom_minimum_size = Vector2(0, 26)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "101-Okey"
+text = "Select a game"
 horizontal_alignment = 1
 autowrap_mode = 2
 

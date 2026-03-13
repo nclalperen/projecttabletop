@@ -15,6 +15,7 @@ const LOGIN_METHOD_DEV_AUTH: String = "dev_auth"
 const LOGIN_METHOD_ACCOUNT_PORTAL: String = "account_portal"
 
 static var _test_tracked_instances: Array = []
+static var _session_cache: Dictionary = {}
 
 var initialized: bool = false
 var available: bool = false
@@ -64,9 +65,9 @@ func initialize() -> Dictionary:
 	initialized = true
 	_runtime_initialized = false
 	_runtime_login_inflight = false
-	_runtime_epic_account_id = ""
-	local_puid = ""
-	local_display_name = ""
+	_runtime_epic_account_id = String(_session_cache.get("epic_account_id", "")).strip_edges()
+	local_puid = String(_session_cache.get("local_puid", "")).strip_edges()
+	local_display_name = String(_session_cache.get("display_name", "")).strip_edges()
 	_runtime_env = _collect_runtime_env()
 	backend_policy = EOS_BACKEND_POLICY_SCRIPT.current_policy()
 	backend_mode = _detect_backend_mode_for_policy()
@@ -113,6 +114,8 @@ func initialize() -> Dictionary:
 	backend_details["runtime_initialized"] = _runtime_initialized
 	backend_details["available"] = available
 	backend_details["reason"] = unavailable_reason
+	backend_details["supports_overlay"] = supports_eos_overlay()
+	backend_details["supports_friend_queries"] = supports_friend_queries()
 
 	emit_signal("availability_changed", available, unavailable_reason)
 	return {
@@ -159,6 +162,63 @@ func get_local_display_name() -> String:
 	return local_display_name
 
 
+func get_epic_account_id() -> String:
+	return _runtime_epic_account_id
+
+
+func supports_eos_overlay() -> bool:
+	if not initialized:
+		initialize()
+	if backend_mode != BACKEND_IEOS or not _runtime_initialized:
+		return false
+	var ieos = EOS_RAW_SCRIPT.get_ieos()
+	if ieos == null:
+		return false
+	return ieos.has_method("ui_interface_show_friends")
+
+
+func supports_friend_queries() -> bool:
+	if not initialized:
+		initialize()
+	if backend_mode != BACKEND_IEOS or not _runtime_initialized:
+		return false
+	if local_puid.strip_edges() == "" or _runtime_epic_account_id.strip_edges() == "":
+		return false
+	var ieos = EOS_RAW_SCRIPT.get_ieos()
+	if ieos == null:
+		return false
+	return ieos.has_method("friends_interface_query_friends") \
+		and ieos.has_method("connect_interface_query_external_account_mappings") \
+		and ieos.has_method("connect_interface_get_external_account_mapping") \
+		and ieos.has_method("user_info_interface_query_user_info")
+
+
+func open_friends_overlay() -> Dictionary:
+	if not supports_eos_overlay():
+		return {
+			"ok": false,
+			"code": "overlay_unavailable",
+			"reason": "EOS friends overlay is unavailable.",
+		}
+	var ieos = EOS_RAW_SCRIPT.get_ieos()
+	if ieos == null:
+		return {
+			"ok": false,
+			"code": "singleton_missing",
+			"reason": "IEOS singleton unavailable.",
+		}
+	var opts := EOS_RAW_SCRIPT.UIShowFriendsOptions.new()
+	opts.local_user_id = _runtime_epic_account_id
+	var call_res: Dictionary = EOS_RAW_SCRIPT.call_ieos(ieos, "ui_interface_show_friends", [opts])
+	if not bool(call_res.get("ok", false)):
+		return call_res
+	return {
+		"ok": true,
+		"code": "ok",
+		"reason": "",
+	}
+
+
 func login_account_portal(display_name_hint: String = "") -> Dictionary:
 	return _login_with_method(LOGIN_METHOD_ACCOUNT_PORTAL, display_name_hint)
 
@@ -174,6 +234,7 @@ func logout() -> void:
 	_runtime_epic_account_id = ""
 	local_puid = ""
 	local_display_name = ""
+	_session_cache.clear()
 	emit_signal("logged_out")
 
 
@@ -245,6 +306,7 @@ func _login_with_method(method: String, display_name_hint: String) -> Dictionary
 	var seed_src: String = "%s|%s|%s" % [mock_display_name, OS.get_unique_id(), Time.get_unix_time_from_system()]
 	local_puid = "PUID_%08x" % int(abs(hash(seed_src)))
 	local_display_name = mock_display_name
+	_persist_session_cache()
 	emit_signal("login_succeeded", local_puid)
 	return {
 		"ok": true,
@@ -287,6 +349,7 @@ func _runtime_login_async(method: String, display_name_hint: String, credential_
 	local_display_name = String(runtime_result.get("display_name", "")).strip_edges()
 	if local_display_name == "":
 		local_display_name = local_puid
+	_persist_session_cache()
 	emit_signal("login_succeeded", local_puid)
 
 
@@ -519,3 +582,14 @@ func _downgrade_to_mock(reason: String) -> void:
 	backend_mode = BACKEND_MOCK
 	_runtime_initialized = false
 	unavailable_reason = reason
+
+
+func _persist_session_cache() -> void:
+	if local_puid.strip_edges() == "":
+		_session_cache.clear()
+		return
+	_session_cache = {
+		"local_puid": local_puid,
+		"display_name": local_display_name,
+		"epic_account_id": _runtime_epic_account_id,
+	}

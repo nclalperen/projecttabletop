@@ -14,6 +14,9 @@ const RUNTIME_PLATFORMS: PackedStringArray = ["Windows", "Android"]
 const ATTR_PROTOCOL_REV: String = "protocol_rev"
 const ATTR_BUILD_FAMILY: String = "build_family"
 const ATTR_DISPLAY_NAME: String = "display_name"
+const ATTR_GAME_ID: String = "game_id"
+const ATTR_SEAT_COUNT: String = "seat_count"
+const ATTR_SEAT_PLAN_JSON: String = "seat_plan_json"
 const LOBBY_MEMBER_STATUS_JOINED: int = 0
 const LOBBY_MEMBER_STATUS_LEFT: int = 1
 const LOBBY_MEMBER_STATUS_DISCONNECTED: int = 2
@@ -31,6 +34,7 @@ var backend_policy: String = EOS_BACKEND_POLICY_SCRIPT.current_policy()
 var _local_display_name: String = ""
 var _local_build_family: String = EOS_BACKEND_POLICY_SCRIPT.build_family()
 var _local_protocol_rev: int = int(PROTOCOL_SCRIPT.PROTOCOL_VERSION)
+var _local_epic_account_id: String = ""
 
 var _runtime_ieos = null
 var _runtime_bootstrapped: bool = false
@@ -80,6 +84,7 @@ func set_runtime_profile(profile: Dictionary) -> void:
 	if build_family != "":
 		_local_build_family = build_family
 	_local_protocol_rev = maxi(1, int(profile.get(ATTR_PROTOCOL_REV, _local_protocol_rev)))
+	_local_epic_account_id = String(profile.get("epic_account_id", _local_epic_account_id)).strip_edges()
 
 func create_lobby(options: Dictionary = {}) -> Dictionary:
 	if local_puid == "":
@@ -160,12 +165,244 @@ func set_member_attr(key: String, value) -> Dictionary:
 func set_ready(ready: bool) -> Dictionary:
 	return set_member_attr("ready", bool(ready))
 
+
+func set_seat_plan(seat_plan: Array) -> Dictionary:
+	var lobby: Dictionary = get_current_lobby()
+	var seat_count: int = maxi(2, int(lobby.get("attrs", {}).get(ATTR_SEAT_COUNT, seat_plan.size())))
+	var sanitized: Array = _sanitize_stored_seat_plan(seat_plan, seat_count)
+	return set_lobby_attr(ATTR_SEAT_PLAN_JSON, JSON.stringify(sanitized))
+
+
+func get_effective_seat_plan(lobby_model: Dictionary) -> Array:
+	if lobby_model.is_empty():
+		return []
+	var seat_count: int = maxi(2, int(lobby_model.get("attrs", {}).get(ATTR_SEAT_COUNT, 4)))
+	var owner_puid: String = String(lobby_model.get("owner_puid", ""))
+	var stored: Array = _parse_stored_seat_plan(String(lobby_model.get("attrs", {}).get(ATTR_SEAT_PLAN_JSON, "")), seat_count)
+	var effective: Array = _sanitize_stored_seat_plan(stored, seat_count)
+	var members_by_puid: Dictionary = {}
+	for member in lobby_model.get("members", []):
+		if typeof(member) != TYPE_DICTIONARY:
+			continue
+		var member_dict: Dictionary = member as Dictionary
+		var puid: String = String(member_dict.get("puid", "")).strip_edges()
+		if puid == "":
+			continue
+		members_by_puid[puid] = member_dict
+	for i in range(effective.size()):
+		var slot: Dictionary = effective[i]
+		slot["seat"] = i
+		if i == 0:
+			slot["state"] = "host"
+			slot["puid"] = owner_puid
+			if members_by_puid.has(owner_puid):
+				_apply_member_to_slot(slot, members_by_puid[owner_puid] as Dictionary, true)
+			elif String(slot.get("display_name", "")).strip_edges() == "":
+				slot["display_name"] = _local_display_name if _local_display_name != "" else "Host"
+			effective[i] = slot
+			continue
+		var state: String = String(slot.get("state", "open")).strip_edges().to_lower()
+		var target_puid: String = String(slot.get("target_puid", "")).strip_edges()
+		if target_puid != "" and members_by_puid.has(target_puid):
+			slot["state"] = "human"
+			slot["puid"] = target_puid
+			_apply_member_to_slot(slot, members_by_puid[target_puid] as Dictionary, false)
+		elif state == "bot":
+			slot["display_name"] = String(slot.get("display_name", slot.get("bot_name", "Bot %d" % i))).strip_edges()
+			slot["ready"] = true
+			slot["status"] = "BOT"
+		elif state == "invited":
+			slot["display_name"] = String(slot.get("display_name", "Invite Pending")).strip_edges()
+			slot["ready"] = false
+			slot["status"] = "INVITED"
+		else:
+			slot["state"] = "open"
+			slot["display_name"] = "Empty Seat"
+			slot["ready"] = false
+			slot["status"] = "OPEN"
+		effective[i] = slot
+	var assigned: Dictionary = {}
+	if owner_puid != "":
+		assigned[owner_puid] = true
+	for slot in effective:
+		var assigned_puid: String = String((slot as Dictionary).get("puid", "")).strip_edges()
+		if assigned_puid != "":
+			assigned[assigned_puid] = true
+	for member in lobby_model.get("members", []):
+		if typeof(member) != TYPE_DICTIONARY:
+			continue
+		var member_dict: Dictionary = member as Dictionary
+		var puid: String = String(member_dict.get("puid", "")).strip_edges()
+		if puid == "" or assigned.has(puid):
+			continue
+		for i in range(1, effective.size()):
+			var slot: Dictionary = effective[i]
+			if String(slot.get("state", "open")) != "open":
+				continue
+			slot["state"] = "human"
+			slot["puid"] = puid
+			_apply_member_to_slot(slot, member_dict, false)
+			effective[i] = slot
+			assigned[puid] = true
+			break
+	return effective
+
+
+func list_invitable_friends() -> Dictionary:
+	if not _use_runtime():
+		return _fail("invite_unavailable", "EOS friend queries require the runtime backend.")
+	if _runtime_inflight_op != "":
+		return _pending("runtime_busy", {"busy_op": _runtime_inflight_op})
+	var boot: Dictionary = _runtime_bootstrap()
+	if not bool(boot.get("ok", false)):
+		return _fail(String(boot.get("code", "runtime_unavailable")), String(boot.get("reason", "EOS runtime unavailable")))
+	return await _runtime_list_invitable_friends_flow()
+
+
+func invite_to_current_lobby(target_product_user_id: String) -> Dictionary:
+	if current_lobby_id.strip_edges() == "":
+		return _fail("no_lobby", "Not in lobby.")
+	if not _use_runtime():
+		return _fail("invite_unavailable", "Lobby invites require the EOS runtime backend.")
+	if _runtime_inflight_op != "":
+		return _pending("runtime_busy", {"busy_op": _runtime_inflight_op})
+	var boot: Dictionary = _runtime_bootstrap()
+	if not bool(boot.get("ok", false)):
+		return _fail(String(boot.get("code", "runtime_unavailable")), String(boot.get("reason", "EOS runtime unavailable")))
+	return await _runtime_send_invite_flow(String(target_product_user_id).strip_edges())
+
 func get_current_lobby() -> Dictionary:
 	if _use_runtime():
 		return _runtime_current_lobby.duplicate(true)
 	if current_lobby_id == "" or not _lobbies.has(current_lobby_id):
 		return {}
 	return _clone_lobby(_lobbies[current_lobby_id])
+
+
+func _runtime_list_invitable_friends_flow() -> Dictionary:
+	var epic_account_id: String = _runtime_local_epic_account_id()
+	if epic_account_id == "":
+		return EOS_RAW_SCRIPT.fail("auth_account_missing", "EOS Epic account id is unavailable for friend queries.")
+	if _runtime_ieos == null:
+		return EOS_RAW_SCRIPT.fail("singleton_missing", "IEOS singleton unavailable.")
+	var query_opts := EOS_RAW_SCRIPT.FriendsQueryFriendsOptions.new()
+	query_opts.local_user_id = epic_account_id
+	var query_call: Dictionary = EOS_RAW_SCRIPT.call_ieos(_runtime_ieos, "friends_interface_query_friends", [query_opts])
+	if not bool(query_call.get("ok", false)):
+		return query_call
+	var query_wait: Dictionary = await EOS_RAW_SCRIPT.await_signal_once(self, _runtime_ieos, "friends_interface_query_friends_callback", 15.0)
+	if not bool(query_wait.get("ok", false)):
+		return query_wait
+	var query_cb: Dictionary = _payload_dict(query_wait)
+	if not EOS_RAW_SCRIPT.is_success(query_cb):
+		return EOS_RAW_SCRIPT.fail("friends_query_failed", "Failed to query EOS friends.", {"result_code": EOS_RAW_SCRIPT.result_code(query_cb)})
+	var count_opts := EOS_RAW_SCRIPT.FriendsGetFriendsCountOptions.new()
+	count_opts.local_user_id = epic_account_id
+	var count_call: Dictionary = EOS_RAW_SCRIPT.call_ieos(_runtime_ieos, "friends_interface_get_friends_count", [count_opts])
+	if not bool(count_call.get("ok", false)):
+		return count_call
+	var friend_count: int = int(count_call.get("result", 0))
+	var friend_epic_ids: Array[String] = []
+	for index in range(maxi(0, friend_count)):
+		var get_opts := EOS_RAW_SCRIPT.FriendsGetFriendAtIndexOptions.new()
+		get_opts.local_user_id = epic_account_id
+		get_opts.index = index
+		var get_call: Dictionary = EOS_RAW_SCRIPT.call_ieos(_runtime_ieos, "friends_interface_get_friend_at_index", [get_opts])
+		if not bool(get_call.get("ok", false)):
+			continue
+		var friend_epic_id: String = String(get_call.get("result", "")).strip_edges()
+		if friend_epic_id != "":
+			friend_epic_ids.append(friend_epic_id)
+	if friend_epic_ids.is_empty():
+		return _ok_with({"friends": []})
+	var mapping_query_opts := EOS_RAW_SCRIPT.ConnectQueryExternalAccountMappingsOptions.new()
+	mapping_query_opts.local_user_id = local_puid
+	mapping_query_opts.account_id_type = EOS_RAW_SCRIPT.EXTERNAL_ACCOUNT_TYPE_EPIC
+	mapping_query_opts.external_account_ids = friend_epic_ids
+	var mapping_call: Dictionary = EOS_RAW_SCRIPT.call_ieos(_runtime_ieos, "connect_interface_query_external_account_mappings", [mapping_query_opts])
+	if not bool(mapping_call.get("ok", false)):
+		return mapping_call
+	var mapping_wait: Dictionary = await EOS_RAW_SCRIPT.await_signal_once(self, _runtime_ieos, "connect_interface_query_external_account_mappings_callback", 15.0)
+	if not bool(mapping_wait.get("ok", false)):
+		return mapping_wait
+	var mapping_cb: Dictionary = _payload_dict(mapping_wait)
+	if not EOS_RAW_SCRIPT.is_success(mapping_cb):
+		return EOS_RAW_SCRIPT.fail("account_mapping_failed", "Failed to map EOS friend ids to product user ids.", {"result_code": EOS_RAW_SCRIPT.result_code(mapping_cb)})
+	var friend_entries: Array = []
+	for epic_id in friend_epic_ids:
+		var mapping_opts := EOS_RAW_SCRIPT.ConnectGetExternalAccountMappingsOptions.new()
+		mapping_opts.account_id_type = EOS_RAW_SCRIPT.EXTERNAL_ACCOUNT_TYPE_EPIC
+		mapping_opts.local_user_id = local_puid
+		mapping_opts.target_external_user_id = epic_id
+		var mapping_res: Dictionary = EOS_RAW_SCRIPT.call_ieos(_runtime_ieos, "connect_interface_get_external_account_mapping", [mapping_opts])
+		if not bool(mapping_res.get("ok", false)):
+			continue
+		var product_user_id: String = String(mapping_res.get("result", "")).strip_edges()
+		if product_user_id == "":
+			continue
+		var user_info: Dictionary = await _runtime_query_user_info(epic_account_id, epic_id)
+		var display_name: String = String(user_info.get("display_name", user_info.get("nickname", epic_id))).strip_edges()
+		if display_name == "":
+			display_name = epic_id
+		friend_entries.append({
+			"epic_account_id": epic_id,
+			"product_user_id": product_user_id,
+			"display_name": display_name,
+			"nickname": String(user_info.get("nickname", "")).strip_edges(),
+		})
+	friend_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return String(a.get("display_name", "")) < String(b.get("display_name", ""))
+	)
+	return _ok_with({"friends": friend_entries})
+
+
+func _runtime_send_invite_flow(target_product_user_id: String) -> Dictionary:
+	if target_product_user_id == "":
+		return EOS_RAW_SCRIPT.fail("invite_target_missing", "Target product user id is required.")
+	if _runtime_ieos == null:
+		return EOS_RAW_SCRIPT.fail("singleton_missing", "IEOS singleton unavailable.")
+	var invite_opts := EOS_RAW_SCRIPT.LobbySendInviteOptions.new()
+	invite_opts.local_user_id = local_puid
+	invite_opts.target_user_id = target_product_user_id
+	invite_opts.lobby_id = current_lobby_id
+	var invite_call: Dictionary = EOS_RAW_SCRIPT.call_ieos(_runtime_ieos, "lobby_interface_send_invite", [invite_opts])
+	if not bool(invite_call.get("ok", false)):
+		return invite_call
+	var invite_wait: Dictionary = await EOS_RAW_SCRIPT.await_signal_once(self, _runtime_ieos, "lobby_interface_send_invite_callback", 15.0)
+	if not bool(invite_wait.get("ok", false)):
+		return invite_wait
+	var invite_cb: Dictionary = _payload_dict(invite_wait)
+	if not EOS_RAW_SCRIPT.is_success(invite_cb):
+		return EOS_RAW_SCRIPT.fail("invite_failed", "Failed to send EOS lobby invite.", {"result_code": EOS_RAW_SCRIPT.result_code(invite_cb)})
+	return _ok_with({"target_product_user_id": target_product_user_id})
+
+
+func _runtime_query_user_info(local_epic_account_id: String, target_epic_account_id: String) -> Dictionary:
+	if local_epic_account_id == "" or target_epic_account_id == "" or _runtime_ieos == null:
+		return {}
+	var query_opts := EOS_RAW_SCRIPT.UserInfoQueryUserInfoOptions.new()
+	query_opts.local_user_id = local_epic_account_id
+	query_opts.target_user_id = target_epic_account_id
+	var query_call: Dictionary = EOS_RAW_SCRIPT.call_ieos(_runtime_ieos, "user_info_interface_query_user_info", [query_opts])
+	if not bool(query_call.get("ok", false)):
+		return {}
+	var query_wait: Dictionary = await EOS_RAW_SCRIPT.await_signal_once(self, _runtime_ieos, "user_info_interface_query_user_info_callback", 15.0)
+	if not bool(query_wait.get("ok", false)):
+		return {}
+	var query_cb: Dictionary = _payload_dict(query_wait)
+	if not EOS_RAW_SCRIPT.is_success(query_cb):
+		return {}
+	var copy_opts := EOS_RAW_SCRIPT.UserInfoCopyUserInfoOptions.new()
+	copy_opts.local_user_id = local_epic_account_id
+	copy_opts.target_user_id = target_epic_account_id
+	var copy_ret: Dictionary = EOS_RAW_SCRIPT.call_ieos(_runtime_ieos, "user_info_interface_copy_user_info", [copy_opts])
+	if not bool(copy_ret.get("ok", false)):
+		return {}
+	var copy_res = copy_ret.get("result", {})
+	if not EOS_RAW_SCRIPT.is_success(copy_res):
+		return {}
+	var user_info = copy_res.get("user_info", {}) if typeof(copy_res) == TYPE_DICTIONARY else {}
+	return user_info if typeof(user_info) == TYPE_DICTIONARY else {}
 
 func _notification(what: int) -> void:
 	if what != NOTIFICATION_PREDELETE:
@@ -269,9 +506,11 @@ func _runtime_create_lobby_flow(options: Dictionary) -> Dictionary:
 	var create_opts := EOS_RAW_SCRIPT.LobbyCreateOptions.new()
 	create_opts.local_user_id = local_puid
 	var ruleset_id: String = String(options.get("ruleset_id", "tr_101_classic"))
+	var game_id: String = String(options.get(ATTR_GAME_ID, ruleset_id)).strip_edges().to_lower()
 	var version_tag: String = String(options.get("version", "v1"))
 	var phase_tag: String = String(options.get("phase", "FILLING"))
 	var privacy_tag: String = String(options.get("privacy", "PUBLIC"))
+	var seat_count: int = maxi(2, int(options.get(ATTR_SEAT_COUNT, options.get("max_lobby_members", 4))))
 	var build_family: String = String(options.get(ATTR_BUILD_FAMILY, _local_build_family)).strip_edges().to_lower()
 	if build_family == "":
 		build_family = EOS_BACKEND_POLICY_SCRIPT.build_family()
@@ -279,7 +518,7 @@ func _runtime_create_lobby_flow(options: Dictionary) -> Dictionary:
 	_local_build_family = build_family
 	_local_protocol_rev = protocol_rev
 	create_opts.bucket_id = "%s:%s" % [ruleset_id, version_tag]
-	create_opts.max_lobby_members = int(options.get("max_lobby_members", 4))
+	create_opts.max_lobby_members = maxi(seat_count, int(options.get("max_lobby_members", seat_count)))
 	create_opts.allow_invites = true
 	create_opts.enable_join_by_id = true
 	create_opts.enable_rtc_room = true
@@ -304,6 +543,8 @@ func _runtime_create_lobby_flow(options: Dictionary) -> Dictionary:
 		return EOS_RAW_SCRIPT.fail("create_lobby_missing_id", "Create lobby callback did not include lobby id.")
 	current_lobby_id = created_lobby_id
 	var lobby_attrs: Dictionary = {
+		ATTR_GAME_ID: game_id,
+		ATTR_SEAT_COUNT: seat_count,
 		"ruleset_id": ruleset_id,
 		"version": version_tag,
 		"phase": phase_tag,
@@ -314,6 +555,9 @@ func _runtime_create_lobby_flow(options: Dictionary) -> Dictionary:
 		ATTR_BUILD_FAMILY: build_family,
 		ATTR_PROTOCOL_REV: protocol_rev,
 	}
+	var seat_plan_json: String = String(options.get(ATTR_SEAT_PLAN_JSON, "")).strip_edges()
+	if seat_plan_json != "":
+		lobby_attrs[ATTR_SEAT_PLAN_JSON] = seat_plan_json
 	var member_attrs: Dictionary = _default_member_attrs()
 	return await _runtime_update_attrs_flow(lobby_attrs, member_attrs)
 
@@ -512,6 +756,8 @@ func _runtime_build_lobby_model_from_details(details) -> Dictionary:
 		return {}
 	var info: Dictionary = info_ret.get("lobby_details", {}) as Dictionary
 	var attrs: Dictionary = {
+		ATTR_GAME_ID: "okey101",
+		ATTR_SEAT_COUNT: int(info.get("max_members", 4)),
 		"ruleset_id": "tr_101_classic",
 		"version": "v1",
 		"phase": "FILLING",
@@ -723,7 +969,8 @@ func _reset_ready(lobby: Dictionary) -> void:
 		m["attrs"]["ready"] = false
 
 func _update_open_slots(lobby: Dictionary) -> void:
-	var open_slots: int = maxi(0, 4 - int(lobby.get("members", []).size()))
+	var seat_count: int = maxi(2, int(lobby.get("attrs", {}).get(ATTR_SEAT_COUNT, 4)))
+	var open_slots: int = maxi(0, seat_count - int(lobby.get("members", []).size()))
 	lobby["attrs"]["open_slots"] = open_slots
 
 func _platform_tag() -> String:
@@ -732,6 +979,69 @@ func _platform_tag() -> String:
 	if OS.get_name() == "Android":
 		return "android"
 	return "unknown"
+
+
+func _runtime_local_epic_account_id() -> String:
+	if _local_epic_account_id.strip_edges() != "":
+		return _local_epic_account_id
+	var runtime_root: Node = get_node_or_null("/root/EOSGRuntime")
+	if runtime_root != null:
+		var epic_account_id: String = String(runtime_root.get("local_epic_account_id")).strip_edges()
+		if epic_account_id != "":
+			return epic_account_id
+	return ""
+
+
+func _parse_stored_seat_plan(raw_json: String, seat_count: int) -> Array:
+	var parsed = JSON.parse_string(raw_json)
+	if typeof(parsed) == TYPE_ARRAY:
+		return _sanitize_stored_seat_plan(parsed as Array, seat_count)
+	return _sanitize_stored_seat_plan([], seat_count)
+
+
+func _sanitize_stored_seat_plan(seat_plan: Array, seat_count: int) -> Array:
+	var out: Array = []
+	for seat_index in range(maxi(2, seat_count)):
+		var source: Dictionary = {}
+		if seat_index < seat_plan.size() and typeof(seat_plan[seat_index]) == TYPE_DICTIONARY:
+			source = (seat_plan[seat_index] as Dictionary).duplicate(true)
+		var state: String = String(source.get("state", "open")).strip_edges().to_lower()
+		if seat_index == 0:
+			state = "host"
+		elif state != "bot" and state != "invited":
+			state = "open"
+		var slot: Dictionary = {
+			"seat": seat_index,
+			"state": state,
+		}
+		if state == "host":
+			var host_display_name: String = String(source.get("display_name", _local_display_name if _local_display_name != "" else "You")).strip_edges()
+			slot["display_name"] = host_display_name if host_display_name != "" else "You"
+		elif state == "bot":
+			var bot_name: String = String(source.get("bot_name", source.get("display_name", "Bot %d" % seat_index))).strip_edges()
+			slot["bot_name"] = bot_name if bot_name != "" else "Bot %d" % seat_index
+			slot["display_name"] = slot["bot_name"]
+		elif state == "invited":
+			slot["target_puid"] = String(source.get("target_puid", "")).strip_edges()
+			slot["epic_account_id"] = String(source.get("epic_account_id", "")).strip_edges()
+			slot["display_name"] = String(source.get("display_name", "Invite Pending")).strip_edges()
+		out.append(slot)
+	return out
+
+
+func _apply_member_to_slot(slot: Dictionary, member: Dictionary, is_host: bool) -> void:
+	var puid: String = String(member.get("puid", "")).strip_edges()
+	var attrs: Dictionary = member.get("attrs", {})
+	var display_name: String = String(attrs.get(ATTR_DISPLAY_NAME, puid)).strip_edges()
+	if display_name == "":
+		display_name = puid
+	slot["puid"] = puid
+	slot["target_puid"] = puid
+	slot["display_name"] = display_name
+	slot["ready"] = bool(attrs.get("ready", false))
+	slot["status"] = String(attrs.get("status", "OK")).strip_edges().to_upper()
+	slot["platform"] = String(attrs.get("platform", _platform_tag())).strip_edges().to_lower()
+	slot["state"] = "host" if is_host else "human"
 
 func _clone_lobby(lobby: Dictionary) -> Dictionary:
 	return lobby.duplicate(true)
@@ -793,6 +1103,8 @@ func _mock_create_lobby(options: Dictionary = {}) -> Dictionary:
 		"lobby_id": lobby_id,
 		"owner_puid": local_puid,
 		"attrs": {
+			ATTR_GAME_ID: String(options.get(ATTR_GAME_ID, options.get("ruleset_id", "tr_101_classic"))).strip_edges().to_lower(),
+			ATTR_SEAT_COUNT: maxi(2, int(options.get(ATTR_SEAT_COUNT, options.get("max_lobby_members", 4)))),
 			"ruleset_id": String(options.get("ruleset_id", "tr_101_classic")),
 			"version": String(options.get("version", "v1")),
 			"phase": String(options.get("phase", "FILLING")),
@@ -803,6 +1115,7 @@ func _mock_create_lobby(options: Dictionary = {}) -> Dictionary:
 			"privacy": String(options.get("privacy", "PUBLIC")),
 			ATTR_BUILD_FAMILY: String(options.get(ATTR_BUILD_FAMILY, _local_build_family)).strip_edges().to_lower(),
 			ATTR_PROTOCOL_REV: maxi(1, int(options.get(ATTR_PROTOCOL_REV, _local_protocol_rev))),
+			ATTR_SEAT_PLAN_JSON: String(options.get(ATTR_SEAT_PLAN_JSON, "")),
 		},
 		"members": [
 			_new_member(local_puid)
@@ -874,7 +1187,7 @@ func _mock_set_lobby_attr(key: String, value) -> Dictionary:
 	if String(lobby.get("owner_puid", "")) != local_puid:
 		return _fail("not_host", "only owner can set lobby attrs")
 	lobby["attrs"][String(key)] = value
-	if key == "ruleset_id" or key == "version" or key == "phase" or key == ATTR_BUILD_FAMILY or key == ATTR_PROTOCOL_REV:
+	if key == "ruleset_id" or key == "version" or key == "phase" or key == ATTR_BUILD_FAMILY or key == ATTR_PROTOCOL_REV or key == ATTR_GAME_ID or key == ATTR_SEAT_COUNT:
 		_reset_ready(lobby)
 	_update_open_slots(lobby)
 	_lobbies[current_lobby_id] = lobby
