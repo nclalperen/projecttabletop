@@ -69,7 +69,7 @@ func _gui_input(event: InputEvent) -> void:
 		accept_event()
 
 
-func _subtitle_for(slot_model: Dictionary, puid: String, owner_puid: String) -> String:
+func _subtitle_for(_slot_model: Dictionary, puid: String, owner_puid: String) -> String:
 	match _slot_state:
 		"host":
 			return "Lobby host" if puid == owner_puid else "Host seat"

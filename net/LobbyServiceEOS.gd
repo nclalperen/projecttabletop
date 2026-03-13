@@ -162,8 +162,8 @@ func set_member_attr(key: String, value) -> Dictionary:
 		return gate
 	return _mock_set_member_attr(key, value)
 
-func set_ready(ready: bool) -> Dictionary:
-	return set_member_attr("ready", bool(ready))
+func set_ready(is_ready: bool) -> Dictionary:
+	return set_member_attr("ready", bool(is_ready))
 
 
 func set_seat_plan(seat_plan: Array) -> Dictionary:
