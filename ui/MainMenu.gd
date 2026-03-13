@@ -592,12 +592,10 @@ func _open_selected_game_lobby() -> void:
 		var tween = create_tween()
 		tween.tween_property(self, "modulate", Color(1, 1, 1, 0), _style_scalar(&"motion_fade_out"))
 		tween.tween_callback(func():
-			get_tree().root.add_child(online_lobby)
-			queue_free()
+			_replace_self_in_shell(online_lobby)
 		)
 	else:
-		get_tree().root.add_child(online_lobby)
-		queue_free()
+		_replace_self_in_shell(online_lobby)
 
 
 func _on_lobby_game_started(pc: int, seed_val: int, bot_difficulties: Array = [], _practice_mode: bool = false) -> void:
@@ -626,12 +624,25 @@ func _on_lobby_game_started(pc: int, seed_val: int, bot_difficulties: Array = []
 		var tween = create_tween()
 		tween.tween_property(self, "modulate", Color(1, 1, 1, 0), _style_scalar(&"motion_fade_out"))
 		tween.tween_callback(func():
-			get_tree().root.add_child(game_table)
-			queue_free()
+			_replace_self_in_shell(game_table)
 		)
 	else:
-		get_tree().root.add_child(game_table)
-		queue_free()
+		_replace_self_in_shell(game_table)
+
+
+func _replace_self_in_shell(next_node: Node) -> void:
+	if next_node == null:
+		return
+	visible = false
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var parent_node: Node = get_parent()
+	if parent_node != null:
+		var insertion_index: int = get_index()
+		parent_node.add_child(next_node)
+		parent_node.move_child(next_node, insertion_index)
+	else:
+		get_tree().root.add_child(next_node)
+	queue_free()
 
 
 func _on_settings_pressed() -> void:

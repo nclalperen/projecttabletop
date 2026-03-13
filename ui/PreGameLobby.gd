@@ -90,7 +90,7 @@ func _ready() -> void:
 	var pc_row := HBoxContainer.new()
 	pc_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	pc_row.add_theme_constant_override("separation", 10)
-	for count in [2, 3, 4]:
+	for count in [4]:
 		var btn := Button.new()
 		btn.text = str(count)
 		btn.custom_minimum_size = Vector2(56, 38)
@@ -152,8 +152,8 @@ func _ready() -> void:
 	vbox.add_child(btn_row)
 
 
-func set_defaults(player_count: int, seed_value: int) -> void:
-	_player_count = player_count
+func set_defaults(_player_count_unused: int, seed_value: int) -> void:
+	_player_count = 4
 	_seed_value = seed_value
 
 

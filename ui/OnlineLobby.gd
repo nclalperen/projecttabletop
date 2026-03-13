@@ -57,6 +57,7 @@ const STATUS_COPY := {
 	&"ready_done": "Ready state updated.",
 	&"start_no_lobby": "No active lobby.",
 	&"start_blocked": "{reason}",
+	&"start_local": "Starting local bot table...",
 	&"start_publish": "Publishing match start...",
 	&"attr_update": "Updating lobby: {key}...",
 	&"attr_update_failed": "Failed to update lobby: {reason}",
@@ -970,10 +971,14 @@ func _on_start_pressed() -> void:
 	if _menu_audio != null:
 		_menu_audio.play_confirm()
 	var lobby: Dictionary = _current_lobby()
+	var plan: Array = _display_seat_plan()
+	if _can_start_local_bot_match(lobby, plan):
+		_set_status(&"start_local")
+		_launch_local_bot_match(plan)
+		return
 	if lobby.is_empty():
 		_set_status(&"start_no_lobby")
 		return
-	var plan: Array = _display_seat_plan()
 	var block_reason: String = _start_block_reason(lobby, plan)
 	if block_reason != "":
 		if _menu_audio != null:
@@ -1084,8 +1089,7 @@ func _maybe_launch_match_from_lobby(lobby: Dictionary) -> void:
 		if game_table.has_method("configure_game"):
 			game_table.call("configure_game", _rule_config, match_seed, _lobby_seat_count(lobby))
 		_launch_started = true
-		get_tree().root.add_child(game_table)
-		queue_free()
+		_replace_self_in_shell(game_table)
 		return
 	var target_scene: PackedScene = load(GAME_CATALOG.launch_scene_path(launched_game_id, _presentation_mode))
 	if target_scene == null:
@@ -1096,8 +1100,7 @@ func _maybe_launch_match_from_lobby(lobby: Dictionary) -> void:
 		table_root.call("configure_table", launched_game_id, lobby, _online_service.local_puid, seat_by_puid, match_id, match_seed)
 	_active_host_controller = null
 	_launch_started = true
-	get_tree().root.add_child(table_root)
-	queue_free()
+	_replace_self_in_shell(table_root)
 
 
 func _on_back_pressed() -> void:
@@ -1113,6 +1116,21 @@ func _on_quit_pressed() -> void:
 	if _menu_audio != null:
 		_menu_audio.play_back()
 	get_tree().quit()
+
+
+func _replace_self_in_shell(next_node: Node) -> void:
+	if next_node == null:
+		return
+	visible = false
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var parent_node: Node = get_parent()
+	if parent_node != null:
+		var insertion_index: int = get_index()
+		parent_node.add_child(next_node)
+		parent_node.move_child(next_node, insertion_index)
+	else:
+		get_tree().root.add_child(next_node)
+	queue_free()
 
 
 func _bridge_member_presence_to_host(lobby: Dictionary) -> void:
@@ -1225,7 +1243,11 @@ func _slot_for_index(plan: Array, seat_index: int) -> Dictionary:
 
 func _can_edit_seats() -> bool:
 	var lobby: Dictionary = _current_lobby()
-	return not lobby.is_empty() and _is_local_host(lobby)
+	if _launch_started or _leave_requested:
+		return false
+	if lobby.is_empty():
+		return true
+	return _is_local_host(lobby)
 
 
 func _can_invite_humans() -> bool:
@@ -1235,6 +1257,8 @@ func _can_invite_humans() -> bool:
 func _start_block_reason(lobby: Dictionary, plan: Array) -> String:
 	if not _config_attr_queue.is_empty():
 		return "Lobby settings are still updating."
+	if _can_start_local_bot_match(lobby, plan):
+		return ""
 	if lobby.is_empty():
 		return "No staged lobby yet."
 	if not _is_local_host(lobby):
@@ -1275,6 +1299,145 @@ func _plan_contains_bot(plan: Array) -> bool:
 		if typeof(slot) == TYPE_DICTIONARY and String((slot as Dictionary).get("state", "open")).strip_edges().to_lower() == "bot":
 			return true
 	return false
+
+
+func _can_start_local_bot_match(lobby: Dictionary, plan: Array) -> bool:
+	if not lobby.is_empty():
+		return false
+	if _online_service != null and String(_online_service.local_puid).strip_edges() != "":
+		return false
+	if not _all_seats_filled(plan):
+		return false
+	return _plan_is_local_bot_only(plan)
+
+
+func _plan_is_local_bot_only(plan: Array) -> bool:
+	if plan.is_empty():
+		return false
+	for slot in plan:
+		if typeof(slot) != TYPE_DICTIONARY:
+			return false
+		var state: String = String((slot as Dictionary).get("state", "open")).strip_edges().to_lower()
+		if state != "host" and state != "bot":
+			return false
+	return true
+
+
+func _launch_local_bot_match(plan: Array) -> void:
+	var local_puid: String = _offline_local_puid()
+	var match_seed: int = _game_seed if _game_seed >= 0 else randi()
+	var match_id: String = "LOCAL_%08x" % int(abs(hash("%s|%s|%s" % [
+		String(_selected_game_id),
+		local_puid,
+		Time.get_unix_time_from_system(),
+	])))
+	if GAME_CATALOG.uses_okey_table(_selected_game_id) and not _is_imported_prototype_enabled():
+		var scene_path: String = GAME_TABLE_3D_SCENE_PATH if _presentation_mode == "3d" else GAME_TABLE_2D_SCENE_PATH
+		var local_scene: PackedScene = load(scene_path)
+		if local_scene == null and _presentation_mode == "3d":
+			scene_path = GAME_TABLE_2D_SCENE_PATH
+			local_scene = load(scene_path)
+		if local_scene == null:
+			if _menu_audio != null:
+				_menu_audio.play_error()
+			_set_status(&"operation_failed", {"reason": "Failed to load the local legacy Okey table scene."})
+			return
+		var legacy_table: Node = local_scene.instantiate()
+		if legacy_table.has_method("configure_game"):
+			legacy_table.call("configure_game", _rule_config, match_seed, _player_count, _bot_difficulties_for_plan(plan))
+		_active_host_controller = null
+		_launch_started = true
+		_replace_self_in_shell(legacy_table)
+		return
+	var seat_by_puid: Dictionary = {local_puid: 0}
+	var synthetic_lobby: Dictionary = _build_offline_lobby_model(plan, local_puid, seat_by_puid, match_id, match_seed)
+	var target_scene: PackedScene = load(GAME_CATALOG.launch_scene_path(_selected_game_id, _presentation_mode))
+	if target_scene == null:
+		if _menu_audio != null:
+			_menu_audio.play_error()
+		_set_status(&"operation_failed", {"reason": "Failed to load the local table scene."})
+		return
+	var table_root: Node = target_scene.instantiate()
+	if table_root.has_method("configure_table"):
+		table_root.call("configure_table", _selected_game_id, synthetic_lobby, local_puid, seat_by_puid, match_id, match_seed)
+	_active_host_controller = null
+	_launch_started = true
+	_replace_self_in_shell(table_root)
+
+
+func _offline_local_puid() -> String:
+	if _online_service != null:
+		var actual_puid: String = String(_online_service.local_puid).strip_edges()
+		if actual_puid != "":
+			return actual_puid
+	return "local_host"
+
+
+func _bot_difficulties_for_plan(plan: Array) -> Array:
+	var bot_difficulties: Array = []
+	for seat_index in range(1, min(plan.size(), _player_count)):
+		if typeof(plan[seat_index]) != TYPE_DICTIONARY:
+			continue
+		var slot: Dictionary = plan[seat_index] as Dictionary
+		var state: String = String(slot.get("state", "open")).strip_edges().to_lower()
+		if state == "bot":
+			bot_difficulties.append("Normal")
+	return bot_difficulties
+
+
+func _build_offline_lobby_model(plan: Array, local_puid: String, seat_by_puid: Dictionary, match_id: String, match_seed: int) -> Dictionary:
+	var sanitized: Array = _sanitize_local_seat_plan(plan, _player_count)
+	var members: Array = []
+	var host_display_name: String = _resolved_local_display_name()
+	for slot in sanitized:
+		if typeof(slot) != TYPE_DICTIONARY:
+			continue
+		var slot_dict: Dictionary = slot as Dictionary
+		var seat_index: int = int(slot_dict.get("seat", -1))
+		var state: String = String(slot_dict.get("state", "open")).strip_edges().to_lower()
+		if state == "host":
+			members.append({
+				"puid": local_puid,
+				"attrs": {
+					"seat": seat_index,
+					"display_name": host_display_name,
+					"ready": true,
+					"status": "LOCAL_READY",
+					ATTR_PROTOCOL_REV: _local_protocol_revision(),
+					ATTR_BUILD_FAMILY: _local_build_family(),
+				},
+			})
+		elif state == "bot":
+			var bot_name: String = String(slot_dict.get("bot_name", slot_dict.get("display_name", "Bot %d" % seat_index))).strip_edges()
+			members.append({
+				"puid": "bot_%d" % seat_index,
+				"attrs": {
+					"seat": seat_index,
+					"display_name": bot_name if bot_name != "" else "Bot %d" % seat_index,
+					"ready": true,
+					"status": "BOT_ACTIVE",
+				},
+			})
+	var attrs: Dictionary = {
+		ATTR_GAME_ID: String(_selected_game_id),
+		ATTR_SEAT_COUNT: _player_count,
+		"ruleset_id": _selected_ruleset_id(),
+		ATTR_PROTOCOL_REV: _local_protocol_revision(),
+		ATTR_BUILD_FAMILY: _local_build_family(),
+		ATTR_SEAT_PLAN_JSON: JSON.stringify(sanitized),
+		"host_puid": local_puid,
+		"match_id": match_id,
+		"match_seed": match_seed,
+		"seat_map_json": JSON.stringify(seat_by_puid),
+		"phase": "MATCH_STARTING",
+		"privacy": "LOCAL_BOTS",
+	}
+	return {
+		"lobby_id": "local_bot_match",
+		"owner_puid": local_puid,
+		"attrs": attrs,
+		"members": members,
+	}
 
 
 func _build_seat_map_from_plan(plan: Array) -> Dictionary:
