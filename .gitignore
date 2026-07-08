@@ -35,3 +35,11 @@ addons/epic-online-services-godot/bin/windows/~libeosg*.dll
 # Local secrets (never commit)
 tools/eos_env.local.ps1
 *.local.ps1
+
+# Session/tooling noise
+tmux-client-*.log
+test_output*.txt
+test_stdout.txt
+test_stderr.txt
+user_data/
+*.bak_geometry_working

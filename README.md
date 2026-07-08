@@ -2,6 +2,8 @@
 
 **Okey 101 — the Turkish tile game — built in Godot 4.6 with a deterministic rules core, tiered bot AI, and Epic Online Services multiplayer.**
 
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-green)](LICENSE)
+
 Project Tabletop implements the full Okey 101 ruleset (106 tiles, indicator/okey
 wilds, fake okeys, 101-point opening, meld extension) on top of a
 framework-agnostic game core, with local play against bots, online play over
@@ -87,3 +89,9 @@ addons/      epic-online-services-godot
 - [`docs/RULECONFIG.md`](docs/RULECONFIG.md) — rule variant configuration
 - [`docs/EOS_RUNTIME_SETUP.md`](docs/EOS_RUNTIME_SETUP.md) — multiplayer credential setup
 - [`docs/README_DEV.md`](docs/README_DEV.md) — developer workflow, test gates, Android builds
+
+## License
+
+Code is licensed under [GPL-3.0](LICENSE). Art and audio assets are CC0 /
+public domain (see [`docs/ASSET_LICENSES.md`](docs/ASSET_LICENSES.md));
+third-party addons under `addons/` keep their own licenses.
