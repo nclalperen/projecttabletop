@@ -23,9 +23,9 @@ const OPPONENT_RACK_POS_3D: Dictionary = {
 }
 
 const OPPONENT_RACK_ROT_DEG: Dictionary = {
-	1: Vector3(0.0, 90.0, 0.0),
+	1: Vector3(0.0, -90.0, 0.0),
 	2: Vector3(0.0, 180.0, 0.0),
-	3: Vector3(0.0, -90.0, 0.0),
+	3: Vector3(0.0, 90.0, 0.0),
 }
 const OPPONENT_RACK_SCALE: float = 0.85
 
@@ -52,7 +52,7 @@ const CAMERA_POS: Vector3 = Vector3(0.0, 0.66, 0.70)
 const CAMERA_LOOK_AT: Vector3 = Vector3(0.0, 0.0, -0.06)
 
 # ─── Hand Rig (Camera-Local Space, D7) ───
-const HAND_RIG_ORIGIN: Vector3 = Vector3(0.0, -0.102, -0.70)
+const HAND_RIG_ORIGIN: Vector3 = Vector3(0.0, -0.124, -0.70)
 const HAND_RIG_ROT_DEG: Vector3 = Vector3(-8.0, 0.0, 0.0)
 
 const HAND_RACK_LENGTH: float = 0.80

@@ -85,6 +85,52 @@ func run() -> bool:
 		push_error("Tile lift not cleared on cleanup")
 		ok = false
 
+	# 3. Test Smart Group Selection & Manipulation
+	var mock_session = RefCounted.new()
+	# Create 3 tiles forming a valid run
+	var t1: VectorTile3D = registry.ensure(1001, 1, 0, false, true, true)
+	var t2: VectorTile3D = registry.ensure(1002, 2, 0, false, true, true)
+	var t3: VectorTile3D = registry.ensure(1003, 3, 0, false, true, true)
+	registry.set_zone(1001, &"hand")
+	registry.set_zone(1002, &"hand")
+	registry.set_zone(1003, &"hand")
+
+	# Mock session with find_rack_group_at returning a valid group for slots [0, 1, 2]
+	var group_dict := {
+		"is_group": true,
+		"is_single": false,
+		"slots": [0, 1, 2],
+		"tile_ids": [1001, 1002, 1003],
+		"kind": 0,
+		"points": 6
+	}
+	# Set a fake session object via an inner script or lambda dictionary
+	var dummy_sess = Node.new()
+	dummy_sess.set_script(load("res://ui/game_table/OkeySession.gd"))
+	input.session = dummy_sess
+	# Verify that clicking a tile in a valid group highlights all 3 tiles together
+	input._selected_slots = [0, 1, 2]
+	input._selected_tile_ids = [1001, 1002, 1003]
+	input._selected_is_group = true
+
+	# Start group drag from slot 1
+	input._start_drag(t2, 1)
+	if not input._is_group_drag or input._drag_group_tiles.size() != 3:
+		push_error("Group drag not initiated correctly: is_group_drag=%s, count=%d" % [input._is_group_drag, input._drag_group_tiles.size()])
+		ok = false
+
+	# All 3 tiles must have lift and dragging flags set
+	if not t1.is_dragging or not t2.is_dragging or not t3.is_dragging:
+		push_error("All tiles in group must have is_dragging=true during group drag")
+		ok = false
+
+	# Cleanup group drag
+	input._cleanup_drag()
+	if input._is_group_drag or t1.is_dragging or t2.is_dragging or t3.is_dragging:
+		push_error("Group drag cleanup failed to reset group tiles")
+		ok = false
+
+	dummy_sess.free()
 	cam.queue_free()
 	input.queue_free()
 	registry.queue_free()

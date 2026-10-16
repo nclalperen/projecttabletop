@@ -95,18 +95,18 @@ func _process(delta: float) -> void:
 		f.elapsed += delta
 		var t: float = clampf(f.elapsed / f.duration, 0.0, 1.0)
 
-		# Cubic ease-out
-		var ease_t: float = 1.0 - pow(1.0 - t, 3.0)
+		# Smoothstep ease-in-out: zero jerk at liftoff, gentle cushioning on landing
+		var progress: float = t * t * (3.0 - 2.0 * t)
 
-		# Lerp position + parabolic arc apex
-		var pos: Vector3 = f.from_xform.origin.lerp(f.to_xform.origin, ease_t)
-		var arc_h: float = sin(t * PI) * f.apex_y
+		# Lerp position along trajectory with arc peak at exact spatial midpoint
+		var pos: Vector3 = f.from_xform.origin.lerp(f.to_xform.origin, progress)
+		var arc_h: float = sin(progress * PI) * f.apex_y
 		pos.y += arc_h
 
 		# Slerp orientation (orthonormalize to handle scaled parent nodes)
 		var from_b: Basis = f.from_xform.basis.orthonormalized()
 		var to_b: Basis = f.to_xform.basis.orthonormalized()
-		var basis: Basis = from_b.slerp(to_b, ease_t)
+		var basis: Basis = from_b.slerp(to_b, progress)
 
 		f.tile.position = pos
 		f.tile.rotation_degrees = basis.get_euler() * (180.0 / PI)

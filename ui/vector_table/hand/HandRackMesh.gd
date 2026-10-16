@@ -28,16 +28,16 @@ func _build_mesh() -> void:
 
 	# 2. Upper Shelf Bed & Front Lip with Brass Accent
 	TABLE_ART.piece(self, "UpperBed", Vector3(width - 0.024, 0.008, 0.022), Vector3(0.0, 0.0035, -0.012), 0.002, bed)
-	TABLE_ART.piece(self, "UpperLip", Vector3(width - 0.018, 0.007, 0.004), Vector3(0.0, 0.010, 0.002), 0.0015, edge)
+	TABLE_ART.piece(self, "UpperLip", Vector3(width - 0.018, 0.007, 0.004), Vector3(0.0, 0.010, 0.002), 0.0015, walnut)
 	TABLE_ART.piece(self, "UpperLipBrass", Vector3(width - 0.020, 0.0015, 0.002), Vector3(0.0, 0.0135, 0.003), 0.0005, brass)
 
 	# 3. Lower Shelf Bed & Front Lip with Brass Accent
 	TABLE_ART.piece(self, "LowerBed", Vector3(width - 0.024, 0.008, 0.022), Vector3(0.0, -0.0665, 0.012), 0.002, bed)
-	TABLE_ART.piece(self, "LowerLip", Vector3(width - 0.018, 0.007, 0.004), Vector3(0.0, -0.060, 0.025), 0.0015, edge)
+	TABLE_ART.piece(self, "LowerLip", Vector3(width - 0.018, 0.007, 0.004), Vector3(0.0, -0.060, 0.025), 0.0015, walnut)
 	TABLE_ART.piece(self, "LowerLipBrass", Vector3(width - 0.020, 0.0015, 0.002), Vector3(0.0, -0.0565, 0.026), 0.0005, brass)
 
-	# 4. Sculpted Plum Under-Support Base
-	TABLE_ART.piece(self, "BaseSupport", Vector3(width - 0.012, 0.032, 0.064), Vector3(0.0, -0.076, 0.004), 0.006, shell)
+	# 4. Sculpted Plum/Walnut Under-Support Base
+	TABLE_ART.piece(self, "BaseSupport", Vector3(width - 0.012, 0.032, 0.064), Vector3(0.0, -0.076, 0.004), 0.006, walnut)
 
 	# 5. Rounded Walnut End Caps (Left and Right)
 	for side in [-1.0, 1.0]:

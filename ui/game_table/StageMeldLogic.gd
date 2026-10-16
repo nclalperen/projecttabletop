@@ -318,6 +318,145 @@ func evaluate_rack_melds(
 	}
 
 
+## Detect contiguous touching tiles and check if they form a valid group (run, set, or pair)
+func find_contiguous_rack_group(
+	state: GameState,
+	hand: Array,
+	rack_slots: Array,
+	slot_idx: int,
+	rack_row_slots: int = 15,
+	pair_key_fn: Callable = Callable()
+) -> Dictionary:
+	var empty_res := {
+		"is_group": false,
+		"is_single": false,
+		"slots": [],
+		"tile_ids": [],
+		"kind": -1,
+		"points": 0
+	}
+	if slot_idx < 0 or slot_idx >= rack_slots.size() or int(rack_slots[slot_idx]) == -1:
+		return empty_res
+
+	var hand_by_id: Dictionary = {}
+	for tile in hand:
+		hand_by_id[int(tile.unique_id)] = tile
+
+	var target_tid: int = int(rack_slots[slot_idx])
+	if not hand_by_id.has(target_tid):
+		return empty_res
+
+	var row_idx: int = int(slot_idx / rack_row_slots)
+	var row_start: int = row_idx * rack_row_slots
+	var row_end: int = mini(rack_slots.size(), row_start + rack_row_slots)
+
+	# Expand left and right within the row to find touching tiles
+	var left: int = slot_idx
+	while left > row_start and int(rack_slots[left - 1]) != -1 and hand_by_id.has(int(rack_slots[left - 1])):
+		left -= 1
+	var right: int = slot_idx
+	while right < row_end - 1 and int(rack_slots[right + 1]) != -1 and hand_by_id.has(int(rack_slots[right + 1])):
+		right += 1
+
+	# Case 1: Isolated single tile (no touching neighbors)
+	if left == right:
+		return {
+			"is_group": false,
+			"is_single": true,
+			"slots": [slot_idx],
+			"tile_ids": [target_tid],
+			"kind": -1,
+			"points": 0
+		}
+
+	# Case 2: Touching neighbors exist! Check if touching segment forms a valid group
+	var group_slots: Array[int] = []
+	var group_ids: Array[int] = []
+	var group_tiles: Array = []
+	for s in range(left, right + 1):
+		var tid: int = int(rack_slots[s])
+		group_slots.append(s)
+		group_ids.append(tid)
+		group_tiles.append(hand_by_id[tid])
+
+	var okey_ctx = state.okey_context if state != null else null
+	var validator := MeldValidator.new()
+
+	# Check full segment for RUN
+	if group_tiles.size() >= 3 and okey_ctx != null:
+		var run_res: Dictionary = validator.validate_run(group_tiles, okey_ctx)
+		if bool(run_res.get("ok", false)):
+			return {
+				"is_group": true,
+				"is_single": false,
+				"slots": group_slots,
+				"tile_ids": group_ids,
+				"kind": Meld.Kind.RUN,
+				"points": int(run_res.get("points_value", 0))
+			}
+
+		# Check full segment for SET
+		var set_res: Dictionary = validator.validate_set(group_tiles, okey_ctx)
+		if bool(set_res.get("ok", false)):
+			return {
+				"is_group": true,
+				"is_single": false,
+				"slots": group_slots,
+				"tile_ids": group_ids,
+				"kind": Meld.Kind.SET,
+				"points": int(set_res.get("points_value", 0))
+			}
+
+	# Check PAIR (size == 2)
+	if group_tiles.size() == 2 and pair_key_fn.is_valid():
+		var k0 = pair_key_fn.call(group_tiles[0])
+		var k1 = pair_key_fn.call(group_tiles[1])
+		if k0 == k1:
+			return {
+				"is_group": true,
+				"is_single": false,
+				"slots": group_slots,
+				"tile_ids": group_ids,
+				"kind": Meld.Kind.PAIRS,
+				"points": 0
+			}
+
+	# Check sub-windows containing slot_idx of size >= 3
+	for span_len in range(group_tiles.size() - 1, 2, -1):
+		for start_offset in range(group_tiles.size() - span_len + 1):
+			var sub_left: int = left + start_offset
+			var sub_right: int = sub_left + span_len - 1
+			if slot_idx < sub_left or slot_idx > sub_right:
+				continue
+			var sub_tiles: Array = group_tiles.slice(start_offset, start_offset + span_len)
+			var sub_ids: Array[int] = group_ids.slice(start_offset, start_offset + span_len)
+			var sub_slots: Array[int] = group_slots.slice(start_offset, start_offset + span_len)
+			if okey_ctx != null:
+				var r_res = validator.validate_run(sub_tiles, okey_ctx)
+				if bool(r_res.get("ok", false)):
+					return {
+						"is_group": true,
+						"is_single": false,
+						"slots": sub_slots,
+						"tile_ids": sub_ids,
+						"kind": Meld.Kind.RUN,
+						"points": int(r_res.get("points_value", 0))
+					}
+				var s_res = validator.validate_set(sub_tiles, okey_ctx)
+				if bool(s_res.get("ok", false)):
+					return {
+						"is_group": true,
+						"is_single": false,
+						"slots": sub_slots,
+						"tile_ids": sub_ids,
+						"kind": Meld.Kind.SET,
+						"points": int(s_res.get("points_value", 0))
+					}
+
+	# Touching tiles do NOT form a valid group: return empty per user instruction
+	return empty_res
+
+
 func smart_sort_rack_tiles(
 	tiles: Array,
 	okey_context,

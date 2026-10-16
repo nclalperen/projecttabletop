@@ -116,21 +116,145 @@ func move_slot(from_slot: int, to_slot: int) -> bool:
 	last_tile_id = tile_id
 	return true
 
-## Insertion is used by the desktop table; retain swap for legacy callers.
-func insert_rack_slot(from_slot: int, to_slot: int) -> bool:
+## Fluid tile placement: drops onto empty slots cleanly; shoves adjacent tiles aside if occupied.
+func place_tile_at(from_slot: int, to_slot: int) -> bool:
 	if from_slot < 0 or from_slot >= rack_slots.size() or to_slot < 0 or to_slot >= rack_slots.size():
 		return false
-	if from_slot == to_slot or rack_slots[from_slot] == -1:
+	if from_slot == to_slot:
+		return true
+	var tile_id: int = int(rack_slots[from_slot])
+	if tile_id == -1:
 		return false
-	var tile_id: int = rack_slots[from_slot]
-	var direction: int = 1 if from_slot < to_slot else -1
-	var cursor: int = from_slot
-	while cursor != to_slot:
-		rack_slots[cursor] = rack_slots[cursor + direction]
-		cursor += direction
+
+	# 1. Target slot is empty: clean placement without displacing other tiles
+	if rack_slots[to_slot] == -1:
+		rack_slots[to_slot] = tile_id
+		rack_slots[from_slot] = -1
+		last_tile_id = tile_id
+		return true
+
+	# 2. Target slot is occupied: compute reflow to shove adjacent tiles towards nearest gap in row
+	var shifts: Dictionary = calculate_reflow(rack_slots, from_slot, to_slot)
+	if not shifts.is_empty():
+		rack_slots[from_slot] = -1
+		var first_slot: int = shifts.keys()[0]
+		var shift_dir: int = shifts[first_slot]
+
+		if shift_dir == 1:
+			var max_slot: int = to_slot
+			for s in shifts.keys():
+				if s > max_slot:
+					max_slot = s
+			var gap: int = max_slot + 1
+			for i in range(gap, to_slot, -1):
+				rack_slots[i] = rack_slots[i - 1]
+		else:
+			var min_slot: int = to_slot
+			for s in shifts.keys():
+				if s < min_slot:
+					min_slot = s
+			var gap: int = min_slot - 1
+			for i in range(gap, to_slot):
+				rack_slots[i] = rack_slots[i + 1]
+
+		rack_slots[to_slot] = tile_id
+		last_tile_id = tile_id
+		return true
+
+	# 3. Fallback if row is completely full (no gap): swap with target slot
+	var target_id: int = rack_slots[to_slot]
 	rack_slots[to_slot] = tile_id
+	rack_slots[from_slot] = target_id
 	last_tile_id = tile_id
 	return true
+
+## Move and shove a contiguous group of tiles into target_slot
+func place_group_at(from_slots: Array[int], target_slot: int) -> bool:
+	if from_slots.is_empty():
+		return false
+	if from_slots.size() == 1:
+		return place_tile_at(from_slots[0], target_slot)
+
+	for s in from_slots:
+		if s < 0 or s >= rack_slots.size() or rack_slots[s] == -1:
+			return false
+	if target_slot < 0 or target_slot >= rack_slots.size():
+		return false
+
+	var row_slots: int = 15
+	var row_idx: int = int(target_slot / row_slots)
+	var row_start: int = row_idx * row_slots
+	var row_end: int = mini(rack_slots.size(), row_start + row_slots)
+	var K: int = from_slots.size()
+
+	# Clamp target_slot so entire group fits in the row
+	if target_slot + K > row_end:
+		target_slot = row_end - K
+	if target_slot < row_start:
+		target_slot = row_start
+
+	# Extract moving tiles and clear source slots
+	var moving_tids: Array[int] = []
+	for s in from_slots:
+		moving_tids.append(rack_slots[s])
+		rack_slots[s] = -1
+
+	# Collect other tiles currently in target row
+	var left_tiles: Array[int] = []
+	var right_tiles: Array[int] = []
+	for s in range(row_start, row_end):
+		var tid: int = rack_slots[s]
+		if tid != -1:
+			if s < target_slot:
+				left_tiles.append(tid)
+			else:
+				right_tiles.append(tid)
+
+	# If all tiles fit within the row (15 slots)
+	if left_tiles.size() + K + right_tiles.size() <= row_slots:
+		# Clear target row slots
+		for s in range(row_start, row_end):
+			rack_slots[s] = -1
+
+		# Adjust target_slot if right_tiles would overflow row_end
+		var right_overflow: int = (target_slot + K + right_tiles.size()) - row_end
+		if right_overflow > 0:
+			target_slot -= right_overflow
+		var left_underflow: int = row_start - (target_slot - left_tiles.size())
+		if left_underflow > 0:
+			target_slot += left_underflow
+
+		# Place left tiles
+		var l_start: int = target_slot - left_tiles.size()
+		for i in range(left_tiles.size()):
+			rack_slots[l_start + i] = left_tiles[i]
+
+		# Place group tiles
+		for i in range(K):
+			rack_slots[target_slot + i] = moving_tids[i]
+
+		# Place right tiles
+		var r_start: int = target_slot + K
+		for i in range(right_tiles.size()):
+			rack_slots[r_start + i] = right_tiles[i]
+
+		last_tile_id = moving_tids[0]
+		return true
+
+	# Fallback if too many tiles: swap target span with moving tiles
+	for i in range(K):
+		var s: int = target_slot + i
+		var displaced: int = rack_slots[s]
+		rack_slots[s] = moving_tids[i]
+		if i < from_slots.size():
+			rack_slots[from_slots[i]] = displaced
+
+	last_tile_id = moving_tids[0]
+	return true
+
+## Insertion uses fluid placement; preserves gaps and reflows occupied slots cleanly.
+func insert_rack_slot(from_slot: int, to_slot: int) -> bool:
+	return place_tile_at(from_slot, to_slot)
 
 func move_rack_to_draft(from_slot: int, to_draft_slot: int, row_slots: int, total_draft_slots: int) -> bool:
 	if from_slot < 0 or from_slot >= rack_slots.size():

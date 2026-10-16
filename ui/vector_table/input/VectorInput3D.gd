@@ -31,6 +31,18 @@ var dragged_tile: VectorTile3D = null
 var drag_source_slot: int = -1
 var is_dragging: bool = false
 
+# Group selection and manipulation state
+var _selected_slots: Array[int] = []
+var _selected_tile_ids: Array[int] = []
+var _selected_is_group: bool = false
+
+var _is_group_drag: bool = false
+var _drag_group_slots: Array[int] = []
+var _drag_group_tids: Array[int] = []
+var _drag_group_tiles: Array[VectorTile3D] = []
+var _drag_anchor_tile: VectorTile3D = null
+var _drag_anchor_slot: int = -1
+
 var _press_tile: VectorTile3D = null
 var _press_slot: int = -1
 var _press_pos: Vector2 = Vector2.ZERO
@@ -101,7 +113,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 						session.overlay_take_discard()
 
 	else: # Release
-		if is_dragging and dragged_tile != null:
+		if is_dragging and (dragged_tile != null or _is_group_drag):
 			_end_drag()
 		elif _press_tile != null:
 			var duration_ms: int = Time.get_ticks_msec() - _press_time_ms
@@ -117,24 +129,43 @@ func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
 		if event.position.distance_to(_press_pos) > 6.0:
 			_start_drag(_press_tile, _press_slot)
 
-	if is_dragging and dragged_tile != null:
+	if is_dragging and (dragged_tile != null or _is_group_drag):
 		_update_drag(event.position)
 
 
 func _start_drag(tile: VectorTile3D, slot_idx: int) -> void:
 	is_dragging = true
-	dragged_tile = tile
-	drag_source_slot = slot_idx
 
-	tile.is_dragging = true
-	tile.set_drag_lift(0.025) # 25mm lift
-	tile.set_highlight(&"hover")
+	# Check if starting drag from an already selected group
+	if _selected_is_group and _selected_slots.has(slot_idx) and _selected_slots.size() > 1:
+		_is_group_drag = true
+		_drag_group_slots = _selected_slots.duplicate()
+		_drag_group_tids = _selected_tile_ids.duplicate()
+		_drag_anchor_slot = slot_idx
+		_drag_anchor_tile = tile
+		_drag_group_tiles.clear()
+
+		for tid in _drag_group_tids:
+			var tnode: VectorTile3D = registry.get_node_for(tid) if registry != null else null
+			if tnode != null:
+				tnode.is_dragging = true
+				tnode.set_drag_lift(0.025)
+				tnode.set_highlight(&"hover")
+				_drag_group_tiles.append(tnode)
+		dragged_tile = tile
+		drag_source_slot = slot_idx
+	else:
+		_is_group_drag = false
+		dragged_tile = tile
+		drag_source_slot = slot_idx
+		tile.is_dragging = true
+		tile.set_drag_lift(0.025)
+		tile.set_highlight(&"hover")
 
 	# Define drag plane parallel to camera screen facing camera, lifted forward towards camera
 	var cam_xf: Transform3D = camera.global_transform if camera.is_inside_tree() else camera.transform
 	var plane_normal := cam_xf.basis.z.normalized()
 	var tile_pos: Vector3 = tile.global_position if tile.is_inside_tree() else tile.position
-	# Offset plane towards camera (along +camera.basis.z) so lifted tile floats in front of rack
 	var lift_offset := cam_xf.basis.z.normalized() * 0.030
 	_drag_plane = Plane(plane_normal, tile_pos + lift_offset)
 	_prev_drag_world_pos = tile_pos + lift_offset
@@ -151,34 +182,65 @@ func _update_drag(screen_pos: Vector2) -> void:
 
 	var new_pos: Vector3 = hit_pos
 	var delta_pos := new_pos - _prev_drag_world_pos
-	_drag_vel = delta_pos * 30.0
+	# Filter velocity with spring smoothing to eliminate mouse jitter
+	_drag_vel = _drag_vel.lerp(delta_pos * 30.0, 0.45)
 	_prev_drag_world_pos = new_pos
 
 	# 6-DOF velocity tilt
-	var tilt_deg: Vector3 = SPRING3D.calculate_tilt_3d(_drag_vel, 8.0, 16.0)
-	dragged_tile.position = new_pos
+	var tilt_deg: Vector3 = SPRING3D.calculate_tilt_3d(_drag_vel, 6.0, 14.0)
 
 	var base_rot := Vector3(-6.0, 0.0, 0.0)
 	if hand_rig != null:
 		base_rot = hand_rig.global_transform.basis.get_euler() * (180.0 / PI)
-	dragged_tile.rotation_degrees = base_rot + tilt_deg
 
-	# Gaussian push-aside on neighboring hand slots
-	if hand_rig != null:
-		var xf := hand_rig.global_transform if hand_rig.is_inside_tree() else hand_rig.transform
-		var local_pt: Vector3 = xf.affine_inverse() * new_pos
-		hand_rig.apply_push_aside(local_pt, drag_source_slot, 0.022, 0.040)
+	var cam_xf: Transform3D = camera.global_transform if camera.is_inside_tree() else camera.transform
+
+	if _is_group_drag and _drag_anchor_tile != null:
+		_drag_anchor_tile.position = new_pos
+		_drag_anchor_tile.rotation_degrees = base_rot + tilt_deg
+
+		for i in range(_drag_group_tiles.size()):
+			var tnode: VectorTile3D = _drag_group_tiles[i]
+			if tnode == _drag_anchor_tile:
+				continue
+			var s: int = _drag_group_slots[i]
+			var col_diff: float = float(s - _drag_anchor_slot)
+			var offset: Vector3 = cam_xf.basis.x.normalized() * (col_diff * TUNING.TILE_PITCH)
+			tnode.position = new_pos + offset
+			tnode.rotation_degrees = base_rot + tilt_deg
+
+		if hand_rig != null:
+			var xf := hand_rig.global_transform if hand_rig.is_inside_tree() else hand_rig.transform
+			var local_pt: Vector3 = xf.affine_inverse() * new_pos
+			hand_rig.apply_push_aside(local_pt, _drag_anchor_slot, 0.026, 0.055)
+	elif dragged_tile != null:
+		dragged_tile.position = new_pos
+		dragged_tile.rotation_degrees = base_rot + tilt_deg
+
+		if hand_rig != null:
+			var xf := hand_rig.global_transform if hand_rig.is_inside_tree() else hand_rig.transform
+			var local_pt: Vector3 = xf.affine_inverse() * new_pos
+			hand_rig.apply_push_aside(local_pt, drag_source_slot, 0.022, 0.040)
 
 
 func _end_drag() -> void:
-	var drop_pos := dragged_tile.global_position
-	var tile_id := dragged_tile.unique_id
+	var anchor_node: VectorTile3D = _drag_anchor_tile if _is_group_drag else dragged_tile
+	if anchor_node == null:
+		_cleanup_drag()
+		return
 
-	# 1. Check drop on player's discard pile (SE)
+	var drop_pos := anchor_node.global_position
+	var tile_id := anchor_node.unique_id
+
+	# 1. Check drop on player's discard pile (SE corner)
 	var discard_pos: Vector3 = TUNING.DISCARD_POS_3D.get(0, Vector3.ZERO)
 	var dist_to_discard: float = drop_pos.distance_to(discard_pos)
 
 	if dist_to_discard < 0.14:
+		if _is_group_drag:
+			# Discarding a group at once is invalid in Okey rules
+			_cleanup_drag()
+			return
 		if session != null:
 			var res: Dictionary = session.overlay_discard_tile(tile_id)
 			if bool(res.get("ok", false)):
@@ -186,33 +248,73 @@ func _end_drag() -> void:
 				_cleanup_drag()
 				return
 
-	# 2. Check drop onto table melds
+	# 2. Check drop onto table melds or open felt (Meld to table!)
+	var is_over_table_felt: bool = (drop_pos.z < 0.28 and absf(drop_pos.x) < 0.50)
+
+	# 2a. Check drop onto existing table melds
 	if table != null and table.has_node("MeldLayout"):
 		var meld_layout = table.get_node("MeldLayout")
 		for m_idx in range(meld_layout.get_meld_count()):
 			var m_data: Dictionary = meld_layout.get_meld_data(m_idx)
 			var c_pos: Vector3 = m_data.get("center_world_pos", Vector3.ZERO)
 			var m_w: float = float(m_data.get("width", 0.15))
-			if abs(drop_pos.x - c_pos.x) <= (m_w * 0.55) and abs(drop_pos.z - c_pos.z) <= 0.045:
+			if absf(drop_pos.x - c_pos.x) <= (m_w * 0.55) and absf(drop_pos.z - c_pos.z) <= 0.045:
 				if session != null:
-					var res: Dictionary = session.overlay_add_to_meld([tile_id], m_idx)
+					var tile_ids_to_add: Array = _drag_group_tids if _is_group_drag else [tile_id]
+					var res: Dictionary = session.overlay_add_to_meld(tile_ids_to_add, m_idx)
 					if bool(res.get("ok", false)):
 						_cleanup_drag()
 						return
 
-	# 3. Check drop onto hand rack
+	# 2b. Check drop onto open table area (Open melds to table!)
+	if is_over_table_felt and session != null:
+		if _is_group_drag:
+			var res: Dictionary = session.overlay_open_single_meld(_drag_group_tids)
+			if bool(res.get("ok", false)):
+				_cleanup_drag()
+				return
+		elif session.has_method("find_rack_group_at"):
+			var grp: Dictionary = session.find_rack_group_at(drag_source_slot)
+			if grp.get("is_group", false):
+				var res: Dictionary = session.overlay_open_single_meld(grp.get("tile_ids", []))
+				if bool(res.get("ok", false)):
+					_cleanup_drag()
+					return
+
+	# 3. Check drop onto hand rack (Move on rack, shove into space!)
 	if hand_rig != null:
 		var target_slot: int = hand_rig.nearest_slot(drop_pos)
-		if target_slot != drag_source_slot and drag_source_slot >= 0:
+		if _is_group_drag:
+			var anchor_idx: int = _drag_group_slots.find(_drag_anchor_slot)
+			if anchor_idx == -1:
+				anchor_idx = 0
+			var target_start_slot: int = target_slot - anchor_idx
 			if session != null:
-				session.overlay_move_slot(drag_source_slot, target_slot)
-				tile_moved.emit(drag_source_slot, target_slot)
+				session.overlay_move_group(_drag_group_slots, target_start_slot)
+				tile_moved.emit(_drag_group_slots[0], target_start_slot)
+		else:
+			if target_slot != drag_source_slot and drag_source_slot >= 0:
+				if session != null:
+					session.overlay_move_slot(drag_source_slot, target_slot)
+					tile_moved.emit(drag_source_slot, target_slot)
 
 	_cleanup_drag()
 
 
 func _cleanup_drag() -> void:
-	if dragged_tile != null:
+	if _is_group_drag:
+		for tnode in _drag_group_tiles:
+			if is_instance_valid(tnode):
+				tnode.is_dragging = false
+				tnode.set_drag_lift(0.0)
+				tnode.set_highlight(&"none")
+		_drag_group_tiles.clear()
+		_drag_group_slots.clear()
+		_drag_group_tids.clear()
+		_drag_anchor_tile = null
+		_drag_anchor_slot = -1
+		_is_group_drag = false
+	elif dragged_tile != null:
 		dragged_tile.is_dragging = false
 		dragged_tile.set_drag_lift(0.0)
 		dragged_tile.set_highlight(&"none")
@@ -220,9 +322,22 @@ func _cleanup_drag() -> void:
 	if hand_rig != null:
 		hand_rig.clear_push_aside()
 
+	_clear_selection()
 	is_dragging = false
 	dragged_tile = null
 	drag_source_slot = -1
+
+
+func _clear_selection() -> void:
+	for tid in _selected_tile_ids:
+		if registry != null:
+			var tnode: VectorTile3D = registry.get_node_for(tid)
+			if tnode != null and not tnode.is_dragging:
+				tnode.set_highlight(&"none")
+				tnode.set_drag_lift(0.0)
+	_selected_slots.clear()
+	_selected_tile_ids.clear()
+	_selected_is_group = false
 
 
 func _handle_click(tile: VectorTile3D, slot_idx: int) -> void:
@@ -236,9 +351,52 @@ func _handle_click(tile: VectorTile3D, slot_idx: int) -> void:
 		if session != null:
 			session.overlay_discard_tile(tile.unique_id)
 		tile_picked.emit(tile)
-	else:
-		tile.set_highlight(&"selected" if tile.current_highlight != &"selected" else &"none")
-		tile_picked.emit(tile)
+		return
+
+	# Smart group selection: touching tiles highlight together if they form a group;
+	# if touching tiles do NOT form a group, nothing gets highlighted!
+	if session != null and session.has_method("find_rack_group_at"):
+		var grp: Dictionary = session.find_rack_group_at(slot_idx)
+		if grp.get("is_group", false):
+			var slots: Array[int] = grp.get("slots", [])
+			var tids: Array[int] = grp.get("tile_ids", [])
+			if _selected_is_group and _selected_slots == slots:
+				# Toggle off
+				_clear_selection()
+			else:
+				_clear_selection()
+				_selected_slots = slots.duplicate()
+				_selected_tile_ids = tids.duplicate()
+				_selected_is_group = true
+				for tid in _selected_tile_ids:
+					var tnode: VectorTile3D = registry.get_node_for(tid) if registry != null else null
+					if tnode != null:
+						tnode.set_highlight(&"selected")
+						tnode.set_drag_lift(0.006) # 6mm tactile pop-up
+			tile_picked.emit(tile)
+			return
+		elif grp.get("is_single", false):
+			# Isolated single tile
+			if not _selected_is_group and _selected_slots == [slot_idx]:
+				_clear_selection()
+			else:
+				_clear_selection()
+				_selected_slots = [slot_idx]
+				_selected_tile_ids = [tile.unique_id]
+				_selected_is_group = false
+				tile.set_highlight(&"selected")
+				tile.set_drag_lift(0.006)
+			tile_picked.emit(tile)
+			return
+		else:
+			# Touching tiles that do NOT form a valid group:
+			# "if they dont form a group even if they touch eachother nothing it doesnt get highlighted"
+			_clear_selection()
+			return
+
+	# Fallback selection
+	tile.set_highlight(&"selected" if tile.current_highlight != &"selected" else &"none")
+	tile_picked.emit(tile)
 
 
 func _raycast_layer2(screen_pos: Vector2) -> Dictionary:

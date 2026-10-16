@@ -123,7 +123,56 @@ func _run() -> void:
 
 			session._sync_state()
 
-		if fixture == "dragging":
+		if fixture == "group_selected" or fixture == "group_drag":
+			if controller != null and controller.state != null:
+				var state = controller.state
+				# Create structured hand with clear groups and gaps
+				var new_hand: Array = [
+					Tile.new(0, 8, Tile.Kind.NORMAL, 700001), # Black 8 (isolated)
+					Tile.new(1, 5, Tile.Kind.NORMAL, 700002), # Blue 5 (run start)
+					Tile.new(1, 6, Tile.Kind.NORMAL, 700003), # Blue 6 (run mid)
+					Tile.new(1, 7, Tile.Kind.NORMAL, 700004), # Blue 7 (run end)
+					Tile.new(2, 9, Tile.Kind.NORMAL, 700005), # Red 9
+					Tile.new(2, 10, Tile.Kind.NORMAL, 700006),# Red 10
+					Tile.new(2, 11, Tile.Kind.NORMAL, 700007),# Red 11
+					Tile.new(2, 12, Tile.Kind.NORMAL, 700008),# Red 12
+					Tile.new(3, 3, Tile.Kind.NORMAL, 700009), # Yellow 3 (touching invalid)
+					Tile.new(0, 11, Tile.Kind.NORMAL, 700010) # Black 11 (touching invalid)
+				]
+				state.players[0].hand = new_hand
+				session._sync_state()
+				# Set custom slot arrangement:
+				var slots_mgr = session.get_slot_manager()
+				slots_mgr.init_rack_slots(30)
+				slots_mgr.rack_slots[0] = 700001 # isolated at 0
+				# slot 1 empty
+				slots_mgr.rack_slots[2] = 700002 # Blue 5
+				slots_mgr.rack_slots[3] = 700003 # Blue 6
+				slots_mgr.rack_slots[4] = 700004 # Blue 7
+				# slot 5 empty
+				slots_mgr.rack_slots[6] = 700005 # Red 9
+				slots_mgr.rack_slots[7] = 700006 # Red 10
+				slots_mgr.rack_slots[8] = 700007 # Red 11
+				slots_mgr.rack_slots[9] = 700008 # Red 12
+				# slot 10 empty
+				slots_mgr.rack_slots[11] = 700009 # Yellow 3 (touching random)
+				slots_mgr.rack_slots[12] = 700010 # Black 11 (touching random)
+				session._emit_changed()
+				await _frames(20)
+
+			var input = board.get("_input_handler")
+			var reg = board.get("_registry")
+			if input != null and reg != null:
+				# Click slot 3 (Blue 6, part of valid run [2, 3, 4])
+				var tile_node = reg.get_node_for(700003)
+				if tile_node != null:
+					input._handle_click(tile_node, 3)
+					if fixture == "group_drag":
+						input._start_drag(tile_node, 3)
+						var drag_pos := Vector2(float(requested_size.x) * 0.5 + 40.0, float(requested_size.y) * 0.55)
+						input._update_drag(drag_pos)
+			await _frames(15)
+		elif fixture == "dragging":
 			await _frames(40)
 			var input = board.get("_input_handler")
 			var hand_slots: Dictionary = board.get("_hand_slots_map") if "_hand_slots_map" in board else {}

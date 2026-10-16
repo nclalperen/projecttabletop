@@ -59,7 +59,44 @@ func run() -> bool:
 		slots.draft_slots[0] == -1 and slots.draft_slots[1] == -1 and slots.draft_slots[2] == -1 and slots.draft_slots[3] == -1,
 		"clear_draft_slots should reset draft"
 	) and ok
-	ok = _expect(not slots.has_draft_tiles(), "has_draft_tiles should be false after clear_draft_slots") and ok
+	# Test fluid place_tile_at (empty slot drop preserves other tiles)
+	slots.init_rack_slots(30)
+	slots.rack_slots[0] = 101
+	slots.rack_slots[1] = 102
+	slots.rack_slots[2] = 103
+	slots.rack_slots[10] = -1
+	ok = _expect(slots.place_tile_at(0, 10), "place_tile_at to empty slot should succeed") and ok
+	ok = _expect(slots.rack_slots[0] == -1, "source slot 0 should be empty") and ok
+	ok = _expect(slots.rack_slots[1] == 102 and slots.rack_slots[2] == 103, "intervening slots 1 and 2 must NOT be displaced") and ok
+	ok = _expect(slots.rack_slots[10] == 101, "tile 101 should be placed in slot 10") and ok
+
+	# Test fluid place_tile_at into occupied slot (shoves adjacent tiles aside towards gap)
+	slots.init_rack_slots(30)
+	slots.rack_slots[4] = 201
+	slots.rack_slots[5] = 202
+	slots.rack_slots[6] = 203
+	slots.rack_slots[7] = -1
+	slots.rack_slots[0] = 999
+	ok = _expect(slots.place_tile_at(0, 5), "place_tile_at into occupied slot should succeed") and ok
+	ok = _expect(slots.rack_slots[0] == -1, "source slot should be cleared") and ok
+	ok = _expect(slots.rack_slots[4] == 201, "slot 4 should remain undisturbed") and ok
+	ok = _expect(slots.rack_slots[5] == 999, "slot 5 should now hold tile 999") and ok
+	ok = _expect(slots.rack_slots[6] == 202, "slot 5 tile should shove to slot 6") and ok
+	ok = _expect(slots.rack_slots[7] == 203, "slot 6 tile should shove into gap at slot 7") and ok
+
+	# Test place_group_at (group move and shove into space)
+	slots.init_rack_slots(30)
+	slots.rack_slots[0] = 301
+	slots.rack_slots[1] = 302
+	slots.rack_slots[2] = 303
+	slots.rack_slots[8] = 401
+	slots.rack_slots[9] = 402
+	# Move group [0, 1, 2] into slot 8 (shoving 401, 402 to the right)
+	var grp_slots: Array[int] = [0, 1, 2]
+	ok = _expect(slots.place_group_at(grp_slots, 8), "place_group_at should succeed") and ok
+	ok = _expect(slots.rack_slots[0] == -1 and slots.rack_slots[1] == -1 and slots.rack_slots[2] == -1, "source group slots cleared") and ok
+	ok = _expect(slots.rack_slots[8] == 301 and slots.rack_slots[9] == 302 and slots.rack_slots[10] == 303, "group placed at slots 8..10") and ok
+	ok = _expect(slots.rack_slots[11] == 401 and slots.rack_slots[12] == 402, "shoved tiles placed after group") and ok
 
 	if ok:
 		print("  PASS  test_rack_slot_manager")

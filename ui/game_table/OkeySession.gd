@@ -173,6 +173,9 @@ func get_view_snapshot() -> Dictionary:
 		"draft_preview": get_draft_preview(), "available_actions": get_available_actions(),
 		"turn_seconds_remaining": get_turn_seconds_remaining()}
 
+func get_slot_manager() -> RackSlotManager:
+	return _slots
+
 func _preview_action(action: Action) -> Dictionary:
 	if _controller.state == null or _controller.state.players.is_empty():
 		return {"ok": false, "reason": "The table is not ready"}
@@ -489,6 +492,70 @@ func _move(kind: String, source: int, destination: int) -> Dictionary:
 
 func overlay_move_slot(source: int, destination: int) -> Dictionary:
 	return _move("rack", source, destination)
+
+func overlay_move_group(source_slots: Array, destination_slot: int) -> Dictionary:
+	if _action_in_flight or _controller.state == null:
+		return {"ok": false, "reason": "Table busy"}
+	var previous: Dictionary = {"rack": get_rack_slots().duplicate(), "draft": get_draft_slots().duplicate()}
+	var typed_sources: Array[int] = []
+	for s in source_slots:
+		typed_sources.append(int(s))
+	var moved: bool = _slots.place_group_at(typed_sources, destination_slot)
+	if not moved:
+		return {"ok": false, "reason": "Could not place group"}
+	_history.append(previous)
+	if _history.size() > 30:
+		_history.pop_front()
+	_message = ""
+	_emit_changed()
+	return {"ok": true}
+
+func find_rack_group_at(slot_idx: int) -> Dictionary:
+	if _controller.state == null:
+		return {"is_group": false, "is_single": false, "slots": [], "tile_ids": [], "kind": -1, "points": 0}
+	return _draft_logic.find_contiguous_rack_group(
+		_controller.state,
+		get_hand_tiles(),
+		get_rack_slots(),
+		slot_idx,
+		GEO.STAGE_ROW_SLOTS,
+		_pair_key_for_tile
+	)
+
+func overlay_open_single_meld(tile_ids: Array) -> Dictionary:
+	if _controller.state == null or _controller.state.players.is_empty():
+		return {"ok": false, "reason": "Table not ready"}
+	if _action_in_flight:
+		return {"ok": false, "reason": "Waiting for previous action"}
+	var tiles: Array = []
+	var hand_by_id: Dictionary = {}
+	for t in get_hand_tiles():
+		hand_by_id[int(t.unique_id)] = t
+	for tid in tile_ids:
+		if hand_by_id.has(int(tid)):
+			tiles.append(hand_by_id[int(tid)])
+	if tiles.size() < 2:
+		return {"ok": false, "reason": "Select at least 2 tiles"}
+
+	var state = _controller.state
+	var validator := MeldValidator.new()
+	var kind: int = Meld.Kind.RUN
+	var is_pair: bool = false
+	if tiles.size() >= 3 and bool(validator.validate_run(tiles, state.okey_context).get("ok", false)):
+		kind = Meld.Kind.RUN
+	elif tiles.size() in [3, 4] and bool(validator.validate_set(tiles, state.okey_context).get("ok", false)):
+		kind = Meld.Kind.SET
+	elif tiles.size() == 2 and _pair_key_for_tile(tiles[0]) == _pair_key_for_tile(tiles[1]):
+		kind = Meld.Kind.PAIRS
+		is_pair = true
+	else:
+		return {"ok": false, "reason": "Tiles do not form a valid group"}
+
+	var single_meld := [{"kind": kind, "tile_ids": tile_ids}]
+	if not state.players[0].has_opened:
+		return request_open_rack_melds()
+
+	return _submit(Action.new(Action.ActionType.OPEN_MELDS, {"melds": single_meld, "open_by_pairs": is_pair}))
 
 func overlay_move_rack_to_draft(source: int, destination: int) -> Dictionary:
 	return _move("to_draft", source, destination)
