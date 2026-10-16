@@ -90,6 +90,8 @@ const TEST_SCRIPTS = [
 	"res://tests/test_fluid_rack_3d.gd",
 	"res://tests/test_vector_game_table_3d.gd",
 	"res://tests/test_vector3d_seat_mapping.gd",
+	"res://tests/test_vector3d_hand_rig.gd",
+	"res://tests/test_vector3d_tile_atlas.gd",
 ]
 
 var _all_ok := true

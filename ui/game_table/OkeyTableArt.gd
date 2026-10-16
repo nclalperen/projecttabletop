@@ -70,6 +70,33 @@ static func build_tile(standing: bool = true, face_up: bool = true) -> Node3D:
 	return root
 
 
+static func material(key: String) -> Material:
+	if _materials.has(key):
+		return _materials[key] as Material
+	match key:
+		"walnut":
+			return _shader_material("walnut", WOOD_SHADER)
+		"felt":
+			return _shader_material("felt", FELT_SHADER)
+		"rack_walnut":
+			return _material("rack_walnut", Color("452717"), 0.36)
+		"rack_walnut_edge":
+			return _material("rack_walnut_edge", Color("5a3521"), 0.40)
+		"rack_bed":
+			return _material("rack_bed", Color("22130b"), 0.80)
+		"rack_badge":
+			return _material("rack_badge", Color("c4a46c"), 0.38)
+		"plum":
+			return _material("plum", Color("2a170e"), 0.36)
+		"inset":
+			return _material("inset", Color("142c30"), 0.85)
+		"brass_inlay":
+			return _material("brass_inlay", Color("b59659"), 0.32)
+		"tile_ivory":
+			return _material("tile_ivory", Color("f4e6c6"), 0.36)
+	return null
+
+
 static func _material(key: String, color: Color, roughness: float) -> StandardMaterial3D:
 	if _materials.has(key):
 		return _materials[key] as StandardMaterial3D
@@ -88,6 +115,10 @@ static func _shader_material(key: String, shader: Shader) -> ShaderMaterial:
 	mat.shader = shader
 	_materials[key] = mat
 	return mat
+
+
+static func piece(parent: Node3D, part_name: String, size: Vector3, at: Vector3, radius: float, material: Material) -> MeshInstance3D:
+	return _piece(parent, part_name, size, at, radius, material)
 
 
 static func _piece(parent: Node3D, part_name: String, size: Vector3, at: Vector3, radius: float, material: Material) -> MeshInstance3D:

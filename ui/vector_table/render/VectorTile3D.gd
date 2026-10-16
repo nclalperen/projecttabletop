@@ -1,5 +1,6 @@
 ## Procedural 3D Vector Tile for Okey 101 & Tabletop Hub.
-## Combines physical 3D PBR ivory geometry with 6-DOF mathematical spring kinematics and velocity tilt.
+## Combines physical 3D PBR ivory geometry with 6-DOF mathematical spring kinematics,
+## velocity tilt, and crisp texture-atlas face rendering (no Label3D runtime overhead).
 class_name VectorTile3D
 extends Node3D
 
@@ -10,18 +11,25 @@ signal tile_drag_ended(tile: VectorTile3D)
 
 const SPRING3D = preload("res://ui/vector_table/math/SpringSolver3D.gd")
 const TABLE_ART = preload("res://ui/game_table/OkeyTableArt.gd")
+const TileFaceAtlas = preload("res://ui/vector_table/render/TileFaceAtlas.gd")
 
 # Tile Dimensions (meters)
 const TILE_WIDTH: float = 0.045
 const TILE_HEIGHT: float = 0.065
 const TILE_DEPTH: float = 0.009
+const FACE_WIDTH: float = 0.040
+const FACE_HEIGHT: float = 0.0598
+const FACE_LOCAL_Z: float = 0.00455
 
-# Suit Colors
+# Shared Face Shader
+static var _face_shader: Shader = null
+
+# Suit Colors (physical Okey set)
 const SUIT_COLORS: Array[Color] = [
-	Color(0.85, 0.16, 0.12, 1.0), # 0: Red
-	Color(0.88, 0.58, 0.06, 1.0), # 1: Yellow
-	Color(0.14, 0.14, 0.16, 1.0), # 2: Black
-	Color(0.08, 0.44, 0.84, 1.0), # 3: Blue
+	Color("#c8231b"), # 0: Red
+	Color("#e09a12"), # 1: Yellow
+	Color("#1d1d22"), # 2: Black
+	Color("#1563c9"), # 3: Blue
 ]
 
 # Tile Data
@@ -31,33 +39,72 @@ var color_index: int = 0
 var is_fake_okey: bool = false
 var is_face_up: bool = true
 var is_standing: bool = true
-var is_valid_meld: bool = false
+var is_flying: bool = false
+var is_dragging: bool = false
+var is_valid_meld: bool = false:
+	set(val):
+		is_valid_meld = val
+		set_highlight(&"valid_meld" if val else &"none")
+var current_highlight: StringName = &"none"
 
 # 3D Kinematics & Springs
 var target_pos: Vector3 = Vector3.ZERO
 var spring_pos: Vector3 = Vector3.ZERO
 var spring_vel: Vector3 = Vector3.ZERO
 
-var base_rot_deg: Vector3 = Vector3(-28.0, 0.0, 0.0)
-var target_rot_deg: Vector3 = Vector3(-28.0, 0.0, 0.0)
-var spring_rot_deg: Vector3 = Vector3(-28.0, 0.0, 0.0)
+var base_rot_deg: Vector3 = Vector3.ZERO
+var target_rot_deg: Vector3 = Vector3.ZERO
+var spring_rot_deg: Vector3 = Vector3.ZERO
 var spring_rot_vel: Vector3 = Vector3.ZERO
 
-var lift_y: float = 0.0 # Dynamic lift in meters when dragged
+var lift_y: float = 0.0 # Dynamic lift in meters when hovered/dragged
 var target_lift_y: float = 0.0
 var lift_vel: float = 0.0
 
-var is_dragging: bool = false
-
 # Visual nodes
 var _visual_body: Node3D = null
-var _number_label: Label3D = null
-var _pip_label: Label3D = null
-var _meld_bar: MeshInstance3D = null
+var _face_mesh: MeshInstance3D = null
+var _highlight_mesh: MeshInstance3D = null
+var _pick_area: Area3D = null
+
+# Backward-compat aliases for test assertions
+var _number_label: Node:
+	get: return _face_mesh
+var _pip_label: Node:
+	get: return _face_mesh
 
 
 func _init() -> void:
-	pass
+	if _face_shader == null:
+		_init_face_shader()
+
+
+static func _init_face_shader() -> void:
+	_face_shader = Shader.new()
+	_face_shader.code = """shader_type spatial;
+render_mode specular_schlick_ggx;
+
+uniform sampler2D face_atlas : source_color, filter_linear_mipmap_anisotropic;
+uniform vec2 uv_offset = vec2(0.0, 0.0);
+uniform vec2 uv_scale = vec2(0.0714285, 0.25);
+uniform vec4 ivory_tint : source_color = vec4(0.92, 0.88, 0.78, 1.0);
+uniform float roughness : hint_range(0.0, 1.0) = 0.50;
+
+void fragment() {
+	vec2 atlas_uv = uv_offset + UV * uv_scale;
+	vec4 col = texture(face_atlas, atlas_uv);
+	vec3 base = mix(ivory_tint.rgb, col.rgb, col.a);
+	ALBEDO = base;
+	ROUGHNESS = roughness;
+	SPECULAR = 0.15;
+}
+
+void light() {
+	float NdotL = clamp(dot(NORMAL, LIGHT), 0.0, 1.0);
+	vec3 diff = LIGHT_COLOR * (NdotL * ATTENUATION * 0.45 + 0.15);
+	DIFFUSE_LIGHT += ALBEDO * diff;
+}
+"""
 
 
 func _ready() -> void:
@@ -99,23 +146,49 @@ func set_drag_lift(lift_meters: float) -> void:
 	target_lift_y = lift_meters
 
 
+func set_highlight(kind: StringName) -> void:
+	current_highlight = kind
+	if _highlight_mesh == null:
+		return
+	if kind == &"none":
+		_highlight_mesh.visible = false
+		return
+
+	_highlight_mesh.visible = true
+	var color := Color(1.0, 1.0, 1.0, 0.8)
+	match kind:
+		&"hover":
+			color = Color(0.3, 0.75, 1.0, 0.85) # Cyan glow
+		&"selected":
+			color = Color(1.0, 0.80, 0.15, 0.95) # Amber gold
+		&"valid_meld":
+			color = Color(0.18, 0.90, 0.45, 0.95) # Emerald green
+		&"invalid":
+			color = Color(0.95, 0.22, 0.20, 0.95) # Ruby red
+
+	var mat: StandardMaterial3D = _highlight_mesh.material_override as StandardMaterial3D
+	if mat != null:
+		mat.albedo_color = color
+		mat.emission = color
+
+
 func _process(delta: float) -> void:
-	if is_dragging:
+	if is_dragging or is_flying:
 		return
 
 	# 1. Step 3D Position Spring
 	var effective_target := target_pos + Vector3(0.0, lift_y, 0.0)
 	if not spring_pos.is_equal_approx(effective_target) or spring_vel.length_squared() > 0.0001:
-		var pos_res: Dictionary = SPRING3D.step_vector3(spring_pos, spring_vel, effective_target, delta, 26.0, 0.74)
+		var pos_res: Dictionary = SPRING3D.step_vector3(spring_pos, spring_vel, effective_target, delta, 26.0, 0.78)
 		spring_pos = pos_res["position"]
 		spring_vel = pos_res["velocity"]
 		position = spring_pos
 
 	# 2. Step 3D Rotation Spring with Velocity Tilt
-	var tilt_deg: Vector3 = SPRING3D.calculate_tilt_3d(spring_vel, 6.0, 16.0)
+	var tilt_deg: Vector3 = SPRING3D.calculate_tilt_3d(spring_vel, 6.0, 14.0)
 	var effective_target_rot := target_rot_deg + tilt_deg
 	if not spring_rot_deg.is_equal_approx(effective_target_rot) or spring_rot_vel.length_squared() > 0.01:
-		var rot_res: Dictionary = SPRING3D.step_rotation3d(spring_rot_deg, spring_rot_vel, effective_target_rot, delta, 22.0, 0.70)
+		var rot_res: Dictionary = SPRING3D.step_rotation3d(spring_rot_deg, spring_rot_vel, effective_target_rot, delta, 22.0, 0.74)
 		spring_rot_deg = rot_res["rotation_deg"]
 		spring_rot_vel = rot_res["velocity"]
 		rotation_degrees = spring_rot_deg
@@ -123,7 +196,7 @@ func _process(delta: float) -> void:
 	# 3. Step Lift Spring
 	if not is_equal_approx(lift_y, target_lift_y) or absf(lift_vel) > 0.0001:
 		var dl: float = lift_y - target_lift_y
-		var accel: float = -2.0 * 0.72 * 28.0 * lift_vel - (28.0 * 28.0) * dl
+		var accel: float = -2.0 * 0.70 * 30.0 * lift_vel - (30.0 * 30.0) * dl
 		lift_vel += accel * delta
 		lift_y += lift_vel * delta
 		if absf(lift_y - target_lift_y) < 0.0005 and absf(lift_vel) < 0.002:
@@ -135,77 +208,51 @@ func _rebuild_visuals() -> void:
 	for child in get_children():
 		child.queue_free()
 
-	# 1. Procedural 3D Ivory Body with Chamfered Edges and Specular Sheen
-	_visual_body = TABLE_ART.build_tile(is_standing, is_face_up)
+	# 1. Physical 3D Ivory Body with Chamfered Edges (always built standing; orientation is root-controlled)
+	_visual_body = TABLE_ART.build_tile(true, is_face_up)
 	add_child(_visual_body)
 
-	if not is_face_up:
-		return
-
-	# 2. Suit Color & Text
-	var suit_color: Color = SUIT_COLORS[color_index]
-	var text: String = "★" if is_fake_okey else str(number)
-	if is_fake_okey:
-		suit_color = Color("#d99b26")
-
-	# 3. Engraved Number Label3D
-	_number_label = Label3D.new()
-	_number_label.text = text
-	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["Arial"])
-	font.font_weight = 700
-	_number_label.font = font
-	_number_label.font_size = 64
-	_number_label.pixel_size = 0.00043
-	_number_label.modulate = suit_color
-	_number_label.outline_size = 0
-	_number_label.shaded = false
-	_number_label.double_sided = true
-	_number_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_number_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-
-	if is_standing:
-		_number_label.position = Vector3(0.0, 0.0105, TILE_DEPTH * 0.50 + 0.0007)
-	else:
-		_number_label.position = Vector3(0.0, TILE_DEPTH * 0.50 + 0.0042, -0.010)
-		_number_label.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-	add_child(_number_label)
-
-	# 4. Circular Colored Pip (●)
-	_pip_label = Label3D.new()
-	_pip_label.text = "●"
-	_pip_label.font = font
-	_pip_label.font_size = 38
-	_pip_label.pixel_size = 0.00040
-	_pip_label.modulate = suit_color
-	_pip_label.shaded = false
-	_pip_label.double_sided = true
-	_pip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_pip_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-
-	if is_standing:
-		_pip_label.position = Vector3(0.0, -0.0130, TILE_DEPTH * 0.50 + 0.0007)
-	else:
-		_pip_label.position = Vector3(0.0, TILE_DEPTH * 0.50 + 0.0042, 0.0135)
-		_pip_label.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-	add_child(_pip_label)
-
-	# 5. Emerald Valid Meld Indicator Bar
-	if is_valid_meld:
-		_meld_bar = MeshInstance3D.new()
+	# 2. Texture Atlas Face Quad (0.040m x 0.0598m at local z = +0.00455m)
+	if is_face_up:
+		_face_mesh = MeshInstance3D.new()
+		_face_mesh.name = "FaceAtlasQuad"
 		var quad := QuadMesh.new()
-		quad.size = Vector2(TILE_WIDTH * 0.78, 0.0045)
-		_meld_bar.mesh = quad
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.18, 0.85, 0.42)
-		mat.emission_enabled = true
-		mat.emission = Color(0.18, 0.85, 0.42)
-		mat.emission_energy_multiplier = 0.65
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_meld_bar.material_override = mat
-		if is_standing:
-			_meld_bar.position = Vector3(0.0, -TILE_HEIGHT * 0.45, TILE_DEPTH * 0.50 + 0.0008)
-		else:
-			_meld_bar.position = Vector3(0.0, TILE_DEPTH * 0.50 + 0.0042, TILE_HEIGHT * 0.45)
-			_meld_bar.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-		add_child(_meld_bar)
+		quad.size = Vector2(FACE_WIDTH, FACE_HEIGHT)
+		_face_mesh.mesh = quad
+		_face_mesh.position = Vector3(0.0, 0.0, FACE_LOCAL_Z)
+
+		var mat := ShaderMaterial.new()
+		mat.shader = _face_shader
+		mat.set_shader_parameter("face_atlas", TileFaceAtlas.get_texture())
+		var rect: Rect2 = TileFaceAtlas.uv_rect(number, color_index, is_fake_okey)
+		mat.set_shader_parameter("uv_offset", rect.position)
+		mat.set_shader_parameter("uv_scale", rect.size)
+		_face_mesh.material_override = mat
+		add_child(_face_mesh)
+
+	# 3. Emissive Highlight Rim Mesh (slightly larger back quad)
+	_highlight_mesh = MeshInstance3D.new()
+	_highlight_mesh.name = "HighlightRim"
+	var hl_quad := QuadMesh.new()
+	hl_quad.size = Vector2(FACE_WIDTH + 0.003, FACE_HEIGHT + 0.003)
+	_highlight_mesh.mesh = hl_quad
+	_highlight_mesh.position = Vector3(0.0, 0.0, FACE_LOCAL_Z - 0.0001)
+	var hl_mat := StandardMaterial3D.new()
+	hl_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hl_mat.emission_enabled = true
+	_highlight_mesh.material_override = hl_mat
+	_highlight_mesh.visible = false
+	add_child(_highlight_mesh)
+
+	# 4. Collision Pick Area (Layer 2 for 3D physics input picking in P5)
+	_pick_area = Area3D.new()
+	_pick_area.name = "PickArea"
+	_pick_area.collision_layer = 2
+	_pick_area.collision_mask = 0
+	_pick_area.set_meta("tile_id", unique_id)
+	var col_shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(TILE_WIDTH, TILE_HEIGHT, TILE_DEPTH)
+	col_shape.shape = box
+	_pick_area.add_child(col_shape)
+	add_child(_pick_area)

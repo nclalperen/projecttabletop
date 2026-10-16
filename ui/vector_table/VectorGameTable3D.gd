@@ -1,6 +1,6 @@
 ## Unified 3D Vector Game Table for Okey 101.
 ## Combines real 3D depth, PBR lighting, and materials with 6-DOF mathematical spring physics,
-## continuous non-grid rack reordering, and cubic Bezier flight arcs.
+## camera-attached hand rig, and crisp texture-atlas tile faces.
 class_name VectorGameTable3D
 extends Node3D
 
@@ -8,7 +8,8 @@ const OKEY_SESSION = preload("res://ui/game_table/OkeySession.gd")
 const TABLE_ART = preload("res://ui/game_table/OkeyTableArt.gd")
 const TUNING = preload("res://ui/vector_table/VectorTuning3D.gd")
 const SPRING3D = preload("res://ui/vector_table/math/SpringSolver3D.gd")
-const FluidRack3D = preload("res://ui/vector_table/rack/FluidRack3D.gd")
+const HandRig3D = preload("res://ui/vector_table/hand/HandRig3D.gd")
+const TileFaceAtlas = preload("res://ui/vector_table/render/TileFaceAtlas.gd")
 const VectorTile3D = preload("res://ui/vector_table/render/VectorTile3D.gd")
 
 # Scene references
@@ -18,12 +19,20 @@ var _camera: Camera3D
 var _light: DirectionalLight3D
 var _fill_light: OmniLight3D
 var _table_mesh: Node3D
-var _rack: FluidRack3D
+var _hand_rig: HandRig3D
 var _deck_container: Node3D
 var _indicator_tile: VectorTile3D
 var _melds_container: Node3D
+var _tiles_container: Node3D
 var _discard_tiles: Dictionary = {} # seat -> VectorTile3D
 var _vignette_layer: CanvasLayer
+
+# Hand tiles tracking
+var _hand_tiles: Dictionary = {} # slot -> VectorTile3D
+
+# Backward-compat property for tests checking table._rack
+var _rack: Node:
+	get: return _hand_rig
 
 # HUD Overlay
 var _hud_layer: CanvasLayer
@@ -46,6 +55,10 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	# Ensure tile face atlas is built once
+	if get_tree() != null:
+		await TileFaceAtlas.ensure_atlas(get_tree())
+
 	if _session == null:
 		_init_session()
 
@@ -78,7 +91,7 @@ func _build_3d_environment() -> void:
 	env.ssao_intensity = 1.6
 
 	env.glow_enabled = true
-	env.glow_intensity = 0.25
+	env.glow_intensity = 0.15
 	env.glow_bloom = 0.0
 	env.glow_hdr_threshold = 2.0
 
@@ -117,17 +130,20 @@ func _build_3d_environment() -> void:
 	_camera.look_at_from_position(TUNING.CAMERA_POS, TUNING.CAMERA_LOOK_AT, Vector3.UP)
 	add_child(_camera)
 
-	# 5. Procedural Walnut & Emerald Felt Table (1.26m x 1.04m widescreen)
+	# 5. Hand Rig: Camera-attached 2-tier walnut rack (D1, D7)
+	_hand_rig = HandRig3D.new()
+	_camera.add_child(_hand_rig)
+
+	# 6. Procedural Walnut & Emerald Felt Table (1.26m x 1.04m widescreen)
 	_table_mesh = TABLE_ART.build_table(self, TUNING.TABLE_SURFACE_Y)
 	_table_mesh.name = "Table"
 
-	# 6. Continuous 3D Fluid Rack (replaced by HandRig in P2)
-	_rack = FluidRack3D.new()
-	_rack.name = "FluidRack3D"
-	_rack.position = Vector3(0.0, TUNING.TABLE_SURFACE_Y, 0.42)
-	add_child(_rack)
+	# 7. Persistent World-space Tiles Container (D3)
+	_tiles_container = Node3D.new()
+	_tiles_container.name = "Tiles"
+	add_child(_tiles_container)
 
-	# 7. Center Deck & Discard Containers
+	# 8. Center Deck & Discard Containers
 	_deck_container = Node3D.new()
 	_deck_container.name = "StockAndIndicator"
 	add_child(_deck_container)
@@ -168,9 +184,9 @@ void fragment() {
 func _build_3d_deck_stack() -> void:
 	# Build 3D deck stack of physical ivory tiles
 	for i in range(4):
-		var tile := TABLE_ART.build_tile(false, false)
-		tile.position = TUNING.STOCK_POS_3D + Vector3(0.0, float(i) * 0.0092, 0.0)
-		tile.rotation_degrees = TUNING.STOCK_ROT_DEG
+		var tile := TABLE_ART.build_tile(true, false)
+		tile.position = TUNING.STOCK_POS_3D + Vector3(0.0, float(i) * 0.0092 + 0.0045, 0.0)
+		tile.rotation_degrees = Vector3(-90.0, 8.0, 0.0)
 		_deck_container.add_child(tile)
 
 
@@ -256,10 +272,10 @@ func _on_session_state_updated(snapshot: Dictionary) -> void:
 		if _indicator_tile == null:
 			_indicator_tile = VectorTile3D.new()
 			add_child(_indicator_tile)
-		_indicator_tile.setup_tile(ind_tile.unique_id, ind_tile.number, ind_tile.color, ind_tile.kind != 0, false, true)
+		_indicator_tile.setup_tile(ind_tile.unique_id, ind_tile.number, ind_tile.color, ind_tile.kind != 0, true, true)
 		_indicator_tile.set_target_position_3d(TUNING.INDICATOR_POS_3D, true)
-		# Face-up flat tile: do NOT rotate -90 on X again
-		_indicator_tile.set_target_rotation_3d(TUNING.INDICATOR_ROT_DEG, true)
+		# Flat on felt, tilted back -90° on X, -6° yaw jitter
+		_indicator_tile.set_target_rotation_3d(Vector3(-90.0, TUNING.INDICATOR_ROT_DEG.y, 0.0), true)
 
 
 func _get_tile_by_id(tile_id: int):
@@ -273,20 +289,39 @@ func _get_tile_by_id(tile_id: int):
 
 
 func _on_rack_and_draft_changed(rack_slots: Array, _draft_slots: Array, validation: Dictionary) -> void:
-	var tiles_data: Array = []
-	for tile_id in rack_slots:
+	# Clean up previous hand tiles
+	for tile in _hand_tiles.values():
+		tile.queue_free()
+	_hand_tiles.clear()
+
+	_hand_rig._row_tiles = [[], []]
+
+	var valid_ids: Array = validation.get("valid_tile_ids", []) as Array
+
+	for slot_idx in range(mini(rack_slots.size(), TUNING.TOTAL_HAND_SLOTS)):
+		var tile_id: int = int(rack_slots[slot_idx])
 		if tile_id == -1:
 			continue
-		var tile = _get_tile_by_id(tile_id)
-		if tile != null:
-			tiles_data.append({
-				"unique_id": tile.unique_id,
-				"number": tile.number,
-				"color": tile.color,
-				"kind": tile.kind,
-				"is_valid": (validation.get("valid_tile_ids", []) as Array).has(tile.unique_id)
-			})
-	_rack.set_tiles(tiles_data)
+		var tile_data = _get_tile_by_id(tile_id)
+		if tile_data == null:
+			continue
+
+		var v_tile := VectorTile3D.new()
+		v_tile.setup_tile(tile_data.unique_id, tile_data.number, tile_data.color, tile_data.kind != 0, true, true)
+		_tiles_container.add_child(v_tile)
+
+		var world_xf: Transform3D = _hand_rig.slot_global_transform(slot_idx)
+		v_tile.set_target_position_3d(world_xf.origin, true)
+		var euler_deg := world_xf.basis.get_euler() * (180.0 / PI)
+		v_tile.set_target_rotation_3d(euler_deg, true)
+
+		var is_valid: bool = valid_ids.has(tile_data.unique_id)
+		v_tile.set_highlight(&"valid_meld" if is_valid else &"none")
+
+		_hand_tiles[slot_idx] = v_tile
+
+		var row_idx: int = 0 if slot_idx < TUNING.SLOTS_PER_ROW else 1
+		_hand_rig._row_tiles[row_idx].append(v_tile)
 
 
 func _on_melds_updated(melds: Array) -> void:
@@ -304,9 +339,9 @@ func _on_melds_updated(melds: Array) -> void:
 		for i in range(tiles.size()):
 			var data: Dictionary = tiles[i]
 			var t := VectorTile3D.new()
-			t.setup_tile(data.get("unique_id", -1), data.get("number", 1), data.get("color", 0), data.get("kind", 0) != 0, false, true)
+			t.setup_tile(data.get("unique_id", -1), data.get("number", 1), data.get("color", 0), data.get("kind", 0) != 0, true, true)
 			var target_pos := Vector3(group_x + (float(i) * 0.046), TUNING.TABLE_SURFACE_Y + 0.005, start_z)
 			t.set_target_position_3d(target_pos, true)
-			t.set_target_rotation_3d(Vector3.ZERO, true)
+			t.set_target_rotation_3d(Vector3(-90.0, 0.0, 0.0), true)
 			_melds_container.add_child(t)
 		group_x += (float(tiles.size()) * 0.046) + 0.035

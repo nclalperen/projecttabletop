@@ -52,7 +52,7 @@ const CAMERA_POS: Vector3 = Vector3(0.0, 0.66, 0.70)
 const CAMERA_LOOK_AT: Vector3 = Vector3(0.0, 0.0, -0.06)
 
 # ─── Hand Rig (Camera-Local Space, D7) ───
-const HAND_RIG_ORIGIN: Vector3 = Vector3(0.0, -0.215, -0.56)
+const HAND_RIG_ORIGIN: Vector3 = Vector3(0.0, -0.145, -0.60)
 const HAND_RIG_ROT_DEG: Vector3 = Vector3(-8.0, 0.0, 0.0)
 
 const HAND_RACK_LENGTH: float = 0.80
