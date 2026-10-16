@@ -53,6 +53,7 @@ var _last_click_tile_id: int = -1
 var _drag_plane: Plane
 var _prev_drag_world_pos: Vector3 = Vector3.ZERO
 var _drag_vel: Vector3 = Vector3.ZERO
+var _last_screen_pos: Vector2 = Vector2.ZERO
 
 
 func setup(p_table: Node3D, p_cam: Camera3D, p_rig: HandRig3D, p_reg: TileRegistry3D, p_sess: Node, p_stock: StockView3D, p_discards: DiscardPiles3D) -> void:
@@ -81,6 +82,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 	if event.pressed:
 		_press_pos = event.position
+		_last_screen_pos = event.position
 		_press_time_ms = Time.get_ticks_msec()
 		_press_tile = null
 		_press_slot = -1
@@ -113,8 +115,9 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 						session.overlay_take_discard()
 
 	else: # Release
+		_last_screen_pos = event.position
 		if is_dragging and (dragged_tile != null or _is_group_drag):
-			_end_drag()
+			_end_drag(event.position)
 		elif _press_tile != null:
 			var duration_ms: int = Time.get_ticks_msec() - _press_time_ms
 			if duration_ms < 300:
@@ -125,6 +128,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 
 func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
+	_last_screen_pos = event.position
 	if _press_tile != null and not is_dragging:
 		if event.position.distance_to(_press_pos) > 6.0:
 			_start_drag(_press_tile, _press_slot)
@@ -171,8 +175,12 @@ func _start_drag(tile: VectorTile3D, slot_idx: int) -> void:
 	_prev_drag_world_pos = tile_pos + lift_offset
 	_drag_vel = Vector3.ZERO
 
+	if not _is_group_drag and discard_piles != null and discard_piles.has_method("set_drop_highlight"):
+		discard_piles.set_drop_highlight(true)
+
 
 func _update_drag(screen_pos: Vector2) -> void:
+	_last_screen_pos = screen_pos
 	var ray_origin := camera.project_ray_origin(screen_pos)
 	var ray_dir := camera.project_ray_normal(screen_pos)
 
@@ -223,7 +231,7 @@ func _update_drag(screen_pos: Vector2) -> void:
 			hand_rig.apply_push_aside(local_pt, drag_source_slot, 0.022, 0.040)
 
 
-func _end_drag() -> void:
+func _end_drag(screen_pos: Vector2 = Vector2.ZERO) -> void:
 	var anchor_node: VectorTile3D = _drag_anchor_tile if _is_group_drag else dragged_tile
 	if anchor_node == null:
 		_cleanup_drag()
@@ -231,14 +239,31 @@ func _end_drag() -> void:
 
 	var drop_pos := anchor_node.global_position
 	var tile_id := anchor_node.unique_id
+	var pos_to_use: Vector2 = screen_pos if screen_pos != Vector2.ZERO else _last_screen_pos
 
-	# 1. Check drop on player's discard pile (SE corner)
+	# Raycast from camera through drop screen coordinate to table surface plane
+	var table_plane := Plane(Vector3.UP, TUNING.TABLE_SURFACE_Y)
+	var ray_origin := camera.project_ray_origin(pos_to_use)
+	var ray_dir := camera.project_ray_normal(pos_to_use)
+	var table_hit = table_plane.intersects_ray(ray_origin, ray_dir)
+	var table_pt: Vector3 = table_hit if table_hit != null else drop_pos
+
+	# 1. Check drop on player's discard pile (SE corner / tray)
 	var discard_pos: Vector3 = TUNING.DISCARD_POS_3D.get(0, Vector3.ZERO)
-	var dist_to_discard: float = drop_pos.distance_to(discard_pos)
+	var discard_screen := camera.unproject_position(discard_pos)
+	var screen_dist: float = pos_to_use.distance_to(discard_screen) if pos_to_use != Vector2.ZERO else 999.0
+	var table_dist: float = table_pt.distance_to(discard_pos)
+	var in_se_zone: bool = (table_pt.x > 0.20 and table_pt.z > -0.08 and table_pt.z < 0.45)
 
-	if dist_to_discard < 0.14:
+	var is_off_rack_right: bool = false
+	if hand_rig != null:
+		var local_pt: Vector3 = hand_rig.global_transform.affine_inverse() * drop_pos
+		if local_pt.x > 0.35:
+			is_off_rack_right = true
+
+	if screen_dist < 160.0 or table_dist < 0.24 or in_se_zone or is_off_rack_right:
 		if _is_group_drag:
-			# Discarding a group at once is invalid in Okey rules
+			_notify_player("Cannot discard multiple tiles at once")
 			_cleanup_drag()
 			return
 		if session != null:
@@ -247,9 +272,14 @@ func _end_drag() -> void:
 				tile_discarded.emit(tile_id)
 				_cleanup_drag()
 				return
+			else:
+				var reason: String = str(res.get("reason", "Cannot discard tile now"))
+				_notify_player(reason)
+				_cleanup_drag()
+				return
 
 	# 2. Check drop onto table melds or open felt (Meld to table!)
-	var is_over_table_felt: bool = (drop_pos.z < 0.28 and absf(drop_pos.x) < 0.50)
+	var is_over_table_felt: bool = (table_pt.z < 0.26 and absf(table_pt.x) < 0.52 and absf(table_pt.z) < 0.42)
 
 	# 2a. Check drop onto existing table melds
 	if table != null and table.has_node("MeldLayout"):
@@ -258,11 +288,15 @@ func _end_drag() -> void:
 			var m_data: Dictionary = meld_layout.get_meld_data(m_idx)
 			var c_pos: Vector3 = m_data.get("center_world_pos", Vector3.ZERO)
 			var m_w: float = float(m_data.get("width", 0.15))
-			if absf(drop_pos.x - c_pos.x) <= (m_w * 0.55) and absf(drop_pos.z - c_pos.z) <= 0.045:
+			if absf(table_pt.x - c_pos.x) <= (m_w * 0.60) and absf(table_pt.z - c_pos.z) <= 0.055:
 				if session != null:
 					var tile_ids_to_add: Array = _drag_group_tids if _is_group_drag else [tile_id]
 					var res: Dictionary = session.overlay_add_to_meld(tile_ids_to_add, m_idx)
 					if bool(res.get("ok", false)):
+						_cleanup_drag()
+						return
+					else:
+						_notify_player(str(res.get("reason", "Tile cannot be added to this meld")))
 						_cleanup_drag()
 						return
 
@@ -273,6 +307,11 @@ func _end_drag() -> void:
 			if bool(res.get("ok", false)):
 				_cleanup_drag()
 				return
+			else:
+				var reason: String = str(res.get("reason", "Need at least 101 points to open melds"))
+				_notify_player(reason)
+				_cleanup_drag()
+				return
 		elif session.has_method("find_rack_group_at"):
 			var grp: Dictionary = session.find_rack_group_at(drag_source_slot)
 			if grp.get("is_group", false):
@@ -280,6 +319,15 @@ func _end_drag() -> void:
 				if bool(res.get("ok", false)):
 					_cleanup_drag()
 					return
+				else:
+					var reason: String = str(res.get("reason", "Need at least 101 points to open melds"))
+					_notify_player(reason)
+					_cleanup_drag()
+					return
+			else:
+				_notify_player("Drag a valid group of 3+ tiles to open melds, or drop on existing meld")
+				_cleanup_drag()
+				return
 
 	# 3. Check drop onto hand rack (Move on rack, shove into space!)
 	if hand_rig != null:
@@ -302,6 +350,9 @@ func _end_drag() -> void:
 
 
 func _cleanup_drag() -> void:
+	if discard_piles != null and discard_piles.has_method("set_drop_highlight"):
+		discard_piles.set_drop_highlight(false)
+
 	if _is_group_drag:
 		for tnode in _drag_group_tiles:
 			if is_instance_valid(tnode):
@@ -328,6 +379,15 @@ func _cleanup_drag() -> void:
 	drag_source_slot = -1
 
 
+func _notify_player(message: String) -> void:
+	if table != null and table.has_method("show_feedback"):
+		table.show_feedback(message)
+	elif table != null and table.has_node("PlayHUD"):
+		var hud = table.get_node("PlayHUD")
+		if hud != null and hud.has_method("show_feedback"):
+			hud.show_feedback(message)
+
+
 func _clear_selection() -> void:
 	for tid in _selected_tile_ids:
 		if registry != null:
@@ -349,7 +409,11 @@ func _handle_click(tile: VectorTile3D, slot_idx: int) -> void:
 	if is_double:
 		# Double-click: discard tile
 		if session != null:
-			session.overlay_discard_tile(tile.unique_id)
+			var res: Dictionary = session.overlay_discard_tile(tile.unique_id)
+			if bool(res.get("ok", false)):
+				tile_discarded.emit(tile.unique_id)
+			else:
+				_notify_player(str(res.get("reason", "Cannot discard tile now")))
 		tile_picked.emit(tile)
 		return
 

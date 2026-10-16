@@ -1,16 +1,19 @@
 class_name OpponentRack3D
 extends Node3D
 ## Procedural 3D Opponent Rack for VectorGameTable3D.
-## Represents an opponent seat (East, North, West) with realistic walnut rack geometry,
-## face-down ivory tiles matching their current hand count, and smooth count updates.
+## Authentic Turkish coffeehouse craftsmanship:
+## - Rich golden honey-beech wood with natural grain and satin lacquer sheen
+## - Solid tall backboard with center brass maker plaque facing the table (Image 2 & 3)
+## - Iconic cream enamel end brackets with brass rivets (Image 3)
+## - Opponent tiles concealed completely behind the wooden backboard
 
 const TABLE_ART = preload("res://ui/game_table/OkeyTableArt.gd")
 const TUNING = preload("res://ui/vector_table/VectorTuning3D.gd")
 
-const TILE_PITCH: float = 0.046
-const ROW_Y: Array[float] = [0.038, 0.006]
-const ROW_Z: Array[float] = [-0.020, 0.020]
-const TILT_DEG: float = -6.0
+const TILE_PITCH: float = 0.040
+const ROW_Y: Array[float] = [0.032, 0.002]
+const ROW_Z: Array[float] = [0.010, 0.038]
+const TILT_DEG: float = 6.0 # Leans back against the backboard (towards -Z)
 
 var seat_index: int = 1
 var tile_count: int = 21
@@ -43,8 +46,8 @@ func set_tile_count(count: int) -> void:
 
 
 func get_launch_transform() -> Transform3D:
-	# Front-center of rack in world coordinates for flight animations
-	var local_launch := Vector3(0.0, 0.05, 0.06)
+	# Front/table-facing point of rack in world coordinates for flight animations
+	var local_launch := Vector3(0.0, 0.05, -0.04)
 	var xf := global_transform if is_inside_tree() else transform
 	return Transform3D(xf.basis.orthonormalized(), xf.origin + xf.basis * local_launch)
 
@@ -54,9 +57,46 @@ func _build_mesh() -> void:
 		child.queue_free()
 	_tile_nodes.clear()
 
-	_rack_mesh = TABLE_ART.build_rack(0.72, 0.042, 0.11)
+	_rack_mesh = Node3D.new()
 	_rack_mesh.name = "RackGeometry"
 	add_child(_rack_mesh)
+
+	var beech := TABLE_ART.material("honey_beech")
+	var beech_edge := TABLE_ART.material("honey_beech_edge")
+	var beech_dark := TABLE_ART.material("honey_beech_dark")
+	var bracket_cream := TABLE_ART.material("rack_bracket_cream")
+	var brass_screw := TABLE_ART.material("bracket_screw")
+	var brass := TABLE_ART.material("brass_inlay")
+	var gold := TABLE_ART.material("rack_badge")
+
+	var width: float = 0.65
+
+	# 1. Solid Honey-Beech Backboard (faces -Z into the table, completely hiding tiles)
+	# 0.102m tall ensures tiles (0.065m) are 100% concealed from table view
+	TABLE_ART.piece(_rack_mesh, "SolidBackboard", Vector3(width - 0.016, 0.102, 0.016), Vector3(0.0, 0.038, -0.016), 0.004, beech)
+
+	# 2. Polished Brass Center Maker Plaque facing table (Image 2 & 3)
+	TABLE_ART.piece(_rack_mesh, "BackMakerPlaque", Vector3(0.046, 0.012, 0.002), Vector3(0.0, 0.042, -0.025), 0.0008, gold)
+
+	# 3. Solid Honey-Beech Foundation Base sitting on table
+	TABLE_ART.piece(_rack_mesh, "SolidBase", Vector3(width - 0.012, 0.024, 0.076), Vector3(0.0, 0.008, 0.018), 0.005, beech)
+
+	# 4. Shelves facing opponent (+Z)
+	TABLE_ART.piece(_rack_mesh, "UpperBed", Vector3(width - 0.024, 0.006, 0.022), Vector3(0.0, 0.028, 0.010), 0.002, beech_dark)
+	TABLE_ART.piece(_rack_mesh, "UpperLip", Vector3(width - 0.020, 0.007, 0.005), Vector3(0.0, 0.033, 0.022), 0.0015, beech_edge)
+	TABLE_ART.piece(_rack_mesh, "LowerBed", Vector3(width - 0.024, 0.006, 0.022), Vector3(0.0, -0.002, 0.038), 0.002, beech_dark)
+	TABLE_ART.piece(_rack_mesh, "LowerLip", Vector3(width - 0.020, 0.007, 0.005), Vector3(0.0, 0.003, 0.050), 0.0015, beech_edge)
+
+	# 5. Iconic Triangular End Caps with Cream Brackets & Brass Screws (Image 3)
+	for side in [-1.0, 1.0]:
+		var prefix: String = "L" if side < 0.0 else "R"
+		var side_x: float = side * (width * 0.5 - 0.007)
+
+		TABLE_ART.piece(_rack_mesh, "EndCap_%s" % prefix, Vector3(0.014, 0.108, 0.082), Vector3(side_x, 0.035, 0.014), 0.005, beech)
+		TABLE_ART.piece(_rack_mesh, "Bracket_%s" % prefix, Vector3(0.0025, 0.080, 0.058), Vector3(side_x + side * 0.0082, 0.035, 0.014), 0.0025, bracket_cream)
+		TABLE_ART.piece(_rack_mesh, "BracketTop_%s" % prefix, Vector3(0.015, 0.003, 0.038), Vector3(side_x, 0.088, -0.004), 0.0015, bracket_cream)
+		TABLE_ART.piece(_rack_mesh, "ScrewTop_%s" % prefix, Vector3(0.003, 0.006, 0.006), Vector3(side_x + side * 0.0094, 0.062, -0.004), 0.002, brass_screw)
+		TABLE_ART.piece(_rack_mesh, "ScrewBottom_%s" % prefix, Vector3(0.003, 0.006, 0.006), Vector3(side_x + side * 0.0094, 0.012, 0.028), 0.002, brass_screw)
 
 	_tiles_container = Node3D.new()
 	_tiles_container.name = "Tiles"

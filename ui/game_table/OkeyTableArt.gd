@@ -83,6 +83,40 @@ static func material(key: String) -> Material:
 			return _shader_material("walnut", WOOD_SHADER)
 		"felt":
 			return _shader_material("felt", FELT_SHADER)
+		"honey_beech":
+			if _materials.has("honey_beech"):
+				return _materials["honey_beech"] as Material
+			var mat := ShaderMaterial.new()
+			mat.shader = WOOD_SHADER
+			var base_col := Color("#9a5420").srgb_to_linear()
+			var high_col := Color("#be7536").srgb_to_linear()
+			mat.set_shader_parameter("wood_color", base_col)
+			mat.set_shader_parameter("wood_highlight", high_col)
+			_materials["honey_beech"] = mat
+			return mat
+		"honey_beech_edge":
+			return _material("honey_beech_edge", Color("#723812"), 0.38)
+		"honey_beech_dark":
+			return _material("honey_beech_dark", Color("#2e1406"), 0.75)
+		"rack_bracket_cream":
+			return _material("rack_bracket_cream", Color("#ece7dc"), 0.32)
+		"bracket_screw":
+			return _material("bracket_screw", Color("#d4af37"), 0.22, 0.88)
+		"tray_wood":
+			return _material("tray_wood", Color("#6e3612"), 0.36)
+		"tray_felt":
+			return _material("tray_felt", Color("#061c12"), 0.85)
+		"tray_glow":
+			if _materials.has("tray_glow"):
+				return _materials["tray_glow"] as Material
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color(1.0, 0.75, 0.20, 0.90)
+			mat.emission_enabled = true
+			mat.emission = Color(1.0, 0.75, 0.20)
+			mat.emission_energy_multiplier = 2.2
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			_materials["tray_glow"] = mat
+			return mat
 		"rack_walnut":
 			return _material("rack_walnut", Color("452717"), 0.36)
 		"rack_walnut_edge":

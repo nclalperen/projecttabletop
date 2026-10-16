@@ -17,30 +17,30 @@ const INDICATOR_POS_3D: Vector3 = Vector3(0.035, TABLE_SURFACE_Y + 0.0045, -0.03
 const INDICATOR_ROT_DEG: Vector3 = Vector3(0.0, 85.0, 0.0)
 
 const OPPONENT_RACK_POS_3D: Dictionary = {
-	1: Vector3(0.51, TABLE_SURFACE_Y, 0.0),    # East
-	2: Vector3(0.0, TABLE_SURFACE_Y, -0.41),   # North
-	3: Vector3(-0.51, TABLE_SURFACE_Y, 0.0),   # West
+	1: Vector3(0.50, TABLE_SURFACE_Y, -0.09),   # East: shifted North in pinwheel
+	2: Vector3(-0.08, TABLE_SURFACE_Y, -0.41),  # North: shifted West in pinwheel
+	3: Vector3(-0.50, TABLE_SURFACE_Y, 0.09),   # West: shifted South in pinwheel
 }
 
 const OPPONENT_RACK_ROT_DEG: Dictionary = {
-	1: Vector3(0.0, -90.0, 0.0),
-	2: Vector3(0.0, 180.0, 0.0),
-	3: Vector3(0.0, 90.0, 0.0),
+	1: Vector3(0.0, 90.0, 0.0),   # East: solid back faces into table (-X)
+	2: Vector3(0.0, 180.0, 0.0),  # North: solid back faces into table (+Z)
+	3: Vector3(0.0, -90.0, 0.0),  # West: solid back faces into table (+X)
 }
 const OPPONENT_RACK_SCALE: float = 0.85
 
 const DISCARD_POS_3D: Dictionary = {
-	0: Vector3(0.34, TABLE_SURFACE_Y, 0.08),   # Local out (SE corner, clear of rack)
-	1: Vector3(0.34, TABLE_SURFACE_Y, -0.22),  # East (NE corner)
-	2: Vector3(-0.34, TABLE_SURFACE_Y, -0.22), # North (NW corner)
-	3: Vector3(-0.34, TABLE_SURFACE_Y, 0.08),  # West (SW corner, clear of rack)
+	0: Vector3(0.36, TABLE_SURFACE_Y, 0.12),   # Local out (SE corner, clear of rack)
+	1: Vector3(0.36, TABLE_SURFACE_Y, -0.24),  # East (NE corner)
+	2: Vector3(-0.36, TABLE_SURFACE_Y, -0.24), # North (NW corner)
+	3: Vector3(-0.36, TABLE_SURFACE_Y, 0.12),  # West (SW corner, clear of rack)
 }
 
 const DISCARD_ROT_DEG: Dictionary = {
-	0: Vector3(0.0, -12.0, 0.0),
-	1: Vector3(0.0, 12.0, 0.0),
-	2: Vector3(0.0, -12.0, 0.0),
-	3: Vector3(0.0, 12.0, 0.0),
+	0: Vector3(0.0, 0.0, 0.0),    # South: aligned with table
+	1: Vector3(0.0, -90.0, 0.0),  # East: aligned with East rail
+	2: Vector3(0.0, 180.0, 0.0),  # North: aligned with North rail
+	3: Vector3(0.0, 90.0, 0.0),   # West: aligned with West rail
 }
 
 const MELD_ZONE_MIN: Vector2 = Vector2(-0.44, -0.30)

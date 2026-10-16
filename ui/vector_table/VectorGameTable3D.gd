@@ -107,6 +107,11 @@ func _ready() -> void:
 		_session.call_deferred("_maybe_auto_bot_turn")
 
 
+func show_feedback(message: String) -> void:
+	if _hud != null and _hud.has_method("show_feedback"):
+		_hud.show_feedback(message)
+
+
 
 func _build_3d_environment() -> void:
 	# 1. WorldEnvironment with warm tone, HDRI ambient, AgX tonemapping, SSAO, and subtle glow
