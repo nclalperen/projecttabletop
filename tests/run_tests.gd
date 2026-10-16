@@ -85,15 +85,11 @@ const TEST_SCRIPTS = [
 	"res://tests/test_material_factory.gd",
 	"res://tests/test_audio_controller.gd",
 	"res://tests/test_game_table_config_swapping.gd",
-	"res://tests/test_vector_spring_solver.gd",
-	"res://tests/test_vector_tile.gd",
-	"res://tests/test_fluid_rack.gd",
-	"res://tests/test_vector_felt_table.gd",
-	"res://tests/test_vector_game_table.gd",
 	"res://tests/test_vector_spring_solver_3d.gd",
 	"res://tests/test_vector_tile_3d.gd",
 	"res://tests/test_fluid_rack_3d.gd",
 	"res://tests/test_vector_game_table_3d.gd",
+	"res://tests/test_vector3d_seat_mapping.gd",
 ]
 
 var _all_ok := true
