@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://vgtable3dscene01"]
+
+[ext_resource type="Script" path="res://ui/vector_table/VectorGameTable3D.gd" id="1_vgtable3d"]
+
+[node name="VectorGameTable3D" type="Node3D"]
+script = ExtResource("1_vgtable3d")
