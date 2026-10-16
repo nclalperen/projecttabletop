@@ -66,7 +66,7 @@ func sync_melds(table_melds: Array, okey_context = null) -> void:
 		num_rows = 8
 
 	# Compute row Z centers from South (+Z) to North (-Z)
-	var z_start: float = 0.120 if num_rows <= 4 else 0.138
+	var z_start: float = 0.045 if num_rows <= 4 else 0.138
 	var row_z_positions: Array[float] = []
 	for r in range(num_rows):
 		row_z_positions.append(z_start - float(r) * row_pitch)
@@ -156,17 +156,22 @@ func sync_melds(table_melds: Array, okey_context = null) -> void:
 		var z_pos: float = row_z_positions[r]
 		var crosses_stock: bool = (z_pos >= -0.09 and z_pos <= 0.03)
 
-		if crosses_stock and melds_in_row.size() >= 2:
-			var half: int = int(ceil(float(melds_in_row.size()) / 2.0))
-			var left_melds = melds_in_row.slice(0, half)
-			var right_melds = melds_in_row.slice(half)
+		if crosses_stock:
+			if melds_in_row.size() >= 2:
+				var half: int = int(ceil(float(melds_in_row.size()) / 2.0))
+				var left_melds = melds_in_row.slice(0, half)
+				var right_melds = melds_in_row.slice(half)
 
-			var left_w := _calc_row_width(left_melds, group_gap)
-			var left_start := -0.10 - left_w
-			_position_melds_subrow(left_melds, left_start, z_pos, tile_pitch, group_gap, row_pitch, okey_context)
+				var left_w := _calc_row_width(left_melds, group_gap)
+				var left_start := -0.10 - left_w
+				_position_melds_subrow(left_melds, left_start, z_pos, tile_pitch, group_gap, row_pitch, okey_context)
 
-			var right_start := 0.10
-			_position_melds_subrow(right_melds, right_start, z_pos, tile_pitch, group_gap, row_pitch, okey_context)
+				var right_start := 0.10
+				_position_melds_subrow(right_melds, right_start, z_pos, tile_pitch, group_gap, row_pitch, okey_context)
+			else:
+				var total_w := _calc_row_width(melds_in_row, group_gap)
+				var left_start := -0.10 - total_w
+				_position_melds_subrow(melds_in_row, left_start, z_pos, tile_pitch, group_gap, row_pitch, okey_context)
 		else:
 			var total_w := _calc_row_width(melds_in_row, group_gap)
 			var start_x: float = -(total_w * 0.5)

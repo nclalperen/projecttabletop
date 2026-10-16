@@ -82,27 +82,24 @@ func _init() -> void:
 static func _init_face_shader() -> void:
 	_face_shader = Shader.new()
 	_face_shader.code = """shader_type spatial;
-render_mode specular_schlick_ggx;
+render_mode specular_schlick_ggx, diffuse_burley;
 
 uniform sampler2D face_atlas : source_color, filter_linear_mipmap_anisotropic;
 uniform vec2 uv_offset = vec2(0.0, 0.0);
 uniform vec2 uv_scale = vec2(0.0714285, 0.25);
-uniform vec4 ivory_tint : source_color = vec4(0.92, 0.88, 0.78, 1.0);
-uniform float roughness : hint_range(0.0, 1.0) = 0.50;
+uniform vec4 ivory_tint : source_color = vec4(0.965, 0.942, 0.905, 1.0);
 
 void fragment() {
 	vec2 atlas_uv = uv_offset + UV * uv_scale;
-	vec4 col = texture(face_atlas, atlas_uv);
-	vec3 base = mix(ivory_tint.rgb, col.rgb, col.a);
-	ALBEDO = base;
-	ROUGHNESS = roughness;
-	SPECULAR = 0.15;
-}
-
-void light() {
-	float NdotL = clamp(dot(NORMAL, LIGHT), 0.0, 1.0);
-	vec3 diff = LIGHT_COLOR * (NdotL * ATTENUATION * 0.45 + 0.15);
-	DIFFUSE_LIGHT += ALBEDO * diff;
+	vec3 col = texture(face_atlas, atlas_uv).rgb;
+	
+	vec2 d = abs(UV - vec2(0.5)) * 2.0;
+	float edge = max(d.x, d.y);
+	float edge_ao = 1.0 - smoothstep(0.85, 1.0, edge) * 0.10;
+	
+	ALBEDO = col * edge_ao;
+	ROUGHNESS = 0.28;
+	SPECULAR = 0.35;
 }
 """
 

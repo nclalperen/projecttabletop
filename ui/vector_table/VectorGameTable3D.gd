@@ -128,45 +128,60 @@ func _build_3d_environment() -> void:
 		env.sky = sky
 
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
-	env.tonemap_exposure = 1.0
+	env.tonemap_exposure = 1.05
 	env.tonemap_white = 6.0
 
 	env.ssao_enabled = true
-	env.ssao_radius = 0.08
-	env.ssao_intensity = 1.6
+	env.ssao_radius = 0.045
+	env.ssao_intensity = 2.4
+	env.ssao_power = 1.6
+	env.ssao_detail = 0.5
+	env.ssao_horizon = 0.06
 
-	env.glow_enabled = true
-	env.glow_intensity = 0.15
-	env.glow_bloom = 0.0
-	env.glow_hdr_threshold = 2.0
+	# Glow disabled to keep ivory tiles and bold numerals crisp and un-bloomed
+	env.glow_enabled = false
 
 	env.adjustment_enabled = true
-	env.adjustment_contrast = 1.05
-	env.adjustment_saturation = 1.05
+	env.adjustment_contrast = 1.08
+	env.adjustment_saturation = 1.10
 
 	_world_env.environment = env
 	add_child(_world_env)
 
-	# 2. KeyLight: Warm Directional Key Light with Soft Shadows
+	# 2. KeyLight: Warm Directional Key Light with Soft Tabletop Contact Shadows
 	_light = DirectionalLight3D.new()
 	_light.name = "KeyLight"
-	_light.rotation_degrees = Vector3(-52.0, 28.0, 0.0)
-	_light.light_color = Color("#fff1dc")
-	_light.light_energy = 1.6
+	_light.rotation_degrees = Vector3(-50.0, 30.0, 0.0)
+	_light.light_color = Color("#fff6ed")
+	_light.light_energy = 1.25
 	_light.shadow_enabled = true
+	_light.shadow_bias = 0.003
+	_light.shadow_normal_bias = 0.8
 	_light.shadow_blur = 1.5
-	_light.directional_shadow_max_distance = 2.5
+	_light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	_light.directional_shadow_blend_splits = true
+	_light.directional_shadow_max_distance = 2.4
 	add_child(_light)
 
-	# 3. FillLight: Cool Omni Fill Light (no shadows)
+	# 3. FillLight: Soft Cool Ambient Fill Light
 	_fill_light = OmniLight3D.new()
 	_fill_light.name = "FillLight"
-	_fill_light.position = Vector3(-0.6, 0.9, 0.5)
-	_fill_light.light_color = Color("#9fb8ff")
-	_fill_light.light_energy = 0.25
-	_fill_light.omni_range = 3.0
+	_fill_light.position = Vector3(-0.5, 0.85, 0.45)
+	_fill_light.light_color = Color("#a0b8df")
+	_fill_light.light_energy = 0.35
+	_fill_light.omni_range = 3.5
 	_fill_light.shadow_enabled = false
 	add_child(_fill_light)
+
+	# 3b. RimLight: Warm Back Accent Light on Rear Rail & Opponents
+	var rim_light := OmniLight3D.new()
+	rim_light.name = "RimLight"
+	rim_light.position = Vector3(0.0, 0.75, -0.65)
+	rim_light.light_color = Color("#ffd4a3")
+	rim_light.light_energy = 0.42
+	rim_light.omni_range = 2.5
+	rim_light.shadow_enabled = false
+	add_child(rim_light)
 
 	# 4. Camera: Locked 40° FOV Framing (per D6, no jumping!)
 	_camera = Camera3D.new()
@@ -241,8 +256,8 @@ func _build_vignette() -> void:
 void fragment() {
 	vec2 uv = UV - vec2(0.5);
 	float dist = length(uv);
-	float vig = smoothstep(0.40, 0.85, dist);
-	COLOR = vec4(0.0, 0.0, 0.0, vig * 0.35);
+	float vig = smoothstep(0.48, 0.92, dist);
+	COLOR = vec4(0.012, 0.009, 0.007, vig * 0.25);
 }
 """
 	vig_mat.shader = vig_shader

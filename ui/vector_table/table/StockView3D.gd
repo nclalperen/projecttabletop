@@ -84,7 +84,7 @@ func update_count(count: int) -> void:
 		var y_pos: float = (float(i) + 0.5) * TILE_D
 
 		tile.position = Vector3(jx, y_pos, jz)
-		tile.rotation_degrees = Vector3(-90.0, j_rot, 0.0)
+		tile.rotation_degrees = Vector3(90.0, j_rot, 0.0)
 		_stack_container.add_child(tile)
 		_tile_layers.append(tile)
 
@@ -93,4 +93,4 @@ func get_draw_transform() -> Transform3D:
 	var top_y: float = float(maxi(1, _tile_layers.size())) * TILE_D
 	var local_top := Vector3(0.0, top_y, 0.0)
 	var xf := global_transform if is_inside_tree() else transform
-	return Transform3D(Basis.from_euler(Vector3(deg_to_rad(-90.0), deg_to_rad(TUNING.STOCK_ROT_DEG.y), 0.0)), xf.origin + xf.basis * local_top)
+	return Transform3D(Basis.from_euler(Vector3(deg_to_rad(90.0), deg_to_rad(TUNING.STOCK_ROT_DEG.y), 0.0)), xf.origin + xf.basis * local_top)

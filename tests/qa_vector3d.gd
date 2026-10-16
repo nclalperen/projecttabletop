@@ -124,7 +124,7 @@ func _run() -> void:
 			session._sync_state()
 
 		if fixture == "dragging":
-			await _frames(15)
+			await _frames(40)
 			var input = board.get("_input_handler")
 			var hand_slots: Dictionary = board.get("_hand_slots_map") if "_hand_slots_map" in board else {}
 			var reg = board.get("_registry")

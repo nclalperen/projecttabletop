@@ -17,17 +17,24 @@ static func build_table(parent: Node3D, surface_y: float = 0.0) -> Node3D:
 	root.position.y = surface_y
 	parent.add_child(root)
 	var wood := _shader_material("walnut", WOOD_SHADER)
-	var plum := _material("plum", Color("2a170e"), 0.36)
-	var inset := _material("inset", Color("142c30"), 0.85)
-	var brass := _material("brass_inlay", Color("b59659"), 0.32)
-	# Nested rounded shells create a continuous wood rim with a fine brass inlay.
+	var mahogany := _material("table_mahogany", Color("24130a"), 0.32)
+	var binding := _material("felt_binding", Color("081d13"), 0.90)
+	var brass := _material("table_brass", Color("d4af37"), 0.22)
+	brass.metallic = 0.85
+	brass.roughness = 0.24
+
+	# Deep walnut base structure
 	_piece(root, "WalnutBase", Vector3(1.26, 0.062, 1.04), Vector3(0, -0.041, 0), 0.026, wood)
-	_ring(root, "WalnutFrame", Vector2(1.26, 1.04), Vector2(1.204, 0.984), 0.032, -0.025, 0.009, 0.0035, wood)
-	_ring(root, "BrassInlay", Vector2(1.207, 0.987), Vector2(1.168, 0.948), 0.022, -0.012, 0.004, 0.002, brass)
-	_piece(root, "FeltBinding", Vector3(1.170, 0.020, 0.950), Vector3(0, -0.009, 0), 0.009, inset)
+	# Continuous solid walnut outer armrest rail
+	_ring(root, "WalnutFrame", Vector2(1.26, 1.04), Vector2(1.174, 0.954), 0.032, -0.025, 0.009, 0.0035, wood)
+	# Fine 3mm polished gold marquetry pinstripe
+	_ring(root, "BrassInlay", Vector2(1.174, 0.954), Vector2(1.168, 0.948), 0.022, -0.012, 0.004, 0.0015, brass)
+	# Deep forest felt bevel edge
+	_piece(root, "FeltBinding", Vector3(1.170, 0.020, 0.950), Vector3(0, -0.009, 0), 0.009, binding)
+	# Rich emerald tournament baize
 	_piece(root, "WovenTealFelt", Vector3(1.158, 0.016, 0.938), Vector3(0, -0.008, 0), 0.007, _shader_material("felt", FELT_SHADER))
-	# A dark apron and a second wood bead give the edge a crafted profile.
-	_piece(root, "PlumApron", Vector3(1.242, 0.033, 1.022), Vector3(0, -0.081, 0), 0.014, plum)
+	# Sculpted dark apron and lower rim bead
+	_piece(root, "PlumApron", Vector3(1.242, 0.033, 1.022), Vector3(0, -0.081, 0), 0.014, mahogany)
 	_piece(root, "LowerWoodBead", Vector3(1.254, 0.014, 1.034), Vector3(0, -0.097, 0), 0.006, wood)
 	return root
 
@@ -57,16 +64,14 @@ static func build_rack(width: float = 0.82, height: float = 0.05, depth: float =
 static func build_tile(standing: bool = true, face_up: bool = true) -> Node3D:
 	var root := Node3D.new()
 	root.name = "IvoryTile"
-	# Geometry is shared across every tile. Rounded edges catch the key light.
-	_piece(root, "IvoryBody", TILE_SIZE, Vector3.ZERO, 0.0028, _material("tile_ivory", Color("f4e6c6"), 0.36))
-	if face_up:
-		_piece(root, "InsetFace", Vector3(0.0402, 0.0598, 0.00065), Vector3(0, 0, 0.0042), 0.0004, _material("tile_face", Color("faf0d7"), 0.46))
-		_piece(root, "PipWell", Vector3(0.0096, 0.0096, 0.00045), Vector3(0, -0.0130, 0.00445), 0.0046, _material("tile_pip_well", Color("dfd0b0"), 0.65))
-	else:
-		# A restrained inset on the concealed back distinguishes it from the face.
-		_piece(root, "BackInset", Vector3(0.032, 0.050, 0.0006), Vector3(0, 0, 0.0042), 0.00025, _material("tile_back", Color("e8d6af"), 0.54))
+	# Geometry is shared across every tile. Smooth chamfered edges catch the light.
+	_piece(root, "IvoryBody", TILE_SIZE, Vector3.ZERO, 0.0028, _material("tile_ivory", Color("f4efe6"), 0.28))
+	if not face_up:
+		# Luxury engraved tile back facing AWAY (-Z in local coordinates)
+		_piece(root, "BackInset", Vector3(0.034, 0.052, 0.0006), Vector3(0, 0, -0.0042), 0.0010, _material("tile_back_wood", Color("341a0e"), 0.35))
+		_piece(root, "BackDiamond", Vector3(0.020, 0.032, 0.0008), Vector3(0, 0, -0.0044), 0.0010, _material("tile_back_gold", Color("c5a059"), 0.25))
 	if not standing:
-		root.rotation.x = -PI * 0.5
+		root.rotation.x = PI * 0.5
 	return root
 
 
@@ -85,25 +90,26 @@ static func material(key: String) -> Material:
 		"rack_bed":
 			return _material("rack_bed", Color("22130b"), 0.80)
 		"rack_badge":
-			return _material("rack_badge", Color("c4a46c"), 0.38)
+			return _material("rack_badge", Color("c5a059"), 0.30, 0.85)
 		"plum":
 			return _material("plum", Color("2a170e"), 0.36)
 		"inset":
 			return _material("inset", Color("142c30"), 0.85)
 		"brass_inlay":
-			return _material("brass_inlay", Color("b59659"), 0.32)
+			return _material("brass_inlay", Color("d4af37"), 0.28, 0.90)
 		"tile_ivory":
 			return _material("tile_ivory", Color("f4e6c6"), 0.36)
 	return null
 
 
-static func _material(key: String, color: Color, roughness: float) -> StandardMaterial3D:
+static func _material(key: String, color: Color, roughness: float, metallic: float = 0.0) -> StandardMaterial3D:
 	if _materials.has(key):
 		return _materials[key] as StandardMaterial3D
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
 	mat.roughness = roughness
-	mat.metallic_specular = 0.28
+	mat.metallic = metallic
+	mat.metallic_specular = 0.6 if metallic > 0.0 else 0.28
 	_materials[key] = mat
 	return mat
 

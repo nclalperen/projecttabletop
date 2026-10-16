@@ -13,8 +13,8 @@ const FELT_HALF_Z: float = 0.469
 const STOCK_POS_3D: Vector3 = Vector3(-0.035, TABLE_SURFACE_Y, -0.03)
 const STOCK_ROT_DEG: Vector3 = Vector3(0.0, 8.0, 0.0)
 
-const INDICATOR_POS_3D: Vector3 = Vector3(0.035, TABLE_SURFACE_Y, -0.03)
-const INDICATOR_ROT_DEG: Vector3 = Vector3(0.0, -6.0, 0.0)
+const INDICATOR_POS_3D: Vector3 = Vector3(0.035, TABLE_SURFACE_Y + 0.0045, -0.03)
+const INDICATOR_ROT_DEG: Vector3 = Vector3(0.0, 85.0, 0.0)
 
 const OPPONENT_RACK_POS_3D: Dictionary = {
 	1: Vector3(0.51, TABLE_SURFACE_Y, 0.0),    # East
@@ -23,17 +23,17 @@ const OPPONENT_RACK_POS_3D: Dictionary = {
 }
 
 const OPPONENT_RACK_ROT_DEG: Dictionary = {
-	1: Vector3(0.0, -90.0, 0.0),
+	1: Vector3(0.0, 90.0, 0.0),
 	2: Vector3(0.0, 180.0, 0.0),
-	3: Vector3(0.0, 90.0, 0.0),
+	3: Vector3(0.0, -90.0, 0.0),
 }
 const OPPONENT_RACK_SCALE: float = 0.85
 
 const DISCARD_POS_3D: Dictionary = {
-	0: Vector3(0.33, TABLE_SURFACE_Y, 0.20),   # Local out (SE corner)
-	1: Vector3(0.33, TABLE_SURFACE_Y, -0.25),  # East (NE corner)
-	2: Vector3(-0.33, TABLE_SURFACE_Y, -0.25), # North (NW corner)
-	3: Vector3(-0.33, TABLE_SURFACE_Y, 0.20),  # West (SW corner, local takes from here)
+	0: Vector3(0.34, TABLE_SURFACE_Y, 0.08),   # Local out (SE corner, clear of rack)
+	1: Vector3(0.34, TABLE_SURFACE_Y, -0.22),  # East (NE corner)
+	2: Vector3(-0.34, TABLE_SURFACE_Y, -0.22), # North (NW corner)
+	3: Vector3(-0.34, TABLE_SURFACE_Y, 0.08),  # West (SW corner, clear of rack)
 }
 
 const DISCARD_ROT_DEG: Dictionary = {
@@ -52,7 +52,7 @@ const CAMERA_POS: Vector3 = Vector3(0.0, 0.66, 0.70)
 const CAMERA_LOOK_AT: Vector3 = Vector3(0.0, 0.0, -0.06)
 
 # ─── Hand Rig (Camera-Local Space, D7) ───
-const HAND_RIG_ORIGIN: Vector3 = Vector3(0.0, -0.145, -0.60)
+const HAND_RIG_ORIGIN: Vector3 = Vector3(0.0, -0.102, -0.70)
 const HAND_RIG_ROT_DEG: Vector3 = Vector3(-8.0, 0.0, 0.0)
 
 const HAND_RACK_LENGTH: float = 0.80

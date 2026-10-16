@@ -13,10 +13,10 @@ const COLS: int = 14
 const ROWS: int = 4
 
 const SUIT_COLORS: Array[Color] = [
-	Color("#c8231b"), # 0: Red
-	Color("#e09a12"), # 1: Yellow
-	Color("#1d1d22"), # 2: Black
-	Color("#1563c9"), # 3: Blue
+	Color("#b71c1c"), # 0: Red (Rich Carmine)
+	Color("#e65100"), # 1: Yellow/Orange (Deep Burnt Tangerine)
+	Color("#111111"), # 2: Black (Obsidian Ink)
+	Color("#0d47a1"), # 3: Blue (Royal Cobalt)
 ]
 
 const FONT_ID: StringName = AssetIds.UI_FONT_BARLOW_CONDENSED_BOLD
@@ -109,25 +109,32 @@ static func _draw_atlas(drawer: Control, font: Font) -> void:
 			var center_x: float = cell_x + 128.0
 			var center_y: float = cell_y + 130.0 # 35% height
 
-			var font_size: int = 150
+			# 1. Solid warm ivory resin background
+			var cell_rect := Rect2(cell_x, cell_y, CELL_WIDTH, CELL_HEIGHT)
+			drawer.draw_rect(cell_rect, Color("#f5eee3"))
+			# Subtle perimeter bevel shade
+			drawer.draw_rect(cell_rect, Color(0.0, 0.0, 0.0, 0.06), false, 4.0)
+
+			# 2. Bold engraved numeral
+			var font_size: int = 158
 			var ascent: float = font.get_ascent(font_size)
 			var descent: float = font.get_descent(font_size)
 			var baseline_y: float = center_y + (ascent - descent) * 0.5 - 6.0
 
 			var text := str(number)
-			# 2px engraved highlight below
-			drawer.draw_string(font, Vector2(cell_x, baseline_y + 2.0), text, HORIZONTAL_ALIGNMENT_CENTER, CELL_WIDTH, font_size, Color(1, 1, 1, 0.45))
-			# Main suit-colored number
+			# Deep engraved crease (top-left shadow)
+			drawer.draw_string(font, Vector2(cell_x - 1.5, baseline_y - 1.5), text, HORIZONTAL_ALIGNMENT_CENTER, CELL_WIDTH, font_size, Color(0.0, 0.0, 0.0, 0.45))
+			# Specular highlight rim below
+			drawer.draw_string(font, Vector2(cell_x + 1.0, baseline_y + 1.5), text, HORIZONTAL_ALIGNMENT_CENTER, CELL_WIDTH, font_size, Color(1.0, 1.0, 1.0, 0.40))
+			# Saturated 100% solid suit-colored numeral
 			drawer.draw_string(font, Vector2(cell_x, baseline_y), text, HORIZONTAL_ALIGNMENT_CENTER, CELL_WIDTH, font_size, color)
 
-			# Pip at 70% height (368 * 0.70 = 258)
+			# 3. Pip at 70% height
 			var pip_y: float = cell_y + 258.0
-			# Engraved highlight
-			drawer.draw_arc(Vector2(center_x, pip_y + 1.5), 20.0, 0.2, PI - 0.2, 24, Color(1, 1, 1, 0.35), 2.0, true)
-			# Filled circular pip (radius 20)
-			drawer.draw_circle(Vector2(center_x, pip_y), 20.0, color)
-			# 1px darker ring
-			drawer.draw_arc(Vector2(center_x, pip_y), 20.5, 0.0, TAU, 36, color.darkened(0.35), 1.5, true)
+			drawer.draw_circle(Vector2(center_x, pip_y + 1.5), 22.0, Color(0.0, 0.0, 0.0, 0.30))
+			drawer.draw_arc(Vector2(center_x, pip_y + 1.5), 21.0, 0.2, PI - 0.2, 24, Color(1.0, 1.0, 1.0, 0.40), 2.0, true)
+			drawer.draw_circle(Vector2(center_x, pip_y), 21.0, color)
+			drawer.draw_arc(Vector2(center_x, pip_y), 21.0, 0.0, TAU, 36, color.darkened(0.40), 2.0, true)
 
 	# Fake Okey in column 13
 	for row in range(4):
@@ -135,6 +142,10 @@ static func _draw_atlas(drawer: Control, font: Font) -> void:
 		var cell_y: float = float(row * CELL_HEIGHT)
 		var center_x: float = cell_x + 128.0
 		var star_center_y: float = cell_y + 155.0
+
+		var cell_rect := Rect2(cell_x, cell_y, CELL_WIDTH, CELL_HEIGHT)
+		drawer.draw_rect(cell_rect, Color("#f5eee3"))
+		drawer.draw_rect(cell_rect, Color(0.0, 0.0, 0.0, 0.06), false, 4.0)
 
 		var points := PackedVector2Array()
 		var outer_r: float = 58.0
@@ -144,17 +155,21 @@ static func _draw_atlas(drawer: Control, font: Font) -> void:
 			var r := outer_r if (i % 2 == 0) else inner_r
 			points.append(Vector2(center_x + cos(angle) * r, star_center_y + sin(angle) * r))
 
-		var gold := Color("#d99b26")
-		# Engraved highlight
-		var highlight_points := PackedVector2Array()
+		var gold := Color("#d4a017")
+		var ruby := Color("#8b0000")
+		var shadow_points := PackedVector2Array()
 		for pt in points:
-			highlight_points.append(pt + Vector2(0, 2))
-		drawer.draw_colored_polygon(highlight_points, Color(1, 1, 1, 0.45))
-		# Main 5-point star
+			shadow_points.append(pt + Vector2(0, 2.0))
+		drawer.draw_colored_polygon(shadow_points, Color(0.0, 0.0, 0.0, 0.35))
 		drawer.draw_colored_polygon(points, gold)
-		drawer.draw_polyline(points, gold.darkened(0.4), 2.5, true)
+		drawer.draw_polyline(points, ruby, 3.5, true)
+
+		# Center ruby gem
+		drawer.draw_circle(Vector2(center_x, star_center_y), 10.0, ruby)
+		drawer.draw_circle(Vector2(center_x, star_center_y), 6.5, gold)
 
 		# Pip below star
 		var pip_y: float = cell_y + 280.0
-		drawer.draw_circle(Vector2(center_x, pip_y), 18.0, gold)
-		drawer.draw_arc(Vector2(center_x, pip_y), 18.5, 0.0, TAU, 36, gold.darkened(0.4), 1.5, true)
+		drawer.draw_circle(Vector2(center_x, pip_y + 1.5), 20.0, Color(0.0, 0.0, 0.0, 0.30))
+		drawer.draw_circle(Vector2(center_x, pip_y), 20.0, gold)
+		drawer.draw_arc(Vector2(center_x, pip_y), 20.0, 0.0, TAU, 36, ruby, 2.5, true)

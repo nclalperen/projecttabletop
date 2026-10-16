@@ -105,6 +105,9 @@ func _ensure_nodes() -> void:
 func _ready() -> void:
 	_ensure_nodes()
 	_apply_mobile_safe_area_insets()
+	var hud_font = AssetRegistry.font(AssetIds.UI_FONT_BARLOW_CONDENSED_BOLD)
+	if hud_font != null and safe_area_root != null and safe_area_root.theme != null:
+		safe_area_root.theme.default_font = hud_font
 	if get_tree() != null and get_tree().root != null:
 		get_tree().root.size_changed.connect(_apply_mobile_safe_area_insets)
 

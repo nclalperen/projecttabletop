@@ -188,7 +188,7 @@ theme_override_constants/separation = 8
 
 [node name="DraftAndTurnBannerRow" type="HBoxContainer" parent="SafeAreaRoot/BottomDock"]
 layout_mode = 2
-size_flags_horizontal = 4
+size_flags_horizontal = 8
 theme_override_constants/separation = 12
 
 [node name="DraftMeterPill" type="PanelContainer" parent="SafeAreaRoot/BottomDock/DraftAndTurnBannerRow"]
@@ -237,7 +237,7 @@ layout_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 8
-alignment = 1
+alignment = 2
 
 [node name="SortColorButton" type="Button" parent="SafeAreaRoot/BottomDock/RackControlBar/RackUtilityGroup"]
 unique_name_in_owner = true
