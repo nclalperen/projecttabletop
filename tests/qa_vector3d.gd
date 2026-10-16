@@ -100,6 +100,18 @@ func _run() -> void:
 						ids.append(tile.unique_id)
 					state.table_melds.append(Meld.new(Meld.Kind.RUN, ids, tiles, index % 4))
 
+				if state.players.size() >= 4:
+					state.players[1].hand.resize(17)
+					state.players[2].hand.resize(14)
+					state.players[3].hand.resize(19)
+
+				state.player_discard_stacks = [
+					[Tile.new(0, 11, Tile.Kind.NORMAL, 770001), Tile.new(2, 4, Tile.Kind.NORMAL, 770002)],
+					[Tile.new(1, 8, Tile.Kind.NORMAL, 770003)],
+					[Tile.new(3, 13, Tile.Kind.NORMAL, 770004), Tile.new(0, 6, Tile.Kind.NORMAL, 770005)],
+					[Tile.new(2, 9, Tile.Kind.NORMAL, 770006), Tile.new(1, 5, Tile.Kind.NORMAL, 770007), Tile.new(3, 2, Tile.Kind.NORMAL, 770008)],
+				]
+
 			if fixture == "crowded":
 				while state.players[0].hand.size() < 30:
 					var index: int = state.players[0].hand.size()

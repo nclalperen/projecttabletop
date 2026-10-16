@@ -13,6 +13,9 @@ const TileFaceAtlas = preload("res://ui/vector_table/render/TileFaceAtlas.gd")
 const VectorTile3D = preload("res://ui/vector_table/render/VectorTile3D.gd")
 const TileRegistry3D = preload("res://ui/vector_table/TileRegistry3D.gd")
 const TileAnimator3D = preload("res://ui/vector_table/TileAnimator3D.gd")
+const OpponentRack3D = preload("res://ui/vector_table/opponents/OpponentRack3D.gd")
+const StockView3D = preload("res://ui/vector_table/table/StockView3D.gd")
+const DiscardPiles3D = preload("res://ui/vector_table/table/DiscardPiles3D.gd")
 
 # Scene references
 var _world: Node3D = self
@@ -23,6 +26,9 @@ var _fill_light: OmniLight3D
 var _table_mesh: Node3D
 var _hand_rig: HandRig3D
 var _deck_container: Node3D
+var _stock_view: StockView3D
+var _discard_piles_view: DiscardPiles3D
+var _opponent_racks: Dictionary = {} # seat -> OpponentRack3D
 var _melds_container: Node3D
 var _registry: TileRegistry3D
 var _animator: TileAnimator3D
@@ -155,16 +161,29 @@ func _build_3d_environment() -> void:
 	_animator.name = "Animator"
 	add_child(_animator)
 
-	# 9. Center Deck & Containers
-	_deck_container = Node3D.new()
-	_deck_container.name = "StockAndIndicator"
-	add_child(_deck_container)
+	# 9. Center Stock Pile (D5)
+	_stock_view = StockView3D.new()
+	_stock_view.name = "StockPile"
+	_stock_view.setup(106)
+	add_child(_stock_view)
 
+	# 10. Discard Piles (Seats 0..3) (D5)
+	_discard_piles_view = DiscardPiles3D.new()
+	_discard_piles_view.name = "DiscardPiles"
+	_discard_piles_view.setup(_registry)
+	add_child(_discard_piles_view)
+
+	# 11. Opponent Racks (Seats 1, 2, 3) (D5)
+	for seat in [1, 2, 3]:
+		var opp := OpponentRack3D.new()
+		opp.setup(seat, "Bot %d" % seat)
+		add_child(opp)
+		_opponent_racks[seat] = opp
+
+	# 12. Center Table Melds Container
 	_melds_container = Node3D.new()
 	_melds_container.name = "TableMelds"
 	add_child(_melds_container)
-
-	_build_3d_deck_stack()
 
 
 func _build_vignette() -> void:
@@ -191,15 +210,6 @@ void fragment() {
 	vignette_rect.material = vig_mat
 	_vignette_layer.add_child(vignette_rect)
 	add_child(_vignette_layer)
-
-
-func _build_3d_deck_stack() -> void:
-	# Build 3D deck stack of physical ivory tiles
-	for i in range(4):
-		var tile := TABLE_ART.build_tile(true, false)
-		tile.position = TUNING.STOCK_POS_3D + Vector3(0.0, float(i) * 0.0092 + 0.0045, 0.0)
-		tile.rotation_degrees = Vector3(-90.0, 8.0, 0.0)
-		_deck_container.add_child(tile)
 
 
 func _build_hud_overlay() -> void:
@@ -290,15 +300,30 @@ func _on_session_state_updated(snapshot: Dictionary) -> void:
 	_is_my_turn = bool(snapshot.get("is_local_turn", false))
 	_status_label.text = str(snapshot.get("instruction", "Okey 101 Tabletop"))
 
-	# Update Indicator Tile in 3D (flat on table per D5)
+	# 1. Update Stock Count
+	var deck_count: int = int(snapshot.get("deck_count", 0))
+	if _stock_view != null:
+		_stock_view.update_count(deck_count)
+
+	# 2. Update Indicator Tile in 3D (flat on table per D5)
 	var ind_tile = snapshot.get("indicator_tile")
 	if ind_tile != null:
-		var tile_node: VectorTile3D = _registry.ensure(ind_tile.unique_id, ind_tile.number, ind_tile.color, ind_tile.kind != 0, true, true)
+		var tile_node: VectorTile3D = _registry.ensure(ind_tile.unique_id, ind_tile.number, ind_tile.color, ind_tile.kind != 0, false, true)
 		tile_node.set_target_position_3d(TUNING.INDICATOR_POS_3D, true)
 		tile_node.set_target_rotation_3d(Vector3(-90.0, TUNING.INDICATOR_ROT_DEG.y, 0.0), true)
 		_registry.set_zone(ind_tile.unique_id, &"indicator")
 
-	# Update discard stacks diffing
+	# 3. Update Opponent Racks tile counts
+	var controller = _session.get_controller() if _session != null else null
+	if controller != null and controller.state != null:
+		for seat in [1, 2, 3]:
+			if seat < controller.state.players.size():
+				var p = controller.state.players[seat]
+				var count: int = p.hand.size()
+				if _opponent_racks.has(seat) and _opponent_racks[seat] != null:
+					_opponent_racks[seat].set_tile_count(count)
+
+	# 4. Update discard stacks diffing
 	_sync_discards()
 
 
@@ -311,34 +336,8 @@ func _sync_discards() -> void:
 	if stacks.is_empty():
 		return
 
-	for seat in range(mini(stacks.size(), 4)):
-		var pile: Array = stacks[seat]
-		if pile.is_empty():
-			continue
-		var top_tile = pile[pile.size() - 1]
-		var top_id: int = int(top_tile.unique_id)
-		var prev_zone := _registry.zone_of(top_id)
-		var dest_zone := StringName("discard_%d" % seat)
-
-		if prev_zone != dest_zone:
-			var node := _registry.ensure(top_id, top_tile.number, top_tile.color, top_tile.kind != 0, true, true)
-			var pile_pos: Vector3 = TUNING.DISCARD_POS_3D.get(seat, TUNING.DISCARD_POS_3D[0])
-			var pile_rot: Vector3 = TUNING.DISCARD_ROT_DEG.get(seat, TUNING.DISCARD_ROT_DEG[0])
-			var target_xf := Transform3D(Basis.from_euler(Vector3(deg_to_rad(-90.0), deg_to_rad(pile_rot.y), 0.0)), pile_pos)
-
-			if prev_zone == &"hand":
-				# Local discard flight
-				_animator.fly_discard(node, node.global_transform, target_xf)
-			elif prev_zone == &"none":
-				# Opponent discard flight
-				var opp_pos: Vector3 = TUNING.OPPONENT_RACK_POS_3D.get(seat, TUNING.STOCK_POS_3D)
-				var opp_xf := Transform3D(Basis.IDENTITY, opp_pos)
-				_animator.fly_opponent_discard(node, opp_xf, target_xf)
-			else:
-				node.set_target_position_3d(target_xf.origin, true)
-				node.set_target_rotation_3d(target_xf.basis.get_euler() * (180.0 / PI), true)
-
-			_registry.set_zone(top_id, dest_zone)
+	if _discard_piles_view != null:
+		_discard_piles_view.sync_stacks(stacks, _animator, _opponent_racks)
 
 
 func _get_tile_by_id(tile_id: int):
@@ -418,13 +417,42 @@ func _on_melds_updated(melds: Array) -> void:
 	var start_z: float = -0.06
 	var group_x: float = -0.28
 	for meld in melds:
-		var tiles: Array = meld.get("tiles", [])
-		for i in range(tiles.size()):
-			var data: Dictionary = tiles[i]
-			var t := VectorTile3D.new()
-			t.setup_tile(data.get("unique_id", -1), data.get("number", 1), data.get("color", 0), data.get("kind", 0) != 0, true, true)
+		var tiles_list: Array = []
+		if meld is Dictionary:
+			tiles_list = meld.get("tiles", [])
+		elif "tiles" in meld and meld.tiles != null and not meld.tiles.is_empty():
+			tiles_list = meld.tiles
+		elif "tile_ids" in meld and meld.tile_ids != null:
+			tiles_list = meld.tile_ids
+
+		for i in range(tiles_list.size()):
+			var item = tiles_list[i]
+			var uid: int = -1
+			var num: int = 1
+			var col: int = 0
+			var is_fake: bool = false
+
+			if item is int:
+				uid = item
+				var t_data = _get_tile_by_id(uid)
+				if t_data != null:
+					num = t_data.number
+					col = t_data.color
+					is_fake = (t_data.kind != 0)
+			elif item is Dictionary:
+				uid = int(item.get("unique_id", -1))
+				num = int(item.get("number", 1))
+				col = int(item.get("color", 0))
+				is_fake = (item.get("kind", 0) != 0)
+			else:
+				uid = int(item.unique_id) if ("unique_id" in item) else -1
+				num = int(item.number) if ("number" in item) else 1
+				col = int(item.color) if ("color" in item) else 0
+				is_fake = bool(item.kind != 0) if ("kind" in item) else false
+
+			var t: VectorTile3D = _registry.ensure(uid, num, col, is_fake, false, true)
 			var target_pos := Vector3(group_x + (float(i) * 0.046), TUNING.TABLE_SURFACE_Y + 0.005, start_z)
 			t.set_target_position_3d(target_pos, true)
 			t.set_target_rotation_3d(Vector3(-90.0, 0.0, 0.0), true)
-			_melds_container.add_child(t)
-		group_x += (float(tiles.size()) * 0.046) + 0.035
+			_registry.set_zone(uid, &"meld")
+		group_x += (float(tiles_list.size()) * 0.046) + 0.035

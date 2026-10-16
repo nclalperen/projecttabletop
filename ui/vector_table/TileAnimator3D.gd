@@ -103,8 +103,10 @@ func _process(delta: float) -> void:
 		var arc_h: float = sin(t * PI) * f.apex_y
 		pos.y += arc_h
 
-		# Slerp orientation
-		var basis: Basis = f.from_xform.basis.slerp(f.to_xform.basis, ease_t)
+		# Slerp orientation (orthonormalize to handle scaled parent nodes)
+		var from_b: Basis = f.from_xform.basis.orthonormalized()
+		var to_b: Basis = f.to_xform.basis.orthonormalized()
+		var basis: Basis = from_b.slerp(to_b, ease_t)
 
 		f.tile.position = pos
 		f.tile.rotation_degrees = basis.get_euler() * (180.0 / PI)
