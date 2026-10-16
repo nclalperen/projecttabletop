@@ -37,6 +37,7 @@ This registry is the source of truth for shipping asset license compliance.
 | https://kenney.nl/assets/impact-sounds | https://kenney.nl/support | Kenney Impact Sounds (selected) | `res://uassets/gameplay/audio/discard.ogg`, `res://uassets/gameplay/audio/take_discard.ogg` | CC0/Public Domain | 1.0 | Codex | 2026-02-13 | approved |
 | https://kenney.nl/assets/interface-sounds | https://kenney.nl/support | Kenney Interface Sounds (selected) | `res://uassets/gameplay/audio/draw_from_deck.ogg`, `res://uassets/gameplay/audio/rack_move.ogg`, `res://uassets/gameplay/audio/stage_move.ogg`, `res://uassets/gameplay/audio/add_to_meld.ogg`, `res://uassets/gameplay/audio/invalid_action.ogg`, `res://uassets/gameplay/audio/round_end.ogg`, `res://uassets/gameplay/audio/new_round.ogg` | CC0/Public Domain | 1.0 | Codex | 2026-02-13 | approved |
 | https://freesound.org/s/712772/ | https://freesound.org/help/faq/#licenses | Evening Chores ambience | `res://uassets/gameplay/audio/ambient_table.wav` | CC0 | 712772 | Codex | 2026-02-13 | approved |
+| https://github.com/google/fonts/tree/main/ofl/barlowcondensed | https://openfontlicense.org | Barlow Condensed Bold | `res://uassets/ui/fonts/BarlowCondensed-Bold.ttf` | OFL-1.1 | 1.0 | Antigravity | 2026-10-16 | approved |
 
 ## Approved External CC0 Sources
 

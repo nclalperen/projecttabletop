@@ -17,13 +17,16 @@ func run() -> bool:
 		"World/Camera3D",
 		"World/TableBody",
 		"World/TableSurface",
-		"GameViewport",
 	]
 	for p in required_nodes:
 		if root.get_node_or_null(p) == null:
 			push_error("GameTable3D missing required node: %s" % p)
 			root.free()
 			return false
+	if root.get_node_or_null("GameViewport") != null:
+		push_error("GameTable3D must use the presentation-independent Okey session")
+		root.free()
+		return false
 
 	root.free()
 	return true

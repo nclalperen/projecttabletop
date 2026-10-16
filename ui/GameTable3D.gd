@@ -1,12 +1,30 @@
-extends Node
+extends "res://ui/GameTableBase.gd"
 
-const GAME_TABLE_SCENE: PackedScene = preload("res://ui/GameTable.tscn")
+const TABLE_CONFIG_SCRIPT: Script = preload("res://core/config/TableConfig.gd")
+const SEAT_CONFIG_SCRIPT: Script = preload("res://core/config/SeatConfig.gd")
+const OKEY_101_TABLE_CONFIG_SCRIPT: Script = preload("res://core/config/Okey101TableConfig.gd")
+const CAMERA_RIG_SCRIPT: Script = preload("res://ui/game_table/CameraRig.gd")
+const MATERIAL_FACTORY_SCRIPT: Script = preload("res://ui/game_table/MaterialFactory.gd")
+const AUDIO_CONTROLLER_SCRIPT: Script = preload("res://ui/game_table/AudioController.gd")
+
+const TABLE_ART = preload("res://ui/game_table/OkeyTableArt.gd")
+const SESSION_SCRIPT = preload("res://ui/game_table/OkeySession.gd")
+const PLAY_HUD = preload("res://ui/game_table/OkeyPlayHUD.tscn")
 const INVALID_TABLE_POS: Vector2 = Vector2(-99999.0, -99999.0)
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
 const DRAFT_GRID = preload("res://ui/game_table/DraftGrid.gd")
 const INTERACTION_RESOLVER = preload("res://ui/game_table/InteractionResolver.gd")
 const INTERACTION_TUNING = preload("res://ui/game_table/InteractionTuning.gd")
+const TILE_INPUT_CONTROLLER_SCRIPT = preload("res://ui/game_table/TileInputController3D.gd")
+const TILE_DRAG_VISUALIZER_SCRIPT = preload("res://ui/game_table/TileDragVisualizer3D.gd")
+const RACK_SLOT_MANAGER = preload("res://ui/game_table/RackSlotManager.gd")
+const MELD_TABLE_ZONE_SCRIPT = preload("res://ui/game_table/MeldTableZone3D.gd")
+const DECK_AND_DISCARDS_SCRIPT = preload("res://ui/game_table/DeckAndDiscards3D.gd")
+const TABLE_AUDIO_CONTROLLER_SCRIPT = preload("res://ui/game_table/TableAudioController.gd")
+const RACK_FOCUS_NAVIGATOR_SCRIPT = preload("res://ui/game_table/RackFocusNavigator.gd")
+const RACK_VIEW_3D_SCRIPT = preload("res://ui/game_table/RackView3D.gd")
+const DRAFT_WORKSPACE_VIEW_3D_SCRIPT = preload("res://ui/game_table/DraftWorkspaceView3D.gd")
 
 # Asset IDs
 const CLOTH_TEX_ID: StringName = ASSET_IDS.GAMEPLAY_TEXTURE_CLOTH
@@ -48,13 +66,13 @@ const SFX_NEW_ROUND: StringName = &"new_round"
 const TABLE_SIDE: float = 1.0
 const TABLE_HEIGHT: float = 0.075
 const FELT_SIDE: float = 0.80
-const TILE_W: float = 0.0270
-const TILE_H: float = 0.047
-const TILE_D: float = 0.0050
-const RACK_LEN: float = 0.45
+const TILE_W: float = 0.045
+const TILE_H: float = 0.065
+const TILE_D: float = 0.009
+const RACK_LEN: float = 0.82
 # Reduced from legacy depth to better match rack.glb helper seating without hiding row 2.
-const RACK_DEPTH: float = 0.082
-const RACK_HEIGHT: float = 0.08
+const RACK_DEPTH: float = 0.15
+const RACK_HEIGHT: float = 0.072
 const RACK_MODEL_SIZE: Vector3 = Vector3(RACK_LEN, RACK_HEIGHT, RACK_DEPTH)
 const RACK_MODEL_DEPTH_AXIS: float = RACK_DEPTH
 const RACK_MODEL_HEIGHT_AXIS: float = RACK_HEIGHT
@@ -63,14 +81,14 @@ const USE_AUTO_RACK_MODEL_PRE_ROT: bool = false
 const USE_AUTO_RACK_ROW_ANCHORS: bool = true
 const FORCE_RACK_MODEL_WOOD_MATERIAL: bool = false
 const USE_TILE_FACE_TEXTURE: bool = false
-const RACK_ROW0_TILE_Y: float = 0.062
-const RACK_ROW0_TILE_Z: float = -0.031
-const RACK_ROW1_TILE_Y: float = 0.030
-const RACK_ROW1_TILE_Z: float = 0.013
-const RACK_ROW0_TILE_LIFT: float = 0.0024
-const RACK_ROW1_TILE_LIFT: float = 0.0030
-const RACK_ROW_TOP_TILT_DEG: float = -13.0
-const RACK_ROW_BOTTOM_TILT_DEG: float = -11.0
+const RACK_ROW0_TILE_Y: float = 0.080
+const RACK_ROW0_TILE_Z: float = -0.028
+const RACK_ROW1_TILE_Y: float = 0.033
+const RACK_ROW1_TILE_Z: float = 0.034
+const RACK_ROW0_TILE_LIFT: float = 0.0
+const RACK_ROW1_TILE_LIFT: float = 0.0
+const RACK_ROW_TOP_TILT_DEG: float = -28.0
+const RACK_ROW_BOTTOM_TILT_DEG: float = -28.0
 const RACK_ROW_TILT_MIN_DEG: float = -65.0
 const RACK_ROW_TILT_MAX_DEG: float = -2.0
 
@@ -91,14 +109,14 @@ const MELD_LANE_INSET_FROM_EDGE: float = 0.040
 const LOCAL_MELD_AREA_WIDTH: float = 0.31
 const LOCAL_MELD_AREA_DEPTH: float = 0.125
 const INDICATOR_GAP: float = 0.012
-const DECK_TILE_SCALE: float = 1.30
-const INDICATOR_TILE_SCALE: float = 1.32
+const DECK_TILE_SCALE: float = 0.94
+const INDICATOR_TILE_SCALE: float = 0.94
 const OPPONENT_RACK_HEIGHT_SCALE: float = 1.45
 const OPPONENT_RACK_DEPTH_SCALE: float = 0.52
-const LOCAL_RACK_TILE_BASE_SCALE: float = 1.06
-const LOCAL_RACK_TILE_SELECTED_SCALE: float = 1.10
-const LOCAL_RACK_TILE_REQUIRED_SCALE: float = 1.08
-const LOCAL_RACK_SELF_VIEW_TILT_DEG: float = -30.0
+const LOCAL_RACK_TILE_BASE_SCALE: float = 0.88
+const LOCAL_RACK_TILE_SELECTED_SCALE: float = 0.94
+const LOCAL_RACK_TILE_REQUIRED_SCALE: float = 0.92
+const LOCAL_RACK_SELF_VIEW_TILT_DEG: float = 0.0
 
 # Camera spec
 const CAMERA_PRESET_DEFAULT_INDEX: int = 0
@@ -192,9 +210,27 @@ const TILE_COLOR_MAP: Dictionary = {
 @onready var _key_light: DirectionalLight3D = $World/KeyLight
 @onready var _rim_light: DirectionalLight3D = $World/RimLight
 @onready var _fill_light: OmniLight3D = $World/FillLight
-@onready var _game_viewport: SubViewport = $GameViewport
+var _play_hud: Node = null
+var _inspection: bool = false
+var reduced_motion: bool = false
+var sound_enabled: bool = true
+var _capture_frames: int = 0
+var _capture_path: String = ""
 
-# Hidden gameplay table (logic host)
+# Modular table components
+var _camera_rig: CameraRig = null
+var _material_factory: MaterialFactory = null
+var _audio_controller: AudioController = null
+var _tile_drag_visualizer: Node3D = null
+var _tile_input_controller: Node = null
+var _meld_table_zone: Node3D = null
+var _deck_and_discards: Node3D = null
+var _table_audio_controller: Node = null
+var _rack_focus_navigator: Node = null
+var _rack_view_3d: Node3D = null
+var _draft_workspace_view_3d: Node3D = null
+
+# Shared presentation-independent game session
 var _game_table: Node = null
 var _pending_rule_config: RuleConfig = null
 var _pending_seed: int = 0
@@ -260,6 +296,8 @@ var _table_meld_tile_hits: Array[Dictionary] = []
 var _local_rack_slot_hits: Array[Dictionary] = []
 var _table_meld_base_centers: Dictionary = {}
 var _table_meld_drag_offsets: Dictionary = {}
+var _last_reflow_target_slot: int = -1
+var _rack_reflow_tween: Tween = null
 
 # Drag state
 var _drag_candidate_tile_id: int = -1
@@ -399,15 +437,26 @@ var _safe_raw_material_surface_count: int = 0
 
 
 func _ready() -> void:
+	if _table_config == null:
+		_table_config = OKEY_101_TABLE_CONFIG_SCRIPT.create()
+	_camera_rig = CAMERA_RIG_SCRIPT.new(_camera)
 	_ui_settings = UI_SETTINGS_SCRIPT.load_from_disk()
 	_visual_settings = UI_SETTINGS_SCRIPT.sanitize_visual_settings(_ui_settings)
 	VISUAL_QUALITY_SCRIPT.apply_to_viewport(get_viewport(), _visual_settings)
-	_load_tile_tuning_config()
+	_tune_base_scale = LOCAL_RACK_TILE_BASE_SCALE
+	_tune_selected_scale = LOCAL_RACK_TILE_SELECTED_SCALE
+	_tune_required_scale = LOCAL_RACK_TILE_REQUIRED_SCALE
+	_tune_row0_offset = Vector3.ZERO
+	_tune_row1_offset = Vector3.ZERO
+	_tune_row0_tilt_offset_deg = 0.0
+	_tune_row1_tilt_offset_deg = 0.0
+	_rack_row0_normal = Vector3(0.0, sin(deg_to_rad(28)), cos(deg_to_rad(28)))
+	_rack_row1_normal = _rack_row0_normal
 	_configure_environment()
 	_configure_world()
 	_configure_materials()
 	_create_audio_service()
-	_load_model_assets()
+	# Procedural shared geometry keeps the casual table crisp and lightweight.
 	_create_world_elements()
 	_create_hud_overlay()
 	_init_debug_telemetry()
@@ -417,6 +466,11 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_resize_subviewport)
 	get_viewport().size_changed.connect(_layout_hud)
 	set_process(true)
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--okey-capture="):
+			_capture_path = arg.trim_prefix("--okey-capture=")
+		if arg.begins_with("--okey-seed="):
+			configure_game(RuleConfig.new(), int(arg.trim_prefix("--okey-seed=")), 4)
 
 
 func configure_game(rule_config: RuleConfig, game_seed: int, player_count: int, bot_difficulties: Array = []) -> void:
@@ -437,7 +491,10 @@ func inject_controller(controller) -> void:
 
 func _process(delta: float) -> void:
 	_runtime_time += delta
-	_update_tile_tuning_watch(delta)
+	if not _capture_path.is_empty():
+		_capture_frames += 1
+		if _capture_frames == 90:
+			_capture_qa.call_deferred()
 	_update_debug_telemetry(delta)
 	_update_auto_capture(delta)
 	_update_hover_candidate()
@@ -458,32 +515,25 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# SubViewport/Control layers can consume clicks before _unhandled_input runs.
-	# Handle round-end restart here so new-round trigger is always reachable.
-	if event is not InputEventMouseButton:
-		return
-	var mb := event as InputEventMouseButton
-	if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and mb.double_click and not _is_round_end_phase():
-		if _hud_bar != null and _hud_bar.visible and _hud_bar.get_global_rect().has_point(mb.position):
-			return
-		var pick_dbl: Dictionary = _raycast_pick(mb.position)
-		if str(pick_dbl.get("kind", "")) == "local_tile":
-			_toggle_local_tile_face_down(int(pick_dbl.get("tile_id", -1)))
-			get_viewport().set_input_as_handled()
-			return
-	if not _is_round_end_phase():
-		return
-	if mb.button_index != MOUSE_BUTTON_LEFT or not mb.pressed:
-		return
-	if _hud_bar != null and _hud_bar.visible and _hud_bar.get_global_rect().has_point(mb.position):
-		return
-	if _game_table != null and is_instance_valid(_game_table) and _game_table.has_method("overlay_new_round"):
-		_game_table.overlay_new_round()
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		_clear_drag_state()
+		_last_selected_tile_id = -1
+		if _game_table != null: _game_table.cancel_selection()
 		_force_sync()
-		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
+			if _drag_candidate_tile_id != -1 or _drag_candidate_meld_index != -1 or _drag_active:
+				_handle_mouse_release(mb)
+				get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		_input(event)
+		return
+	if _inspection or (_play_hud != null and _play_hud.is_modal_open()):
+		return
 	if event is InputEventKey:
 		var key_evt := event as InputEventKey
 		if _handle_debug_key_shortcuts(key_evt):
@@ -508,11 +558,6 @@ func _handle_debug_key_shortcuts(key_evt: InputEventKey) -> bool:
 	if key_evt == null or not key_evt.pressed or key_evt.echo:
 		return false
 	if key_evt.keycode == TILE_TUNE_RELOAD_KEY:
-		_load_tile_tuning_config()
-		_apply_tile_tuning_runtime(true)
-		if _hud_instructions != null:
-			var src: String = _tile_tune_loaded_path if _tile_tune_loaded_path != "" else "defaults"
-			_hud_instructions.text = "Tile tune reloaded (%s)" % src
 		return true
 	if key_evt.keycode == TILE_TUNE_DUMP_KEY:
 		_dump_tile_tuning_state()
@@ -569,11 +614,7 @@ func _handle_drag_mouse_motion(mm: InputEventMouseMotion) -> bool:
 
 
 func _handle_mouse_press(mb: InputEventMouseButton) -> bool:
-	if mb.button_index == MOUSE_BUTTON_LEFT and _is_round_end_phase():
-		if _game_table != null and is_instance_valid(_game_table) and _game_table.has_method("overlay_new_round"):
-			_game_table.overlay_new_round()
-			_force_sync()
-			return true
+	if _is_round_end_phase():
 		return false
 	if mb.button_index == MOUSE_BUTTON_RIGHT:
 		if _hud_bar != null and _hud_bar.visible and _hud_bar.get_global_rect().has_point(mb.position):
@@ -588,6 +629,22 @@ func _handle_mouse_press(mb: InputEventMouseButton) -> bool:
 	if _hud_bar != null and _hud_bar.visible and _hud_bar.get_global_rect().has_point(mb.position):
 		return false
 	_begin_drag_candidate_from_pick(mb.position)
+	if mb.double_click and _drag_candidate_tile_id != -1 and _drag_candidate_slot != -1:
+		var dbl_tid: int = _drag_candidate_tile_id
+		var from_world: Vector3 = _rack_slot_world_snap(_drag_candidate_slot, TILE_D * 0.8)
+		_clear_drag_state()
+		if _game_table != null and is_instance_valid(_game_table):
+			var discard_res: Dictionary = _game_table.overlay_discard_tile(dbl_tid)
+			if bool(discard_res.get("ok", false)):
+				_last_selected_tile_id = -1
+				_play_sfx(SFX_DISCARD)
+				var to_world: Vector3 = _table_local_to_world(_table_local_discard_points[0], TILE_D * 0.9 + 0.005) if not _table_local_discard_points.is_empty() else from_world
+				_spawn_tile_transfer_ghost(dbl_tid, from_world, to_world)
+				_trigger_snap_feedback(dbl_tid, to_world)
+				_force_sync()
+			else:
+				_trigger_invalid_feedback(dbl_tid, mb.position)
+		return true
 	var table_pos: Vector2 = _screen_to_table_local_for_tap(mb.position)
 	if _drag_candidate_tile_id != -1 or _drag_candidate_meld_index != -1:
 		if _is_turn_draw_tap_zone(mb.position, table_pos):
@@ -618,8 +675,8 @@ func _configure_environment() -> void:
 	env.background_color = Color(0.12, 0.07, 0.045, 1.0)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.96, 0.94, 0.92, 1.0)
-	env.ambient_light_energy = 0.88
-	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.ambient_light_energy = 0.42
+	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	VISUAL_QUALITY_SCRIPT.apply_to_environment(env, _visual_settings)
 	_world_environment = env
 	_apply_runtime_visual_toggles()
@@ -702,25 +759,13 @@ func _apply_pbr_textures(mat: StandardMaterial3D, albedo: Texture2D, normal_tex:
 
 
 func _make_tabletop_sky() -> Sky:
-	var hdri: Texture2D = _load_texture_first([
-		_asset_path(CC0_HDRI_PRIMARY_ID),
-		_asset_path(CC0_HDRI_SECONDARY_ID),
-	])
-	if hdri != null:
-		var hdri_sky := Sky.new()
-		var pan := PanoramaSkyMaterial.new()
-		pan.panorama = hdri
-		pan.energy_multiplier = 0.58
-		hdri_sky.sky_material = pan
-		return hdri_sky
 	var sky := Sky.new()
 	var mat := ProceduralSkyMaterial.new()
-	mat.sky_top_color = Color(0.08, 0.05, 0.04, 1.0)
-	mat.sky_horizon_color = Color(0.14, 0.09, 0.06, 1.0)
-	mat.ground_bottom_color = Color(0.04, 0.025, 0.018, 1.0)
-	mat.ground_horizon_color = Color(0.09, 0.06, 0.04, 1.0)
+	mat.sky_top_color = Color("1c100c")
+	mat.sky_horizon_color = Color("32251f")
+	mat.ground_bottom_color = Color("110c0b")
+	mat.ground_horizon_color = Color("32251f")
 	mat.sun_angle_max = 0.0
-	mat.sun_curve = 0.02
 	sky.sky_material = mat
 	return sky
 
@@ -731,12 +776,12 @@ func _configure_world() -> void:
 
 	var body_mesh := _table_body.mesh as BoxMesh
 	if body_mesh != null:
-		body_mesh.size = Vector3(TABLE_SIDE, TABLE_HEIGHT, TABLE_SIDE)
+		body_mesh.size = Vector3(TABLE_SIDE * 1.65, TABLE_HEIGHT, TABLE_SIDE)
 	_table_body.position = Vector3(0.0, -TABLE_HEIGHT * 0.5, 0.0)
 
 	var surface_mesh := _table_surface.mesh as QuadMesh
 	if surface_mesh != null:
-		surface_mesh.size = Vector2(FELT_SIDE, FELT_SIDE)
+		surface_mesh.size = Vector2(FELT_SIDE * 1.80, FELT_SIDE)
 	_table_surface.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
 	_table_surface.position = Vector3(0.0, 0.0015, 0.0)
 
@@ -756,7 +801,10 @@ func _configure_world() -> void:
 	_fill_light.light_color = Color(1.0, 0.76, 0.58, 1.0)
 	_fill_light.omni_range = 3.4
 	VISUAL_QUALITY_SCRIPT.apply_to_lights(_key_light, _rim_light, _fill_light, _visual_settings)
-	_create_reflection_probes()
+	_key_light.light_energy = 0.75
+	_rim_light.light_energy = 0.28
+	_fill_light.light_energy = 0.10
+	# Matte surfaces do not need reflection probes.
 
 
 func _create_reflection_probes() -> void:
@@ -783,107 +831,35 @@ func _create_reflection_probes() -> void:
 
 
 func _apply_camera_preset() -> void:
-	if _camera == null:
-		return
-	if CAMERA_PRESETS.is_empty():
-		return
-	_camera_preset_index = clampi(_camera_preset_index, 0, CAMERA_PRESETS.size() - 1)
-	var preset: Dictionary = CAMERA_PRESETS[_camera_preset_index]
-	_camera.fov = float(preset.get("fov", 60.0))
-	_camera.near = float(preset.get("near", 0.03))
-	_camera.far = float(preset.get("far", 20.0))
-	_camera.position = preset.get("pos", Vector3(0.0, 0.80, 0.52)) as Vector3
-	_camera.look_at(preset.get("focus", Vector3(0.0, 0.02, -0.02)) as Vector3, Vector3.UP)
+	if _camera == null: return
+	_camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+	_camera.keep_aspect = Camera3D.KEEP_HEIGHT
+	var view_size := get_viewport().get_visible_rect().size
+	var aspect := view_size.x / maxf(view_size.y, 1.0)
+	_camera.fov = 48.0
+	_camera.near = 0.015
+	_camera.far = 20.0
+	var fit := maxf(1.0, 1.65 / maxf(aspect, 0.6))
+	if _inspection:
+		_camera.position = Vector3(0.0, 1.32 * fit, 0.02)
+		_camera.look_at(Vector3(0.0, 0.015, 0.04), Vector3.UP)
+	else:
+		_camera.position = Vector3(0.0, 0.96 * fit, 0.82 * fit)
+		_camera.look_at(Vector3(0.0, 0.015, 0.14), Vector3.UP)
 
 
 func _configure_materials() -> void:
-	var backdrop_mat := StandardMaterial3D.new()
-	backdrop_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	backdrop_mat.albedo_color = Color(0.17, 0.10, 0.07, 0.94)
-	backdrop_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	backdrop_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_backdrop.set_surface_override_material(0, backdrop_mat)
-
-	var postfx: float = clampf(float(_visual_settings.get("postfx_strength", 0.70)), 0.0, 1.0)
-	var table_wood_albedo_paths: Array[String] = []
-	if _tune_table_wood_albedo_path != "":
-		table_wood_albedo_paths.append(_tune_table_wood_albedo_path)
-	table_wood_albedo_paths.append(_asset_path(CC0_TABLE_WOOD_DIFFUSE_ID))
-	table_wood_albedo_paths.append(_asset_path(WOOD_TEX_ID))
-	var table_wood_albedo: Texture2D = _load_texture_first(table_wood_albedo_paths)
-	var table_wood_normal: Texture2D = _load_texture_first([_asset_path(CC0_TABLE_WOOD_NORMAL_ID)])
-	var table_wood_roughness: Texture2D = _load_texture_first([_asset_path(CC0_TABLE_WOOD_ROUGHNESS_ID)])
-	var rack_wood_albedo_paths: Array[String] = []
-	if _tune_rack_wood_albedo_path != "":
-		rack_wood_albedo_paths.append(_tune_rack_wood_albedo_path)
-	rack_wood_albedo_paths.append(_asset_path(CC0_RACK_WOOD_DIFFUSE_ID))
-	rack_wood_albedo_paths.append(_asset_path(WOOD_TEX_ID))
-	var rack_wood_albedo: Texture2D = _load_texture_first(rack_wood_albedo_paths)
-	var rack_wood_normal: Texture2D = _load_texture_first([_asset_path(CC0_RACK_WOOD_NORMAL_ID)])
-	var rack_wood_roughness: Texture2D = _load_texture_first([_asset_path(CC0_RACK_WOOD_ROUGHNESS_ID)])
-	var felt_albedo_paths: Array[String] = []
-	if _tune_felt_albedo_path != "":
-		felt_albedo_paths.append(_tune_felt_albedo_path)
-	felt_albedo_paths.append(_asset_path(CLOTH_TEX_ID))
-	felt_albedo_paths.append(_asset_path(CC0_FELT_COLOR_ID))
-	var felt_albedo: Texture2D = _load_texture_first(felt_albedo_paths)
-	var felt_normal: Texture2D = null
-	var felt_roughness: Texture2D = _load_texture_first([_asset_path(CC0_FELT_ROUGHNESS_ID)])
-
-	_table_wood_material = StandardMaterial3D.new()
-	_table_wood_material.albedo_color = _tune_table_wood_color
-	_table_wood_material.roughness = lerpf(0.86, 0.72, postfx)
-	_table_wood_material.metallic = 0.0
-	_table_wood_material.metallic_specular = 0.46
-	_apply_pbr_textures(_table_wood_material, table_wood_albedo, table_wood_normal, table_wood_roughness, Vector3(2.2, 2.2, 2.2), true, 0.52)
-	_table_body.set_surface_override_material(0, _table_wood_material)
-
-	var felt_mat := StandardMaterial3D.new()
-	felt_mat.albedo_color = _tune_felt_color
-	felt_mat.roughness = 0.99
-	felt_mat.metallic_specular = 0.09
-	felt_mat.metallic = 0.0
-	felt_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_apply_pbr_textures(felt_mat, felt_albedo, felt_normal, felt_roughness, Vector3(2.1, 2.1, 1.0), false, 0.0)
-	_table_surface.set_surface_override_material(0, felt_mat)
-
-	_rack_wood_material = StandardMaterial3D.new()
-	_rack_wood_material.albedo_color = _tune_rack_color
-	_rack_wood_material.roughness = lerpf(0.80, 0.68, postfx)
-	_rack_wood_material.metallic = 0.0
-	_rack_wood_material.metallic_specular = 0.40
-	_apply_pbr_textures(_rack_wood_material, rack_wood_albedo, rack_wood_normal, rack_wood_roughness, Vector3(2.8, 2.8, 2.8), true, 0.58)
-
-	_opponent_rack_material = _rack_wood_material.duplicate() as StandardMaterial3D
-	if _opponent_rack_material == null:
-		_opponent_rack_material = StandardMaterial3D.new()
-		_opponent_rack_material.albedo_color = Color(0.48, 0.36, 0.25)
-		_opponent_rack_material.roughness = 0.76
-		_opponent_rack_material.metallic = 0.0
-		_opponent_rack_material.metallic_specular = 0.34
-		_apply_pbr_textures(_opponent_rack_material, rack_wood_albedo, rack_wood_normal, rack_wood_roughness, Vector3(2.8, 2.8, 2.8), true, 0.30)
-	_opponent_rack_material.roughness = maxf(_opponent_rack_material.roughness, 0.86)
-	_opponent_rack_material.metallic_specular = minf(_opponent_rack_material.metallic_specular, 0.16)
-	_opponent_rack_material.normal_scale = 0.30
-	_opponent_rack_material.albedo_color = _tune_opponent_rack_color
-
-	_tile_face_material = StandardMaterial3D.new()
-	_tile_face_material.albedo_color = _tune_tile_face_color
-	_tile_face_material.roughness = _tune_tile_face_roughness
-	_tile_face_material.metallic = 0.0
-	_tile_face_material.metallic_specular = _tune_tile_face_specular
-	_tile_face_texture = null
-	if USE_TILE_FACE_TEXTURE:
-		_tile_face_texture = load(_asset_path(TILE_FACE_TEX_ID)) as Texture2D
-	if _tile_face_texture != null:
-		_tile_face_material.albedo_texture = _tile_face_texture
-		_tile_face_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-
-	_tile_back_material = StandardMaterial3D.new()
-	_tile_back_material.albedo_color = _tune_tile_back_color
-	_tile_back_material.roughness = 0.82
-	_tile_back_material.metallic = 0.0
-	_tile_back_material.metallic_specular = 0.20
+	_backdrop.visible = false
+	_table_body.visible = false
+	_table_surface.visible = false
+	if _material_factory == null:
+		_material_factory = MATERIAL_FACTORY_SCRIPT.create_from_config(_table_config)
+	_table_wood_material = _material_factory.table_wood
+	_rack_wood_material = _material_factory.rack_wood
+	_opponent_rack_material = _material_factory.opponent_rack
+	_tile_face_material = _material_factory.tile_face
+	_tile_back_material = _material_factory.tile_back
+	TABLE_ART.build_table(_world_root, 0.0)
 
 
 func _create_audio_service() -> void:
@@ -899,6 +875,7 @@ func _create_audio_service() -> void:
 			float(_ui_settings.get("sfx_volume", 0.82)),
 			float(_ui_settings.get("music_volume", 0.30))
 		)
+	_audio_controller = AUDIO_CONTROLLER_SCRIPT.new(_audio_service, sound_enabled)
 
 
 func _load_model_assets() -> void:
@@ -1143,7 +1120,6 @@ func _update_tile_tuning_watch(delta: float) -> void:
 		return
 	if current_mtime == _tile_tune_watch_mtime:
 		return
-	_load_tile_tuning_config()
 	_apply_tile_tuning_runtime(true)
 	if _hud_instructions != null:
 		_hud_instructions.text = "Tile tune auto-reloaded"
@@ -1770,13 +1746,157 @@ func _normalize_tile_materials_recursive(node: Node, preserve_numeric_materials:
 
 func _create_world_elements() -> void:
 	_reset_dynamic_world_state()
-	var felt_half: float = FELT_SIDE * 0.5
-	var rack_center: float = TABLE_SIDE * 0.5 - RACK_DEPTH * 0.5 - RACK_GAP_TO_FELT
+	if _table_config == null:
+		_table_config = OKEY_101_TABLE_CONFIG_SCRIPT.create()
+	var felt_half: float = _table_config.felt_half()
+	var rack_center: float = _table_config.rack_center()
 	_create_rack_layout(rack_center)
 	_create_deck_and_draw_pick_area()
 	_create_discard_layout(felt_half)
 	_create_meld_lanes_and_guides(felt_half)
 	_create_draft_container()
+
+	if _tile_drag_visualizer == null or not is_instance_valid(_tile_drag_visualizer):
+		_tile_drag_visualizer = TILE_DRAG_VISUALIZER_SCRIPT.new()
+		_tile_drag_visualizer.name = "TileDragVisualizer"
+		_world_root.add_child(_tile_drag_visualizer)
+
+	if _tile_input_controller == null or not is_instance_valid(_tile_input_controller):
+		_tile_input_controller = TILE_INPUT_CONTROLLER_SCRIPT.new()
+		_tile_input_controller.name = "TileInputController"
+		_tile_input_controller.camera = _camera
+		_tile_input_controller.query_pickable_tile = _on_input_query_pickable_tile
+		_tile_input_controller.evaluate_drop_target = _on_input_evaluate_drop_target
+		add_child(_tile_input_controller)
+
+	if _meld_table_zone == null or not is_instance_valid(_meld_table_zone):
+		_meld_table_zone = MELD_TABLE_ZONE_SCRIPT.new()
+		_meld_table_zone.name = "MeldTableZone"
+		_world_root.add_child(_meld_table_zone)
+
+	if _deck_and_discards == null or not is_instance_valid(_deck_and_discards):
+		_deck_and_discards = DECK_AND_DISCARDS_SCRIPT.new()
+		_deck_and_discards.name = "DeckAndDiscards"
+		_world_root.add_child(_deck_and_discards)
+		_deck_and_discards.configure_layout(felt_half)
+
+	if _rack_view_3d == null or not is_instance_valid(_rack_view_3d):
+		_rack_view_3d = RACK_VIEW_3D_SCRIPT.new()
+		_rack_view_3d.name = "RackAssembly3D"
+		_world_root.add_child(_rack_view_3d)
+	_rack_view_3d.configure_rows(_rack_row0_anchor, _rack_row1_anchor, _rack_row0_tilt_deg, _rack_row1_tilt_deg)
+
+	if _draft_workspace_view_3d == null or not is_instance_valid(_draft_workspace_view_3d):
+		_draft_workspace_view_3d = DRAFT_WORKSPACE_VIEW_3D_SCRIPT.new()
+		_draft_workspace_view_3d.name = "DraftWorkspace3D"
+		_world_root.add_child(_draft_workspace_view_3d)
+	if not _table_local_meld_lanes.is_empty():
+		_draft_workspace_view_3d.configure_lane(_table_local_meld_lanes[0], 24, 12)
+
+	if _table_audio_controller == null or not is_instance_valid(_table_audio_controller):
+		_table_audio_controller = TABLE_AUDIO_CONTROLLER_SCRIPT.new()
+		_table_audio_controller.name = "TableAudioController"
+		_table_audio_controller.sound_enabled = sound_enabled
+		add_child(_table_audio_controller)
+
+	if _rack_focus_navigator == null or not is_instance_valid(_rack_focus_navigator):
+		_rack_focus_navigator = RACK_FOCUS_NAVIGATOR_SCRIPT.new()
+		_rack_focus_navigator.name = "RackFocusNavigator"
+		add_child(_rack_focus_navigator)
+		_rack_focus_navigator.focus_slot_changed.connect(_on_focus_slot_changed)
+		_rack_focus_navigator.virtual_tile_picked.connect(_on_virtual_tile_picked)
+		_rack_focus_navigator.virtual_tile_dropped.connect(_on_virtual_tile_dropped)
+
+func _on_focus_slot_changed(zone: StringName, slot_index: int) -> void:
+	if _table_audio_controller != null and _table_audio_controller.has_method("on_tile_hovered_slot_changed"):
+		_table_audio_controller.on_tile_hovered_slot_changed()
+	if _tile_drag_visualizer == null or not is_instance_valid(_tile_drag_visualizer):
+		return
+	if not _tile_drag_visualizer.has_method("show_focus_reticle"):
+		return
+
+	var world_pos: Vector3 = Vector3.ZERO
+	var rot_deg: Vector3 = Vector3.ZERO
+
+	if zone == &"RACK":
+		world_pos = _rack_slot_world_snap(slot_index, 0.012)
+		var use_top_row: bool = slot_index < 15
+		var row_tilt: float = _rack_row_world_tilt_deg(use_top_row)
+		rot_deg = Vector3(row_tilt, 0.0, 0.0)
+	elif zone == &"DRAFT":
+		if not _table_local_meld_lanes.is_empty():
+			var lane: Rect2 = _table_local_meld_lanes[0]
+			var total_slots: int = _draft_slot_count()
+			var row_slots: int = _draft_row_slots()
+			var cell_center: Vector2 = DRAFT_GRID.slot_to_point(slot_index, lane, total_slots, row_slots)
+			world_pos = _table_local_to_world(cell_center, TILE_D * 0.5 + 0.010)
+			rot_deg = Vector3(-90, 0, 0)
+	elif zone == &"TABLE_MELDS":
+		if _meld_table_zone != null and _meld_table_zone.has_method("get_socket_hits"):
+			var hits = _meld_table_zone.get_socket_hits()
+			if not hits.is_empty():
+				var idx: int = clampi(slot_index, 0, hits.size() - 1)
+				world_pos = hits[idx].get("world", Vector3.ZERO) as Vector3
+				rot_deg = Vector3(-90, 0, 0)
+
+	if world_pos != Vector3.ZERO:
+		_tile_drag_visualizer.show_focus_reticle(world_pos, rot_deg)
+	else:
+		_tile_drag_visualizer.hide_focus_reticle()
+
+func _on_virtual_tile_picked(zone: StringName, slot_index: int) -> void:
+	if _table_audio_controller != null and _table_audio_controller.has_method("on_tile_picked"):
+		_table_audio_controller.on_tile_picked()
+	if _game_table == null:
+		return
+	if zone == &"RACK":
+		var tile_id: int = _game_table.get_rack_tile_id_at(slot_index) if _game_table.has_method("get_rack_tile_id_at") else -1
+		if tile_id >= 0:
+			_last_selected_tile_id = tile_id
+			if _game_table.has_method("select_rack_tile"):
+				_game_table.select_rack_tile(tile_id)
+			_force_sync()
+	elif zone == &"DRAFT":
+		var draft_tile_id: int = _game_table.get_draft_tile_id_at(slot_index) if _game_table.has_method("get_draft_tile_id_at") else -1
+		if draft_tile_id >= 0:
+			_last_selected_tile_id = draft_tile_id
+			_force_sync()
+
+func _on_virtual_tile_dropped(target_zone: StringName, target_slot: int) -> void:
+	if _rack_focus_navigator == null or _game_table == null:
+		return
+	var origin_zone: StringName = _rack_focus_navigator.held_tile_origin_zone
+	var origin_slot: int = _rack_focus_navigator.held_tile_origin_slot
+	if origin_slot == -1:
+		return
+
+	if target_zone == &"RACK" or target_zone == &"DRAFT":
+		var res: Dictionary = _game_table.request_move_tile(origin_zone, origin_slot, target_zone, target_slot)
+		if bool(res.get("ok", false)):
+			if _table_audio_controller != null and _table_audio_controller.has_method("on_tile_snapped_to_rack"):
+				_table_audio_controller.on_tile_snapped_to_rack()
+			_force_sync()
+		else:
+			if _table_audio_controller != null and _table_audio_controller.has_method("on_invalid_action"):
+				_table_audio_controller.on_invalid_action()
+			if _play_hud != null and _play_hud.has_method("show_feedback"):
+				_play_hud.show_feedback(str(res.get("reason", "Cannot move tile")))
+	elif target_zone == &"DECK_DISCARD":
+		var tile_id: int = _last_selected_tile_id
+		if tile_id >= 0:
+			var res: Dictionary = _game_table.request_discard_tile(tile_id)
+			if bool(res.get("ok", false)):
+				_last_selected_tile_id = -1
+				if _table_audio_controller != null and _table_audio_controller.has_method("on_tile_discarded"):
+					_table_audio_controller.on_tile_discarded()
+				_force_sync()
+			else:
+				if _table_audio_controller != null and _table_audio_controller.has_method("on_invalid_action"):
+					_table_audio_controller.on_invalid_action()
+				if _play_hud != null and _play_hud.has_method("show_feedback"):
+					_play_hud.show_feedback(str(res.get("reason", "Cannot discard tile")))
+
+
 
 
 func _reset_dynamic_world_state() -> void:
@@ -1810,12 +1930,27 @@ func _reset_dynamic_world_state() -> void:
 
 
 func _create_rack_layout(rack_center: float) -> void:
-	var rack_defs: Array[Dictionary] = [
-		{"player": 0, "pos": Vector2(0.0, rack_center), "rot_y": 0.0, "name": "P0"},
-		{"player": 1, "pos": Vector2(rack_center, 0.0), "rot_y": 90.0, "name": "P1"},
-		{"player": 2, "pos": Vector2(0.0, -rack_center), "rot_y": 180.0, "name": "P2"},
-		{"player": 3, "pos": Vector2(-rack_center, 0.0), "rot_y": -90.0, "name": "P3"},
-	]
+	if _table_config == null:
+		_table_config = OKEY_101_TABLE_CONFIG_SCRIPT.create()
+	var rack_defs: Array[Dictionary] = []
+	if not _table_config.seats.is_empty():
+		for seat in _table_config.seats:
+			rack_defs.append({
+				"player": seat.seat_index,
+				"pos": seat.rack_position,
+				"rot_y": seat.rotation_y_deg,
+				"name": seat.label,
+				"scale": seat.rack_scale,
+				"tilt_x": seat.rack_tilt_x_deg,
+				"is_local": seat.is_local_player,
+			})
+	else:
+		rack_defs = [
+			{"player": 0, "pos": Vector2(0.0, rack_center), "rot_y": 0.0, "name": "P0", "scale": Vector3.ONE, "tilt_x": 0.0, "is_local": true},
+			{"player": 1, "pos": Vector2(0.475, 0.0), "rot_y": 90.0, "name": "P1", "scale": Vector3.ONE * 0.48, "tilt_x": 0.0, "is_local": false},
+			{"player": 2, "pos": Vector2(0.0, -rack_center), "rot_y": 180.0, "name": "P2", "scale": Vector3.ONE * 0.48, "tilt_x": 0.0, "is_local": false},
+			{"player": 3, "pos": Vector2(-0.475, 0.0), "rot_y": -90.0, "name": "P3", "scale": Vector3.ONE * 0.48, "tilt_x": 0.0, "is_local": false},
+		]
 	for cfg in rack_defs:
 		var player_i: int = int(cfg["player"])
 		var rack: Node3D = _create_3d_rack()
@@ -1823,17 +1958,21 @@ func _create_rack_layout(rack_center: float) -> void:
 		_dynamic_root.add_child(rack)
 		rack.position = _table_local_to_world(cfg["pos"] as Vector2, 0.0)
 		var rack_rot := Vector3(0.0, cfg["rot_y"] as float, 0.0)
-		if player_i == 0:
+		var is_local: bool = bool(cfg.get("is_local", player_i == 0))
+		if is_local:
 			# Local-only readability tilt. Opponent racks remain unchanged.
-			rack_rot.x = LOCAL_RACK_SELF_VIEW_TILT_DEG
+			rack_rot.x = LOCAL_RACK_SELF_VIEW_TILT_DEG + float(cfg.get("tilt_x", 0.0))
+			rack.scale = cfg.get("scale", Vector3.ONE)
+		else:
+			rack.scale = cfg.get("scale", Vector3.ONE * 0.48)
 		rack.rotation_degrees = rack_rot
 		_world_racks.append(rack)
 		var visual := rack.get_node_or_null("Visual") as Node3D
-		if player_i == 0 and visual != null and _rack_wood_material != null:
-			_apply_material_recursive(visual, _rack_wood_material)
-		elif player_i != 0 and _opponent_rack_material != null and visual != null:
-			visual.scale = Vector3(1.0, OPPONENT_RACK_HEIGHT_SCALE, OPPONENT_RACK_DEPTH_SCALE)
-			_apply_material_recursive(visual, _opponent_rack_material)
+		if is_local and visual != null and _rack_wood_material != null:
+			pass
+		elif not is_local and _opponent_rack_material != null and visual != null:
+			rack.scale = cfg.get("scale", Vector3.ONE * 0.48)
+
 
 		var tile_container := Node3D.new()
 		tile_container.name = "TileContainer"
@@ -1841,7 +1980,7 @@ func _create_rack_layout(rack_center: float) -> void:
 		_world_rack_tile_containers.append(tile_container)
 
 		var label := _create_rack_back_label(str(cfg["name"]))
-		if player_i == 0:
+		if is_local:
 			label.visible = false
 		if visual != null:
 			visual.add_child(label)
@@ -1852,7 +1991,7 @@ func _create_rack_layout(rack_center: float) -> void:
 
 
 func _create_deck_and_draw_pick_area() -> void:
-	_draw_hotspot_center = Vector2.ZERO
+	_draw_hotspot_center = _table_config.deck_position if _table_config != null else Vector2(-0.12, -0.27)
 	_deck_pile_container = Node3D.new()
 	_deck_pile_container.name = "DeckPile"
 	_deck_pile_container.position = _table_local_to_world(_draw_hotspot_center, 0.0015)
@@ -1869,15 +2008,19 @@ func _create_deck_and_draw_pick_area() -> void:
 
 
 func _create_discard_layout(felt_half: float) -> void:
-	var corner: float = felt_half - DISCARD_EDGE_INSET
-	_table_local_discard_points = [
-		Vector2(corner, corner),     # P0 -> southeast
-		Vector2(corner, -corner),    # P1 -> northeast
-		Vector2(-corner, -corner),   # P2 -> northwest
-		Vector2(-corner, corner),    # P3 -> southwest
-	]
+	_table_local_discard_points = []
+	if _table_config != null and not _table_config.seats.is_empty():
+		for seat in _table_config.seats:
+			_table_local_discard_points.append(seat.discard_position)
+	else:
+		_table_local_discard_points = [
+			Vector2(0.40, 0.08),     # P0 -> southeast
+			Vector2(0.40, -0.26),    # P1 -> northeast
+			Vector2(-0.40, -0.26),   # P2 -> northwest
+			Vector2(-0.40, 0.08),    # P3 -> southwest
+		]
 
-	for p in range(4):
+	for p in range(_table_local_discard_points.size()):
 		var pile := Node3D.new()
 		pile.name = "Discard%d" % p
 		pile.position = _table_local_to_world(_table_local_discard_points[p], 0.002)
@@ -1904,24 +2047,38 @@ func _create_meld_lanes_and_guides(felt_half: float) -> void:
 	_table_local_meld_lanes = []
 	var lane_h: float = MELD_LANE_DEPTH
 	var lane_w: float = MELD_LANE_LENGTH
-	var local_w: float = minf(LOCAL_MELD_AREA_WIDTH, FELT_SIDE * 0.42)
-	var local_h: float = minf(LOCAL_MELD_AREA_DEPTH, FELT_SIDE * 0.28)
-	_table_local_meld_lanes.append(Rect2(
-		Vector2(-local_w * 0.5, felt_half - MELD_LANE_INSET_FROM_EDGE - local_h),
-		Vector2(local_w, local_h)
-	)) # P0
-	_table_local_meld_lanes.append(Rect2(
-		Vector2(felt_half - MELD_LANE_INSET_FROM_EDGE - lane_h, -lane_w * 0.5),
-		Vector2(lane_h, lane_w)
-	)) # P1
-	_table_local_meld_lanes.append(Rect2(
-		Vector2(-lane_w * 0.5, -felt_half + MELD_LANE_INSET_FROM_EDGE),
-		Vector2(lane_w, lane_h)
-	)) # P2
-	_table_local_meld_lanes.append(Rect2(
-		Vector2(-felt_half + MELD_LANE_INSET_FROM_EDGE, -lane_w * 0.5),
-		Vector2(lane_h, lane_w)
-	)) # P3
+	var local_w: float = 0.66
+	var local_h: float = 0.15
+
+	if _table_config != null and not _table_config.seats.is_empty():
+		for seat in _table_config.seats:
+			if seat.meld_lane.size != Vector2.ZERO:
+				_table_local_meld_lanes.append(seat.meld_lane)
+			elif seat.seat_index == 0:
+				_table_local_meld_lanes.append(Rect2(Vector2(-local_w * 0.5, 0.11), Vector2(local_w, local_h)))
+			elif seat.seat_index == 1:
+				_table_local_meld_lanes.append(Rect2(Vector2(felt_half - MELD_LANE_INSET_FROM_EDGE - lane_h, -lane_w * 0.5), Vector2(lane_h, lane_w)))
+			elif seat.seat_index == 2:
+				_table_local_meld_lanes.append(Rect2(Vector2(-lane_w * 0.5, -felt_half + MELD_LANE_INSET_FROM_EDGE), Vector2(lane_w, lane_h)))
+			elif seat.seat_index == 3:
+				_table_local_meld_lanes.append(Rect2(Vector2(-felt_half + MELD_LANE_INSET_FROM_EDGE, -lane_w * 0.5), Vector2(lane_h, lane_w)))
+	else:
+		_table_local_meld_lanes.append(Rect2(
+			Vector2(-local_w * 0.5, 0.11),
+			Vector2(local_w, local_h)
+		)) # P0
+		_table_local_meld_lanes.append(Rect2(
+			Vector2(felt_half - MELD_LANE_INSET_FROM_EDGE - lane_h, -lane_w * 0.5),
+			Vector2(lane_h, lane_w)
+		)) # P1
+		_table_local_meld_lanes.append(Rect2(
+			Vector2(-lane_w * 0.5, -felt_half + MELD_LANE_INSET_FROM_EDGE),
+			Vector2(lane_w, lane_h)
+		)) # P2
+		_table_local_meld_lanes.append(Rect2(
+			Vector2(-felt_half + MELD_LANE_INSET_FROM_EDGE, -lane_w * 0.5),
+			Vector2(lane_h, lane_w)
+		)) # P3
 
 	for i in range(_table_local_meld_lanes.size()):
 		var lane_rect: Rect2 = _table_local_meld_lanes[i]
@@ -1940,11 +2097,12 @@ func _create_meld_lanes_and_guides(felt_half: float) -> void:
 		m_pick.collision_mask = 0
 		_meld_pick_areas.append(m_pick)
 
-	var local_meld_guide := _create_dotted_meld_area_guide(_table_local_meld_lanes[0].size, Color(0.72, 0.94, 0.92, 0.62))
+	var local_meld_guide := _create_dotted_meld_area_guide(_table_local_meld_lanes[0].size, Color(0.72, 0.94, 0.92, 0.0))
 	local_meld_guide.name = "LocalMeldGuide"
 	local_meld_guide.position = _table_local_to_world(_table_local_meld_lanes[0].get_center(), 0.003)
-	_local_meld_guide_alpha = MELD_GUIDE_IDLE_ALPHA
-	_set_meld_guide_alpha(local_meld_guide, _local_meld_guide_alpha)
+	local_meld_guide.visible = false
+	_local_meld_guide_alpha = 0.0
+	_set_meld_guide_alpha(local_meld_guide, 0.0)
 	_dynamic_root.add_child(local_meld_guide)
 	_meld_guides.append(local_meld_guide)
 	_local_meld_guide = local_meld_guide
@@ -1987,37 +2145,9 @@ func _create_opponent_side_rim_lights(rack_center: float) -> void:
 
 func _create_3d_rack() -> Node3D:
 	var rack := Node3D.new()
-	rack.name = "Rack3D"
-	var visual_root := Node3D.new()
-	visual_root.name = "Visual"
-	rack.add_child(visual_root)
-
-	if _rack_model_scene != null:
-		var rack_model := _instantiate_scaled_rack_model(
-			_rack_model_scene,
-			RACK_MODEL_SIZE,
-			_rack_wood_material if FORCE_RACK_MODEL_WOOD_MATERIAL else null,
-			_rack_model_pre_rot_deg,
-			true
-		)
-		if rack_model != null:
-			rack_model.name = "Model"
-			visual_root.add_child(rack_model)
-			if USE_AUTO_RACK_ROW_ANCHORS:
-				_try_capture_rack_row_anchors(rack_model)
-			return rack
-
-	# Fallback procedural rack
-	var half_len: float = RACK_LEN * 0.5
-	var half_depth: float = RACK_DEPTH * 0.5
-	_add_rack_piece(visual_root, Vector3(RACK_LEN, 0.010, RACK_DEPTH), Vector3(0.0, 0.005, 0.0), Vector3.ZERO)
-	_add_rack_piece(visual_root, Vector3(RACK_LEN, 0.060, 0.012), Vector3(0.0, 0.040, -half_depth + 0.006), Vector3.ZERO)
-	_add_rack_piece(visual_root, Vector3(RACK_LEN, 0.018, 0.010), Vector3(0.0, 0.019, half_depth - 0.005), Vector3.ZERO)
-	_add_rack_piece(visual_root, Vector3(RACK_LEN - 0.040, 0.012, 0.010), Vector3(0.0, 0.026, -0.010), Vector3.ZERO)
-	_add_rack_piece(visual_root, Vector3(RACK_LEN - 0.030, 0.008, RACK_DEPTH * 0.48), Vector3(0.0, 0.020, -0.020), Vector3(-12.0, 0.0, 0.0))
-	_add_rack_piece(visual_root, Vector3(RACK_LEN - 0.030, 0.008, RACK_DEPTH * 0.40), Vector3(0.0, 0.014, 0.020), Vector3(-8.0, 0.0, 0.0))
-	_add_rack_piece(visual_root, Vector3(0.010, 0.055, RACK_DEPTH), Vector3(-half_len + 0.005, 0.032, 0.0), Vector3.ZERO)
-	_add_rack_piece(visual_root, Vector3(0.010, 0.055, RACK_DEPTH), Vector3(half_len - 0.005, 0.032, 0.0), Vector3.ZERO)
+	var visual := TABLE_ART.build_rack(RACK_LEN, RACK_HEIGHT, RACK_DEPTH)
+	visual.name = "Visual"
+	rack.add_child(visual)
 	return rack
 
 
@@ -2052,48 +2182,9 @@ func _create_rack_back_label(text: String) -> Label3D:
 func _create_tile_face_up(tile_data, standing: bool = true) -> Node3D:
 	var root := Node3D.new()
 	root.name = "TileFaceUp"
-	var body: Node3D = _create_tile_body_node(standing, true, tile_data)
-	root.add_child(body)
-	if body.get_child_count() > 0 and body.get_child(0).name.begins_with("TileTpl_"):
-		if _tune_raw_library_tiles:
-			return root
-		if _tune_readability_panel_enabled:
-			var panel_alpha: float = _tune_readability_panel_alpha_standing if standing else _tune_readability_panel_alpha_flat
-			if panel_alpha > 0.0:
-				_add_tile_readability_overlay(root, standing, panel_alpha, _tune_readability_panel_color)
-		if _tune_force_number_labels and tile_data != null:
-			var txt_c: Color = _number_tint_for_color(int(tile_data.color))
-			var out_c: Color = Color(0.0, 0.0, 0.0, _tune_label_outline_alpha)
-			_attach_tile_number_label(
-				root,
-				tile_data,
-				standing,
-				Color(txt_c.r, txt_c.g, txt_c.b, _tune_label_text_alpha),
-				out_c
-			)
-		return root
-
-	var col: int = int(tile_data.color) if tile_data != null else 0
-	var strip_col: Color = TILE_COLOR_MAP.get(col, Color.WHITE)
-	var strip := MeshInstance3D.new()
-	var strip_mesh := BoxMesh.new()
-	var strip_mat := StandardMaterial3D.new()
-	strip_mat.albedo_color = strip_col
-	strip_mat.roughness = 0.62
-	strip_mat.metallic = 0.0
-	if standing:
-		strip_mesh.size = Vector3(TILE_W * 0.90, 0.003, TILE_D + 0.001)
-		strip.position = Vector3(0.0, -TILE_H * 0.50 + 0.006, 0.0)
-	else:
-		strip_mesh.size = Vector3(TILE_W * 0.90, TILE_D + 0.001, 0.003)
-		strip.position = Vector3(0.0, TILE_D * 0.50 + 0.0005, TILE_H * 0.36)
-	strip.mesh = strip_mesh
-	strip.set_surface_override_material(0, strip_mat)
-	root.add_child(strip)
-
+	root.add_child(_create_tile_body_node(standing, true, tile_data))
 	if tile_data != null:
-		_attach_tile_number_label(root, tile_data, standing, strip_col, Color(0.0, 0.0, 0.0, 0.35))
-
+		_attach_tile_number_label(root, tile_data, standing, _number_tint_for_color(int(tile_data.color)), Color.TRANSPARENT)
 	return root
 
 
@@ -2110,23 +2201,76 @@ func _attach_tile_number_label(root: Node3D, tile_data, standing: bool, text_col
 		return
 	var lbl := Label3D.new()
 	lbl.text = str(int(tile_data.number))
+	var pip_color: Color = text_color
 	if int(tile_data.kind) != 0:
-		lbl.text = "*" + lbl.text
-	lbl.font_size = _tune_label_font_size_standing if standing else _tune_label_font_size_flat
-	lbl.pixel_size = _tune_label_pixel_size_standing if standing else _tune_label_pixel_size_flat
+		lbl.text = "★"
+		text_color = Color("#d99b26")
+		pip_color = Color("#c84b31")
+		outline_color = Color(0.12, 0.08, 0.02, 0.85)
+	var number_font := SystemFont.new()
+	number_font.font_names = PackedStringArray(["Arial"])
+	number_font.font_weight = 700
+	lbl.font = number_font
+	lbl.font_size = 64
+	lbl.pixel_size = 0.00043
 	lbl.modulate = text_color
 	lbl.outline_modulate = outline_color
-	lbl.outline_size = _tune_label_outline_size_standing if standing else _tune_label_outline_size_flat
+	lbl.outline_size = 2 if int(tile_data.kind) != 0 else 0
+	lbl.shaded = false
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.no_depth_test = not standing
+	lbl.no_depth_test = false
 	lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	lbl.double_sided = true
 	if standing:
-		lbl.position = Vector3(0.0, TILE_H * 0.23, TILE_D * 0.50 + 0.0012)
+		lbl.position = Vector3(0.0, 0.0105, TILE_D * 0.50 + 0.0007)
 	else:
-		lbl.position = Vector3(0.0, TILE_D * 0.50 + 0.0042, 0.0)
+		lbl.position = Vector3(0.0, TILE_D * 0.50 + 0.0042, -0.010)
 		lbl.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
 	root.add_child(lbl)
+
+	var pip := Label3D.new()
+	pip.name = "TilePip"
+	pip.text = "●"
+	pip.font = number_font
+	pip.font_size = 38
+	pip.pixel_size = 0.00040
+	pip.modulate = pip_color
+	pip.outline_modulate = Color(0.22, 0.16, 0.10, 0.35)
+	pip.outline_size = 2
+	pip.shaded = false
+	pip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pip.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	pip.no_depth_test = false
+	pip.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	pip.double_sided = true
+	if standing:
+		pip.position = Vector3(0.0, -0.0130, TILE_D * 0.50 + 0.0007)
+	else:
+		pip.position = Vector3(0.0, TILE_D * 0.50 + 0.0042, 0.0145)
+		pip.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	root.add_child(pip)
+
+
+func _add_tile_valid_meld_indicator(tile_root: Node3D, standing: bool) -> void:
+	if tile_root == null:
+		return
+	var bar := MeshInstance3D.new()
+	bar.name = "ValidMeldBar"
+	var quad := QuadMesh.new()
+	quad.size = Vector2(TILE_W * 0.78, 0.0045)
+	bar.mesh = quad
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.16, 0.78, 0.46, 0.92)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	bar.set_surface_override_material(0, mat)
+	if standing:
+		bar.position = Vector3(0.0, -TILE_H * 0.42, TILE_D * 0.50 + 0.0012)
+	else:
+		bar.position = Vector3(0.0, TILE_D * 0.50 + 0.0040, TILE_H * 0.42)
+		bar.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	tile_root.add_child(bar)
 
 
 func _add_tile_readability_overlay(tile_root: Node3D, standing: bool, alpha: float = 0.08, tint: Color = Color(1.0, 1.0, 1.0, 1.0)) -> void:
@@ -2171,30 +2315,8 @@ func _add_tile_hue_overlay(tile_root: Node3D, standing: bool, color: Color = Col
 	tile_root.add_child(glow)
 
 
-func _create_tile_body_node(standing: bool, face_up: bool, tile_data) -> Node3D:
-	var target: Vector3 = Vector3(TILE_W, TILE_H, TILE_D) if standing else Vector3(TILE_W, TILE_D, TILE_H)
-	var pre_rot: Vector3 = Vector3(90.0, 0.0, 0.0) if standing else Vector3.ZERO
-	if face_up:
-		var tpl: Node3D = _instantiate_tileset_tile(tile_data, target, pre_rot)
-		if tpl != null:
-			return tpl
-	else:
-		var tpl_back: Node3D = _instantiate_tileset_back_tile(target, pre_rot)
-		if tpl_back != null:
-			return tpl_back
-	var mat: Material = _tile_face_material if face_up else _tile_back_material
-	if _tile_model_scene != null:
-		var model := _instantiate_scaled_model(_tile_model_scene, target, mat, pre_rot, false)
-		if model != null:
-			return model
-	var body := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = target
-	body.mesh = box
-	body.set_surface_override_material(0, mat)
-	var fallback := Node3D.new()
-	fallback.add_child(body)
-	return fallback
+func _create_tile_body_node(standing: bool, face_up: bool, _tile_data) -> Node3D:
+	return TABLE_ART.build_tile(standing, face_up)
 
 
 func _instantiate_scaled_model(scene: PackedScene, target_size: Vector3, override_material: Material, pre_rotation_deg: Vector3 = Vector3.ZERO, floor_align: bool = false) -> Node3D:
@@ -2823,6 +2945,8 @@ func _sync_world_racks() -> void:
 			face_down_pruned = true
 	if face_down_pruned:
 		_last_world_rack_hashes[0] = -1
+	if _drag_candidate_tile_id != -1 and not by_id.has(_drag_candidate_tile_id):
+		_clear_drag_state()
 	if _last_selected_tile_id != -1 and not by_id.has(_last_selected_tile_id):
 		_last_selected_tile_id = -1
 	if _required_tile_hue_id != -1 and not by_id.has(_required_tile_hue_id):
@@ -2848,16 +2972,23 @@ func _sync_world_racks() -> void:
 		var pi: int = oi + 1
 		if pi >= _world_rack_tile_containers.size():
 			continue
-		var opp_hash: int = 0
+		var opp_hash: int = state.players[pi].hand.size() if pi < state.players.size() else 0
 		if pi < state.players.size():
 			var p = state.players[pi]
-			opp_hash = int(p.has_opened) * 17 + int(p.opened_by_pairs) * 31 + (1 if state.current_player_index == pi else 0) * 131
+			opp_hash += int(p.has_opened) * 17 + int(p.opened_by_pairs) * 31 + (1 if state.current_player_index == pi else 0) * 131
 		if opp_hash == _last_world_rack_hashes[pi]:
 			continue
 		_last_world_rack_hashes[pi] = opp_hash
 		var opp_container: Node3D = _world_rack_tile_containers[pi]
 		for child in opp_container.get_children():
 			child.queue_free()
+		var count: int = mini(15, state.players[pi].hand.size()) if pi < state.players.size() else 0
+		for slot in range(count):
+			var tile := _create_tile_face_down(true)
+			tile.position = Vector3(-0.364 + slot * 0.052, RACK_ROW0_TILE_Y, RACK_ROW0_TILE_Z)
+			tile.rotation_degrees.x = RACK_ROW_TOP_TILT_DEG
+			tile.scale = Vector3(_tune_base_scale, _tune_base_scale, _tune_base_scale)
+			opp_container.add_child(tile)
 
 
 func _render_local_rack_tiles(rack_slots: Array, by_id: Dictionary) -> void:
@@ -2867,10 +2998,16 @@ func _render_local_rack_tiles(rack_slots: Array, by_id: Dictionary) -> void:
 	_local_rack_tile_hits.clear()
 	_local_rack_slot_hits.clear()
 	var hidden_drag_tid: int = _drag_candidate_tile_id if _drag_active else -1
+	var valid_set: Dictionary = {}
+	if _game_table != null and _game_table.has_method("get_draft_preview"):
+		var preview: Dictionary = _game_table.get_draft_preview()
+		var valid_ids: Array = preview.get("valid_tile_ids", [])
+		for v_id in valid_ids:
+			valid_set[int(v_id)] = true
 
 	var row0_slots: int = mini(15, rack_slots.size())
 	var row1_slots: int = maxi(0, mini(30, rack_slots.size()) - 15)
-	var usable_len: float = RACK_LEN - 0.080
+	var usable_len: float = RACK_LEN - 0.020
 	var spacing0: float = usable_len / 15.0
 	var start0: float = -usable_len * 0.5 + spacing0 * 0.5
 	var row0_anchor: Vector3 = _rack_row0_anchor_tuned()
@@ -2914,6 +3051,8 @@ func _render_local_rack_tiles(rack_slots: Array, by_id: Dictionary) -> void:
 			tile.scale = Vector3(_tune_required_scale, _tune_required_scale, _tune_required_scale)
 		if is_required_hue:
 			_add_tile_hue_overlay(tile, true)
+		elif not face_down and valid_set.has(tid):
+			_add_tile_valid_meld_indicator(tile, true)
 		_create_pick_box(
 			tile,
 			"TilePick",
@@ -2967,6 +3106,8 @@ func _render_local_rack_tiles(rack_slots: Array, by_id: Dictionary) -> void:
 			tile.scale = Vector3(_tune_required_scale, _tune_required_scale, _tune_required_scale)
 		if is_required_hue:
 			_add_tile_hue_overlay(tile, true)
+		elif not face_down and valid_set.has(tid):
+			_add_tile_valid_meld_indicator(tile, true)
 		_create_pick_box(
 			tile,
 			"TilePick",
@@ -3034,6 +3175,7 @@ func _sync_world_draft_tiles() -> void:
 		var z: float = cell_center.y
 		var tile := _create_tile_face_up(by_id[tid], false)
 		tile.position = _table_local_to_world(Vector2(x, z), TILE_D * 0.5 + 0.0007)
+		tile.scale = Vector3.ONE * 0.97
 		_create_pick_box(
 			tile,
 			"DraftTilePick",
@@ -3062,76 +3204,29 @@ func _compute_table_melds_hash(table_melds: Array) -> int:
 	return h
 
 
-func _render_committed_table_melds(table_melds: Array, hide_local_owner: bool) -> void:
-	if table_melds.is_empty() or _table_local_meld_lanes.is_empty():
-		_table_meld_base_centers.clear()
-		_table_meld_drag_offsets.clear()
-		return
+func _render_committed_table_melds(table_melds: Array, _hide_local_owner: bool) -> void:
 	_table_meld_base_centers.clear()
-	var seen_melds: Dictionary = {}
-	var lane_rot_y: Array[float] = [0.0, 90.0, 180.0, -90.0]
-	var tile_pitch_major: float = TILE_W + 0.004
-	var meld_gap_major: float = 0.014
-	var row_step_minor: float = TILE_H + 0.010
-	for owner_idx in range(mini(4, _table_local_meld_lanes.size())):
-		if hide_local_owner and owner_idx == 0:
-			continue
-		var lane: Rect2 = _table_local_meld_lanes[owner_idx]
-		var horizontal_lane: bool = lane.size.x >= lane.size.y
-		var major_start: float = (lane.position.x if horizontal_lane else lane.position.y) + 0.010
-		var major_end: float = (lane.position.x + lane.size.x if horizontal_lane else lane.position.y + lane.size.y) - 0.010
-		var minor_start: float = (lane.position.y if horizontal_lane else lane.position.x) + 0.006
-		var minor_end: float = (lane.position.y + lane.size.y if horizontal_lane else lane.position.x + lane.size.x) - (TILE_H + 0.004)
-		var cursor_major: float = major_start
-		var cursor_minor: float = minor_start
-		for meld_idx in range(table_melds.size()):
-			var meld = table_melds[meld_idx]
-			if meld == null or int(meld.owner_index) != owner_idx:
-				continue
-			seen_melds[meld_idx] = true
-			var meld_tiles: Array = meld.tiles_data
-			if meld_tiles.is_empty():
-				continue
-			var meld_span: float = float(meld_tiles.size()) * tile_pitch_major - 0.004
-			if cursor_major + meld_span > major_end and cursor_major > major_start + 0.0001:
-				cursor_major = major_start
-				cursor_minor += row_step_minor
-			if cursor_minor > minor_end:
-				break
-			var base_center: Vector2 = Vector2(
-				(cursor_major + meld_span * 0.5) if horizontal_lane else (cursor_minor + TILE_H * 0.5),
-				(cursor_minor + TILE_H * 0.5) if horizontal_lane else (cursor_major + meld_span * 0.5)
-			)
-			_table_meld_base_centers[meld_idx] = base_center
-			var meld_offset: Vector2 = _table_meld_drag_offsets.get(meld_idx, Vector2.ZERO) as Vector2
-			for i in range(meld_tiles.size()):
-				var tile_data = meld_tiles[i]
-				var major_center: float = cursor_major + TILE_W * 0.5 + float(i) * tile_pitch_major
-				var minor_center: float = cursor_minor + TILE_H * 0.5
-				var x: float = major_center if horizontal_lane else minor_center
-				var z: float = minor_center if horizontal_lane else major_center
-				var tile := _create_tile_face_up(tile_data, false)
-				tile.position = _table_local_to_world(Vector2(x, z) + meld_offset, TILE_D * 0.5 + 0.0008)
-				tile.rotation_degrees.y = lane_rot_y[owner_idx]
-				_create_pick_box(
-					tile,
-					"MeldTilePick",
-					STAGE_TILE_PICK_SIZE,
-					Vector3(0.0, 0.0, 0.0),
-					Vector3.ZERO,
-					{"kind": "table_meld", "meld_index": meld_idx, "owner": owner_idx}
-				)
-				_world_draft_container.add_child(tile)
-				_table_meld_tile_hits.append({
-					"meld_index": meld_idx,
-					"owner": owner_idx,
-					"world": tile.global_position + Vector3(0.0, TILE_D * 0.65, 0.0),
-				})
-			cursor_major += meld_span + meld_gap_major
-	var stale_keys: Array = _table_meld_drag_offsets.keys()
-	for key in stale_keys:
-		if not seen_melds.has(int(key)):
-			_table_meld_drag_offsets.erase(key)
+	_table_meld_drag_offsets.clear()
+	var cursor := Vector2(-0.33, -0.13)
+	for index in range(table_melds.size()):
+		var meld = table_melds[index]
+		if meld == null: continue
+		var span: float = meld.tiles_data.size() * 0.047
+		if cursor.x + span > 0.33:
+			cursor.x = -0.33
+			cursor.y += 0.080
+		if cursor.y > 0.04: break
+		_table_meld_base_centers[index] = cursor + Vector2(span * 0.5, 0)
+		for ordinal in range(meld.tiles_data.size()):
+			var tile := _create_tile_face_up(meld.tiles_data[ordinal], false)
+			tile.scale = Vector3.ONE * 0.97
+			tile.position = _table_local_to_world(cursor + Vector2(0.02 + ordinal * 0.047, 0), 0.008)
+			_create_pick_box(tile, "MeldTilePick", STAGE_TILE_PICK_SIZE, Vector3.ZERO, Vector3.ZERO, {"kind": "table_meld", "meld_index": index, "owner": meld.owner_index})
+			_world_draft_container.add_child(tile)
+			_table_meld_tile_hits.append({"meld_index": index, "owner": meld.owner_index, "world": tile.global_position})
+		cursor.x += span + 0.022
+	if _meld_table_zone != null:
+		_meld_table_zone.sync_melds(table_melds)
 
 func _sync_world_deck() -> void:
 	if _game_table == null or not is_instance_valid(_game_table):
@@ -3267,7 +3362,7 @@ func _update_opponent_rim_lights() -> void:
 		if light == null or not is_instance_valid(light):
 			continue
 		var emphasized: bool = (i == 0 and active_player == 3) or (i == 1 and active_player == 1)
-		light.light_energy = pulse + (0.14 if emphasized else 0.0)
+		light.light_energy = 0.08 + (0.06 if emphasized else 0.0)
 
 
 func _screen_to_table_local(screen_pos: Vector2) -> Vector2:
@@ -3283,7 +3378,7 @@ func _screen_to_table_local(screen_pos: Vector2) -> Vector2:
 		return INVALID_TABLE_POS
 	var hit: Vector3 = ray_origin + ray_dir * t
 	var felt_half: float = FELT_SIDE * 0.5
-	if hit.x < -felt_half or hit.x > felt_half or hit.z < -felt_half or hit.z > felt_half:
+	if hit.x < -0.54 or hit.x > 0.54 or hit.z < -0.46 or hit.z > 0.46:
 		return INVALID_TABLE_POS
 	return Vector2(hit.x, hit.z)
 
@@ -3468,7 +3563,15 @@ func _start_drag_preview() -> void:
 	if _drag_preview == null or not is_instance_valid(_drag_preview):
 		_drag_active = false
 		return
+	if _meld_table_zone != null and _game_table != null and _game_table.has_method("get_controller"):
+		var c = _game_table.get_controller()
+		if c != null and c.state != null and not c.state.players.is_empty() and bool(c.state.players[0].has_opened):
+			var valid_melds: Array = []
+			for mi in range(c.state.table_melds.size()):
+				valid_melds.append(mi)
+			_meld_table_zone.highlight_valid_sockets(_drag_candidate_tile_id, valid_melds)
 	_update_drag_preview(_drag_press_screen)
+
 
 
 func _update_drag_preview(screen_pos: Vector2) -> void:
@@ -3512,18 +3615,29 @@ func _update_drag_preview(screen_pos: Vector2) -> void:
 			var row_tilt: float = _rack_row_world_tilt_deg(use_top_row)
 			var row_slide_world: Vector3 = _rack_drag_world_point_on_row(screen_pos, use_top_row, slot_world)
 			_set_drag_preview_target(row_slide_world + row_n * (TILE_D * 0.62 + 0.0026), Vector3(row_tilt, 0.0, 0.0))
+			if _tile_drag_visualizer != null:
+				_tile_drag_visualizer.update_ghost_snap(slot_world, Vector3(row_tilt, 0.0, 0.0), true)
+			_apply_rack_reflow_preview(slot_idx)
 			return
 		# If rack follow has no stable slot, force table follow instead of freezing.
 		_drag_follow_mode = DRAG_FOLLOW_MODE_TABLE
+	_clear_rack_reflow_preview()
 	if _drag_preview_standing:
 		_rebuild_drag_preview(false)
 		if _drag_preview == null or not is_instance_valid(_drag_preview):
 			return
 	if table_pos_clamped_valid:
+		if _is_in_meld_lane(table_pos, 0):
+			var target := _draft_slot_from_table_local(table_pos)
+			if target >= 0: table_pos = DRAFT_GRID.slot_to_point(target, _table_local_meld_lanes[0], _draft_slot_count(), _draft_row_slots())
 		_set_drag_preview_target(_table_local_to_world(table_pos, TILE_D * 1.2 + 0.0075), Vector3.ZERO)
+		if _tile_drag_visualizer != null:
+			_tile_drag_visualizer.update_ghost_snap(_table_local_to_world(table_pos), Vector3.ZERO, true)
 		return
 	var fallback := _screen_to_near_table(screen_pos)
 	_set_drag_preview_target(fallback, Vector3.ZERO)
+	if _tile_drag_visualizer != null:
+		_tile_drag_visualizer.hide_ghost_snap()
 
 
 func _finish_drag(screen_pos: Vector2) -> void:
@@ -3531,6 +3645,8 @@ func _finish_drag(screen_pos: Vector2) -> void:
 		return
 	var drop_ctx: Dictionary = _build_drop_context(screen_pos)
 	if _handle_non_drag_click_fallback(drop_ctx):
+		return
+	if _try_reorder_rack_off_turn(drop_ctx):
 		return
 	if not _populate_drop_context_for_active_drag(drop_ctx):
 		_clear_drag_state()
@@ -3642,6 +3758,23 @@ func _handle_non_drag_click_fallback(drop_ctx: Dictionary) -> bool:
 	return true
 
 
+func _try_reorder_rack_off_turn(drop_ctx: Dictionary) -> bool:
+	if _game_table == null or _game_table.is_action_in_flight(): return false
+	var state = _game_table.get_controller().state
+	if state == null or state.current_player_index == 0: return false
+	if state.phase != GameState.Phase.ROUND_END and int(drop_ctx.get("from_slot", -1)) >= 0 and bool(drop_ctx.get("rack_drop_intent", false)):
+		var screen_pos: Vector2 = drop_ctx.get("screen_pos", Vector2.ZERO)
+		if _is_cursor_in_local_rack_band(screen_pos, RACK_BAND_RELEASE_MARGIN_PX):
+			var target: int = _resolve_rack_target_slot_for_drop(drop_ctx, true)
+			if target >= 0:
+				var result: Dictionary = _game_table.overlay_move_slot(int(drop_ctx.from_slot), target)
+				if result.get("ok", false):
+					drop_ctx.handled = true
+					drop_ctx.success_event = SFX_RACK_MOVE
+					drop_ctx.snap_world = _rack_slot_world_snap(target, TILE_D * 0.8)
+	_finalize_drop_feedback(drop_ctx)
+	return true
+
 func _populate_drop_context_for_active_drag(drop_ctx: Dictionary) -> bool:
 	if _game_table == null or not is_instance_valid(_game_table):
 		return false
@@ -3689,6 +3822,11 @@ func _resolve_drop_decision(drop_ctx: Dictionary) -> Dictionary:
 	var rack_target_slot: int = _resolve_rack_target_slot_for_drop(drop_ctx, rack_pick_intent)
 	var draft_target_slot: int = int(drop_ctx.get("draft_target", -1))
 	var committed_meld_index: int = int(pick.get("meld_index", -1)) if pick_kind == "table_meld" else -1
+	if committed_meld_index == -1 and _meld_table_zone != null and _camera != null:
+		var socket_hit: Dictionary = _meld_table_zone.evaluate_drop_socket(drop_ctx.get("screen_pos", Vector2.ZERO), _camera)
+		if not socket_hit.is_empty():
+			committed_meld_index = int(socket_hit.get("meld_index", -1))
+			pick_kind = "table_meld"
 	return INTERACTION_RESOLVER.resolve_drop({
 		"is_my_turn": true,
 		"phase": phase,
@@ -3794,33 +3932,14 @@ func _apply_drop_decision(drop_ctx: Dictionary, decision: Dictionary) -> void:
 			pass
 
 
-func _try_reposition_committed_meld(drop_ctx: Dictionary) -> void:
-	if bool(drop_ctx.get("handled", false)):
-		return
-	var from_meld: int = int(drop_ctx.get("from_meld", -1))
-	var from_meld_owner: int = int(drop_ctx.get("from_meld_owner", -1))
-	var phase: int = int(drop_ctx.get("phase", -1))
-	if from_meld == -1 or from_meld_owner != 0 or phase == GameState.Phase.ROUND_END:
-		return
-	var table_pos: Vector2 = drop_ctx.get("table_pos", Vector2.ZERO) as Vector2
-	if from_meld_owner >= _table_local_meld_lanes.size() or table_pos.x <= INVALID_TABLE_POS.x * 0.5:
-		return
-	var lane: Rect2 = _table_local_meld_lanes[from_meld_owner]
-	if not lane.grow(0.020).has_point(table_pos):
-		return
-	var clamped_pos := Vector2(
-		clampf(table_pos.x, lane.position.x + TILE_W * 0.5, lane.position.x + lane.size.x - TILE_W * 0.5),
-		clampf(table_pos.y, lane.position.y + TILE_H * 0.5, lane.position.y + lane.size.y - TILE_H * 0.5)
-	)
-	var base_center: Vector2 = _table_meld_base_centers.get(from_meld, clamped_pos) as Vector2
-	_table_meld_drag_offsets[from_meld] = clamped_pos - base_center
-	_last_world_draft_hash = -1
-	drop_ctx["handled"] = true
-	drop_ctx["success_event"] = SFX_DRAFT_MOVE
-	drop_ctx["snap_world"] = _table_local_to_world(clamped_pos, TILE_D * 0.9 + 0.006)
+func _try_reposition_committed_meld(_drop_ctx: Dictionary) -> void:
+	# Committed melds retain deterministic table positions.
+	pass
 
 
 func _is_local_discard_drop_intent(drop_ctx: Dictionary, margin: float = DISCARD_DRAG_HIT_MARGIN) -> bool:
+	if _deck_and_discards != null and _camera != null and _deck_and_discards.evaluate_discard_drop(drop_ctx.get("screen_pos", Vector2.ZERO), _camera):
+		return true
 	var pick_kind: String = str(drop_ctx.get("pick_kind", ""))
 	var pick_player: int = int(drop_ctx.get("pick_player", -1))
 	if pick_kind == "discard_zone" and pick_player == 0:
@@ -3868,6 +3987,101 @@ func _clear_drag_state() -> void:
 	if _drag_preview != null and is_instance_valid(_drag_preview):
 		_drag_preview.queue_free()
 	_drag_preview = null
+	_clear_rack_reflow_preview()
+	if _meld_table_zone != null:
+		_meld_table_zone.clear_socket_highlights()
+	if _tile_drag_visualizer != null:
+		_tile_drag_visualizer.hide_ghost_snap()
+
+
+
+func _apply_rack_reflow_preview(target_slot: int) -> void:
+	if target_slot == _last_reflow_target_slot:
+		return
+	_last_reflow_target_slot = target_slot
+
+	if _rack_reflow_tween != null and _rack_reflow_tween.is_running():
+		_rack_reflow_tween.kill()
+
+	if _world_rack_tile_containers.is_empty() or _world_rack_tile_containers[0] == null:
+		return
+	var container: Node3D = _world_rack_tile_containers[0]
+	var rack_slots: Array = _game_table.get_rack_slots() if _game_table != null and _game_table.has_method("get_rack_slots") else []
+	if rack_slots.is_empty():
+		return
+
+	var shifts: Dictionary = {}
+	if target_slot >= 0 and target_slot < rack_slots.size() and rack_slots[target_slot] != -1:
+		shifts = RACK_SLOT_MANAGER.calculate_reflow(rack_slots, _drag_candidate_slot, target_slot)
+
+	var usable_len: float = RACK_LEN - 0.020
+	var spacing: float = usable_len / 15.0
+	var start: float = -usable_len * 0.5 + spacing * 0.5
+
+	if is_inside_tree():
+		_rack_reflow_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+	for i in range(15):
+		var top_tile: Node3D = container.get_node_or_null("TileFaceUpTop%d" % i) as Node3D
+		if top_tile != null:
+			var shift: int = int(shifts.get(i, 0))
+			var nominal_x: float = start + float(i) * spacing
+			var target_x: float = nominal_x + float(shift) * spacing * 0.85
+			if _rack_reflow_tween != null and _rack_reflow_tween.is_valid():
+				_rack_reflow_tween.tween_property(top_tile, ^"position:x", target_x, 0.11)
+			else:
+				top_tile.position.x = target_x
+
+	for i in range(15):
+		var bottom_tile: Node3D = container.get_node_or_null("TileFaceUpBottom%d" % i) as Node3D
+		if bottom_tile != null:
+			var slot_idx: int = i + 15
+			var shift: int = int(shifts.get(slot_idx, 0))
+			var nominal_x: float = start + float(i) * spacing
+			var target_x: float = nominal_x + float(shift) * spacing * 0.85
+			if _rack_reflow_tween != null and _rack_reflow_tween.is_valid():
+				_rack_reflow_tween.tween_property(bottom_tile, ^"position:x", target_x, 0.11)
+			else:
+				bottom_tile.position.x = target_x
+
+
+func _clear_rack_reflow_preview() -> void:
+	if _last_reflow_target_slot == -1:
+		return
+	_last_reflow_target_slot = -1
+	_apply_rack_reflow_preview(-1)
+
+
+func _on_input_query_pickable_tile(screen_pos: Vector2) -> Dictionary:
+	var hit: Dictionary = _pick_nearest_hit(screen_pos, _local_rack_tile_hits, PICK_RADIUS_PX * 1.55)
+	if not hit.is_empty():
+		return {
+			"tile_id": int(hit.get("tile_id", -1)),
+			"zone": &"RACK",
+			"slot": int(hit.get("slot", -1)),
+			"world": hit.get("world", Vector3.ZERO)
+		}
+	hit = _pick_nearest_hit(screen_pos, _draft_tile_hits, DRAG_PICK_RADIUS_PX)
+	if not hit.is_empty():
+		return {
+			"tile_id": int(hit.get("tile_id", -1)),
+			"zone": &"DRAFT",
+			"slot": int(hit.get("slot", -1)),
+			"world": hit.get("world", Vector3.ZERO)
+		}
+	return {}
+
+
+func _on_input_evaluate_drop_target(_world_pos: Vector3, screen_pos: Vector2) -> Dictionary:
+	var slot_idx: int = _pick_nearest_rack_slot(screen_pos, SLOT_PICK_RADIUS_PX)
+	if slot_idx != -1 and slot_idx < _local_rack_slot_hits.size():
+		return {
+			"zone": &"RACK",
+			"slot": slot_idx,
+			"world_pos": _local_rack_slot_hits[slot_idx].get("world", _world_pos)
+		}
+	return {"zone": &"TABLE", "slot": -1, "world_pos": _world_pos}
+
 
 
 func _set_drag_preview_target(pos: Vector3, rot_deg: Vector3) -> void:
@@ -3891,7 +4105,9 @@ func _update_drag_preview_motion(delta: float) -> void:
 	if not _drag_preview_has_target:
 		return
 	if _drag_active:
-		# During active drag, prioritize direct cursor-follow over smoothing.
+		if _tile_drag_visualizer != null and _tile_drag_visualizer.is_dragging():
+			_tile_drag_visualizer.update_target(_drag_preview_target_position, _drag_preview_target_rotation)
+			return
 		_drag_preview.position = _drag_preview_target_position
 		_drag_preview.rotation_degrees = _drag_preview_target_rotation
 		return
@@ -3956,6 +4172,7 @@ func _trigger_invalid_feedback(tile_id: int, screen_pos: Vector2) -> void:
 
 
 func _spawn_feedback_pulse(world_pos: Vector3, color: Color, start_size: float, end_size: float, duration: float) -> void:
+	if reduced_motion: return
 	if _world_root == null:
 		return
 	var pulse := Node3D.new()
@@ -3981,7 +4198,21 @@ func _spawn_feedback_pulse(world_pos: Vector3, color: Color, start_size: float, 
 
 
 func _play_sfx(event_id: StringName) -> void:
-	if _audio_service != null and is_instance_valid(_audio_service):
+	if not sound_enabled: return
+	if _table_audio_controller != null and _table_audio_controller.get("enable_mobile_haptics"):
+		match event_id:
+			SFX_RACK_MOVE, SFX_DRAFT_MOVE:
+				_table_audio_controller.call("_trigger_haptic", 10)
+			SFX_DISCARD:
+				_table_audio_controller.call("_trigger_haptic", 20)
+			SFX_ADD_TO_MELD:
+				_table_audio_controller.call("_trigger_haptic", 35)
+			SFX_INVALID_ACTION:
+				_table_audio_controller.call("_trigger_haptic", 45)
+	if _audio_controller != null:
+		_audio_controller.sound_enabled = sound_enabled
+		_audio_controller.play(event_id)
+	elif _audio_service != null and is_instance_valid(_audio_service):
 		_audio_service.play_sfx(event_id)
 
 
@@ -4008,7 +4239,7 @@ func _sync_audio_from_state() -> void:
 func _update_discard_guide_pulse() -> void:
 	if _discard_guides.is_empty():
 		return
-	var pulse: float = 0.92 + sin(_runtime_time * 2.0) * 0.08
+	var pulse: float = 1.0 if reduced_motion else 0.92 + sin(_runtime_time * 2.0) * 0.08
 	for guide in _discard_guides:
 		if guide == null or not is_instance_valid(guide):
 			continue
@@ -4024,7 +4255,7 @@ func _update_meld_guide_alpha() -> void:
 	if _local_meld_guide == null or not is_instance_valid(_local_meld_guide):
 		return
 	var target: float = MELD_GUIDE_DRAG_ALPHA if _drag_active and _drag_candidate_tile_id != -1 else MELD_GUIDE_IDLE_ALPHA
-	_local_meld_guide_alpha = lerpf(_local_meld_guide_alpha, target, 0.22)
+	_local_meld_guide_alpha = target if reduced_motion else lerpf(_local_meld_guide_alpha, target, 0.22)
 	_set_meld_guide_alpha(_local_meld_guide, _local_meld_guide_alpha)
 
 
@@ -4165,6 +4396,9 @@ func _rebuild_drag_preview(standing: bool) -> void:
 		_drag_preview.position = _drag_preview_target_position
 		_drag_preview.rotation_degrees = _drag_preview_target_rotation
 	_drag_preview_standing = standing
+	if _drag_preview != null and _tile_drag_visualizer != null:
+		var surface_y: float = _table_surface.position.y if _table_surface != null else 0.0015
+		_tile_drag_visualizer.start_drag(_drag_preview, _drag_candidate_tile_id, surface_y)
 
 
 func _tile_id_in_rack_slot(slot_idx: int) -> int:
@@ -4253,6 +4487,7 @@ func _rack_snap_world_for_tile(tile_id: int) -> Vector3:
 
 
 func _spawn_tile_transfer_ghost(tile_id: int, from_world: Vector3, to_world: Vector3, duration: float = 0.16) -> void:
+	if reduced_motion: return
 	if _world_root == null or tile_id == -1:
 		return
 	if from_world == Vector3.ZERO or to_world == Vector3.ZERO:
@@ -4316,10 +4551,8 @@ func _on_local_rack_tile_clicked(hit: Dictionary) -> void:
 	if controller == null or controller.state == null:
 		return
 	var state = controller.state
-	if state.current_player_index != 0:
-		return
-
 	_last_selected_tile_id = tid
+	_game_table.select_tile(tid)
 	_last_world_rack_hashes[0] = -1
 
 
@@ -4335,9 +4568,8 @@ func _on_draft_tile_clicked(hit: Dictionary) -> void:
 	if controller == null or controller.state == null:
 		return
 	var state = controller.state
-	if state.current_player_index != 0:
-		return
 	_last_selected_tile_id = tile_id
+	_game_table.select_tile(tile_id)
 	_last_world_rack_hashes[0] = -1
 
 
@@ -4361,6 +4593,7 @@ func _is_turn_draw_tap_zone(screen_pos: Vector2, table_pos: Vector2) -> bool:
 
 
 func _handle_world_tap(pick: Dictionary, table_pos: Vector2, screen_pos: Vector2 = INVALID_TABLE_POS) -> void:
+	if _inspection or _is_round_end_phase(): return
 	if _game_table == null or not is_instance_valid(_game_table):
 		return
 	if _game_table.has_method("is_action_in_flight") and _game_table.is_action_in_flight():
@@ -4369,18 +4602,29 @@ func _handle_world_tap(pick: Dictionary, table_pos: Vector2, screen_pos: Vector2
 	if controller == null or controller.state == null:
 		return
 	var state = controller.state
-	if state.current_player_index != 0:
-		return
-
 	var phase: int = state.phase
 	var pick_kind: String = str(pick.get("kind", ""))
 	if pick_kind == "local_tile":
 		_on_local_rack_tile_clicked(pick)
 		return
 	if pick_kind == "local_slot":
+		if _last_selected_tile_id != -1:
+			var rack_from := _find_in_slots(_game_table.get_rack_slots(), _last_selected_tile_id)
+			var draft_from := _find_in_slots(_draft_slots(), _last_selected_tile_id)
+			if rack_from >= 0: _game_table.overlay_move_slot(rack_from, int(pick.get("slot", -1)))
+			elif draft_from >= 0: _game_table.overlay_move_draft_to_rack(draft_from, int(pick.get("slot", -1)))
+			_force_sync()
 		return
 	if pick_kind == "draft_tile":
 		_on_draft_tile_clicked(pick)
+		return
+	if _last_selected_tile_id != -1 and _is_in_meld_lane(table_pos, 0):
+		var destination := _draft_slot_from_table_local(table_pos)
+		var origin := _find_in_slots(_game_table.get_rack_slots(), _last_selected_tile_id)
+		var draft_origin := _find_in_slots(_draft_slots(), _last_selected_tile_id)
+		if origin >= 0: _game_table.overlay_move_rack_to_draft(origin, destination)
+		elif draft_origin >= 0: _game_table.overlay_move_draft_slot(draft_origin, destination)
+		_force_sync()
 		return
 	if _handle_turn_draw_tap(pick, table_pos, screen_pos, state):
 		return
@@ -4399,7 +4643,7 @@ func _handle_turn_draw_tap(pick: Dictionary, table_pos: Vector2, screen_pos: Vec
 		draw_hotspot_hit = _is_in_draw_hotspot_expanded(table_pos, DRAW_TAP_HIT_MARGIN)
 		if not draw_hotspot_hit:
 			draw_hotspot_hit = _is_in_draw_pick_screen_hotspot(screen_pos, DRAW_TAP_SCREEN_MARGIN_PX)
-	var draw_intent: bool = draw_pick_hit or draw_hotspot_hit
+	var draw_intent: bool = draw_pick_hit or (draw_hotspot_hit and pick_kind != "discard_zone")
 	if draw_intent:
 		var before_ids: Dictionary = _snapshot_hand_id_set()
 		var draw_source_world: Vector3 = _table_local_to_world(_draw_hotspot_center, TILE_D * 1.1 + 0.006)
@@ -4423,7 +4667,7 @@ func _handle_turn_draw_tap(pick: Dictionary, table_pos: Vector2, screen_pos: Vec
 		take_discard_hotspot_hit = _is_in_discard_hotspot_expanded(table_pos, prev_idx, DISCARD_TAP_HIT_MARGIN)
 		if not take_discard_hotspot_hit:
 			take_discard_hotspot_hit = _is_in_discard_pick_screen_hotspot(screen_pos, prev_idx, DISCARD_TAP_SCREEN_MARGIN_PX)
-	var take_discard_intent: bool = take_discard_pick_hit or take_discard_hotspot_hit
+	var take_discard_intent: bool = take_discard_pick_hit or (take_discard_hotspot_hit and pick_kind != "draw_stack")
 	if take_discard_intent:
 		var before_ids_discard: Dictionary = _snapshot_hand_id_set()
 		var discard_source_world: Vector3 = _table_local_to_world(_table_local_discard_points[prev_idx], TILE_D * 1.0 + 0.006)
@@ -4751,85 +4995,15 @@ func _create_modern_discard_guide(radius: float, color: Color) -> Node3D:
 
 
 func _create_hud_overlay() -> void:
-	_hud_layer = CanvasLayer.new()
+	_hud_layer = PLAY_HUD.instantiate()
 	_hud_layer.name = "HudLayer"
+	_play_hud = _hud_layer
+	_play_hud.board = self
+	if _play_hud.has_method("set_camera"):
+		_play_hud.set_camera(_camera)
 	add_child(_hud_layer)
-
-	_hud_bar = PanelContainer.new()
-	_hud_bar.name = "HudBar"
-	_hud_bar.anchor_left = 0.0
-	_hud_bar.anchor_top = 0.0
-	_hud_bar.anchor_right = 1.0
-	_hud_bar.anchor_bottom = 0.0
-	_hud_bar.offset_left = 14.0
-	_hud_bar.offset_top = 12.0
-	_hud_bar.offset_right = -14.0
-	_hud_bar.offset_bottom = 62.0
-	_hud_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.26, 0.16, 0.10, 0.92)
-	style.border_width_bottom = 2
-	style.border_color = Color(0.58, 0.39, 0.24, 0.68)
-	style.content_margin_left = 18
-	style.content_margin_right = 18
-	style.content_margin_top = 6
-	style.content_margin_bottom = 6
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	_hud_bar.add_theme_stylebox_override("panel", style)
-	_hud_layer.add_child(_hud_bar)
-
-	var hbox := HBoxContainer.new()
-	hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	hbox.add_theme_constant_override("separation", 18)
-	hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hud_bar.add_child(hbox)
-
-	_hud_instructions = Label.new()
-	_hud_instructions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_hud_instructions.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hud_instructions.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_hud_instructions.add_theme_color_override("font_color", Color(0.99, 0.94, 0.84, 1.0))
-	_hud_instructions.add_theme_font_size_override("font_size", 20)
-	_hud_instructions.add_theme_color_override("font_outline_color", Color(0.12, 0.08, 0.05, 0.68))
-	_hud_instructions.add_theme_constant_override("outline_size", 2)
-	hbox.add_child(_hud_instructions)
-
-	var right_box := HBoxContainer.new()
-	right_box.alignment = BoxContainer.ALIGNMENT_END
-	right_box.add_theme_constant_override("separation", 14)
-	right_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hbox.add_child(right_box)
-
-	_hud_turn = _make_hud_stat("Turn: -", 110)
-	_hud_phase = _make_hud_stat("Phase", 86)
-	_hud_deck = _make_hud_stat("Deck: -", 92)
-	_hud_okey = _make_hud_stat("Okey: -", 108, Color(0.98, 0.78, 0.34, 1.0))
-	right_box.add_child(_hud_turn)
-	right_box.add_child(_hud_phase)
-	right_box.add_child(_hud_deck)
-	right_box.add_child(_hud_okey)
-
-	var menu_btn := Button.new()
-	menu_btn.name = "HudMenuButton"
-	menu_btn.text = "Menu"
-	menu_btn.custom_minimum_size = Vector2(80, 0)
-	menu_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	menu_btn.pressed.connect(_on_hud_menu_pressed)
-	right_box.add_child(menu_btn)
-	if OS.is_debug_build():
-		_hud_debug_telemetry = Label.new()
-		_hud_debug_telemetry.name = "DebugTelemetry"
-		_hud_debug_telemetry.visible = true
-		_hud_debug_telemetry.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_hud_debug_telemetry.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		_hud_debug_telemetry.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-		_hud_debug_telemetry.add_theme_font_size_override("font_size", 12)
-		_hud_debug_telemetry.add_theme_color_override("font_color", Color(0.88, 0.90, 0.94, 0.82))
-		_hud_debug_telemetry.add_theme_color_override("font_outline_color", Color(0.06, 0.04, 0.03, 0.74))
-		_hud_debug_telemetry.add_theme_constant_override("outline_size", 1)
-		_hud_layer.add_child(_hud_debug_telemetry)
-	_layout_hud()
+	if _game_table != null and _play_hud.has_method("bind_to_session"):
+		_play_hud.bind_to_session(_game_table)
 
 
 func _on_hud_menu_pressed() -> void:
@@ -4848,21 +5022,8 @@ func _make_hud_stat(text: String, min_w: float, color: Color = Color(0.92, 0.85,
 
 
 func _layout_hud() -> void:
-	if _hud_bar == null:
-		return
-	_hud_bar.offset_left = 14.0
-	_hud_bar.offset_right = -14.0
-	_hud_bar.offset_top = 12.0
-	_hud_bar.offset_bottom = 62.0
-	if _hud_debug_telemetry != null:
-		_hud_debug_telemetry.anchor_left = 0.0
-		_hud_debug_telemetry.anchor_top = 1.0
-		_hud_debug_telemetry.anchor_right = 0.0
-		_hud_debug_telemetry.anchor_bottom = 1.0
-		_hud_debug_telemetry.offset_left = 16.0
-		_hud_debug_telemetry.offset_top = -30.0
-		_hud_debug_telemetry.offset_right = 700.0
-		_hud_debug_telemetry.offset_bottom = -10.0
+	_apply_camera_preset()
+	_clear_drag_state()
 
 
 func _init_debug_telemetry() -> void:
@@ -5018,69 +5179,20 @@ func _sanitize_filename_component(v: String) -> String:
 
 
 func _spawn_game_table() -> void:
-	if _game_table != null and is_instance_valid(_game_table):
-		_game_table.queue_free()
-	_reset_local_flip_state()
-	_game_table = GAME_TABLE_SCENE.instantiate()
-	if _game_table.has_method("set_presentation_mode"):
-		_game_table.call("set_presentation_mode", "3d")
+	if _game_table != null and is_instance_valid(_game_table): _game_table.queue_free()
+	_game_table = SESSION_SCRIPT.new()
 	_apply_pending_controller_if_ready()
-	if _game_table is Control:
-		var table_control := _game_table as Control
-		table_control.set_anchors_preset(Control.PRESET_FULL_RECT)
-		table_control.offset_left = 0.0
-		table_control.offset_top = 0.0
-		table_control.offset_right = 0.0
-		table_control.offset_bottom = 0.0
-		table_control.visible = false
-		table_control.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_game_viewport.add_child(_game_table)
+	add_child(_game_table)
 	_apply_pending_config_if_ready()
-	call_deferred("_cache_source_hud_nodes")
 
 
 func _cache_source_hud_nodes() -> void:
-	if _game_table == null or not is_instance_valid(_game_table):
-		return
-	_src_top_bar = _game_table.get_node_or_null("TopBar") as Control
-	if _src_top_bar != null:
-		_src_top_bar.visible = false
-		_src_top_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_src_instructions = _game_table.get_node_or_null("TopBar/TopHBox/Instructions") as Label
-	_src_turn = _game_table.get_node_or_null("TopBar/TopHBox/TurnLabel") as Label
-	_src_phase = _game_table.get_node_or_null("TopBar/TopHBox/PhaseLabel") as Label
-	_src_deck = _game_table.get_node_or_null("TopBar/TopHBox/DeckCount") as Label
-	_src_okey = _game_table.get_node_or_null("TopBar/TopHBox/OkeyInfo") as Label
+	pass
 
 
 func _sync_hud_from_table() -> void:
-	if _hud_instructions == null:
-		return
-	if _src_instructions == null:
-		_cache_source_hud_nodes()
-	if _src_instructions != null:
-		_hud_instructions.text = _src_instructions.text
-	if _src_turn != null:
-		_hud_turn.text = _src_turn.text
-	if _src_phase != null:
-		_hud_phase.text = _src_phase.text
-	if _src_deck != null:
-		_hud_deck.text = _src_deck.text
-	if _src_okey != null:
-		_hud_okey.text = _src_okey.text
-	if _is_round_end_phase():
-		_hud_instructions.text = "Round ended. Left click anywhere to start next round."
-
-	var next_required_hue_id: int = -1
-	if _game_table != null and is_instance_valid(_game_table) and _game_table.has_method("get_controller"):
-		var controller = _game_table.get_controller()
-		if controller != null and controller.state != null:
-			var required_id: int = int(controller.state.turn_required_use_tile_id)
-			if required_id != -1 and _hud_instructions.text.to_lower().begins_with("rejected:") and _hud_instructions.text.to_lower().find("taken discard") != -1:
-				next_required_hue_id = required_id
-	if next_required_hue_id != _required_tile_hue_id:
-		_required_tile_hue_id = next_required_hue_id
-		_last_world_rack_hashes[0] = -1
+	if _play_hud != null and _game_table != null:
+		_play_hud.refresh(_game_table)
 
 
 func _is_round_end_phase() -> bool:
@@ -5116,11 +5228,85 @@ func _apply_pending_controller_if_ready() -> void:
 
 
 func _resize_subviewport() -> void:
-	if _game_viewport == null:
+	_clear_drag_state()
+	_apply_camera_preset()
+
+
+var _tile_geometry: Dictionary = {}
+
+func _casual_material(color: Color) -> StandardMaterial3D:
+	return MATERIAL_FACTORY_SCRIPT.create_casual(color)
+
+func toggle_inspection() -> void:
+	_clear_drag_state()
+	_inspection = not _inspection
+	_apply_camera_preset()
+
+
+func get_session() -> Node:
+	if _game_table == null:
+		_spawn_game_table()
+	return _game_table
+
+func get_table_config() -> TableConfig:
+	if _table_config == null:
+		_table_config = OKEY_101_TABLE_CONFIG_SCRIPT.create()
+	return _table_config
+
+func set_table_config(config: TableConfig) -> void:
+	if config == null:
 		return
-	var visible: Vector2 = get_viewport().get_visible_rect().size
-	var width: int = maxi(1280, int(round(visible.x)))
-	var height: int = maxi(720, int(round(visible.y)))
-	_game_viewport.size = Vector2i(width, height)
+	_table_config = config
+	if _material_factory != null:
+		_material_factory = MATERIAL_FACTORY_SCRIPT.create_from_config(_table_config)
+		_table_wood_material = _material_factory.table_wood
+		_rack_wood_material = _material_factory.rack_wood
+		_opponent_rack_material = _material_factory.opponent_rack
+		_tile_face_material = _material_factory.tile_face
+		_tile_back_material = _material_factory.tile_back
+	if is_node_ready():
+		_create_world_elements()
+		_apply_camera_preset()
+		_force_sync()
 
+func set_seat_config(seat_index: int, seat: SeatConfig) -> void:
+	if seat == null:
+		return
+	var cfg = get_table_config()
+	var found: bool = false
+	for i in range(cfg.seats.size()):
+		if cfg.seats[i].seat_index == seat_index:
+			cfg.seats[i] = seat
+			found = true
+			break
+	if not found:
+		cfg.seats.append(seat)
+	if is_node_ready():
+		_create_world_elements()
+		_apply_camera_preset()
+		_force_sync()
 
+func get_seat_config(seat_index: int) -> SeatConfig:
+	var cfg = get_table_config()
+	return cfg.get_seat(seat_index) if cfg != null else null
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT and is_node_ready():
+		_clear_drag_state()
+
+func _capture_qa() -> void:
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(_capture_path)
+	print("OKEY_CAPTURE ", _capture_path, " FPS ", Engine.get_frames_per_second())
+
+func _add_table_caption(text: String, point: Vector2, pixel: float) -> void:
+	var caption := Label3D.new()
+	caption.text = text
+	caption.font = ThemeDB.fallback_font
+	caption.font_size = 38
+	caption.pixel_size = pixel
+	caption.modulate = Color("d5ece1")
+	caption.outline_size = 0
+	caption.rotation_degrees.x = -90
+	caption.position = _table_local_to_world(point, 0.009)
+	_dynamic_root.add_child(caption)

@@ -8,6 +8,7 @@ static var _id_to_path: Dictionary = {
 	# UI fonts
 	IDS.UI_FONT_KENNEY_FUTURE: "res://uassets/ui/fonts/Kenney Future.ttf",
 	IDS.UI_FONT_KENNEY_FUTURE_NARROW: "res://uassets/ui/fonts/Kenney Future Narrow.ttf",
+	IDS.UI_FONT_BARLOW_CONDENSED_BOLD: "res://uassets/ui/fonts/BarlowCondensed-Bold.ttf",
 
 	# UI shells and buttons
 	IDS.UI_PANEL_BORDER_GREY_DETAIL: "res://uassets/ui/panels/panel_border_grey_detail.png",

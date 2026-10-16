@@ -34,6 +34,8 @@ func _test_mock_online_lobby_flow() -> bool:
 			push_error("Expected mock backend for player %d, got %s" % [i, service.get_backend_mode()])
 			ok = false
 			break
+		# Each simulated peer needs its own identity rather than the shared desktop cache.
+		service.local_puid = ""
 		var login_res: Dictionary = service.login_dev_auth("DEV_%d" % i)
 		if not bool(login_res.get("ok", false)):
 			push_error("OnlineService login failed for player %d: %s" % [i, str(login_res)])

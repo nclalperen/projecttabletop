@@ -1,0 +1,12 @@
+{
+  "name": "tabletop-studio",
+  "displayName": "Tabletop Studio (Okey 101 & Hub)",
+  "version": "1.1.0",
+  "description": "Godot 4.6/4.7 headless test suites, 3D visual QA capture, Windows/Android/Web export workflows, EOS P2P smoke checks, and Tabletop Hub game scaffolding.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Run /okey-test to verify all 83 headless test suites and asset guards",
+    "Run /qa-capture-3d to capture and inspect the 3D Okey 101 table layout",
+    "Run /build-export to check the Android toolchain and export a debug APK"
+  ]
+}

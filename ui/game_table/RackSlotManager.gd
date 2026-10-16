@@ -116,6 +116,22 @@ func move_slot(from_slot: int, to_slot: int) -> bool:
 	last_tile_id = tile_id
 	return true
 
+## Insertion is used by the desktop table; retain swap for legacy callers.
+func insert_rack_slot(from_slot: int, to_slot: int) -> bool:
+	if from_slot < 0 or from_slot >= rack_slots.size() or to_slot < 0 or to_slot >= rack_slots.size():
+		return false
+	if from_slot == to_slot or rack_slots[from_slot] == -1:
+		return false
+	var tile_id: int = rack_slots[from_slot]
+	var direction: int = 1 if from_slot < to_slot else -1
+	var cursor: int = from_slot
+	while cursor != to_slot:
+		rack_slots[cursor] = rack_slots[cursor + direction]
+		cursor += direction
+	rack_slots[to_slot] = tile_id
+	last_tile_id = tile_id
+	return true
+
 func move_rack_to_draft(from_slot: int, to_draft_slot: int, row_slots: int, total_draft_slots: int) -> bool:
 	if from_slot < 0 or from_slot >= rack_slots.size():
 		return false
@@ -159,3 +175,53 @@ func move_draft_slot(from_slot: int, to_slot: int) -> bool:
 	draft_slots[from_slot] = other_id
 	last_tile_id = tile_id
 	return true
+
+## Calculates temporary preview shifts for a target rack slot hover during drag.
+## Returns a Dictionary mapping slot_idx (int) -> preview_shift_int (-1 or 1).
+func compute_reflow_preview(drag_slot: int, target_slot: int) -> Dictionary:
+	return calculate_reflow(rack_slots, drag_slot, target_slot)
+
+static func calculate_reflow(slots_arr: Array, drag_slot: int, target_slot: int) -> Dictionary:
+	var shifts: Dictionary = {}
+	if target_slot < 0 or target_slot >= slots_arr.size():
+		return shifts
+	if slots_arr[target_slot] == -1 or drag_slot == target_slot:
+		return shifts
+
+	# Determine row boundaries (0..14 or 15..29)
+	var row_start: int = 0 if target_slot < 15 else 15
+	var row_end: int = 15 if target_slot < 15 else 30
+
+	# Find nearest gap to the right in this row
+	var gap_right: int = -1
+	for i in range(target_slot, row_end):
+		if slots_arr[i] == -1 or i == drag_slot:
+			gap_right = i
+			break
+
+	# Find nearest gap to the left in this row
+	var gap_left: int = -1
+	for i in range(target_slot, row_start - 1, -1):
+		if slots_arr[i] == -1 or i == drag_slot:
+			gap_left = i
+			break
+
+	var shift_dir: int = 0
+	if gap_right != -1 and gap_left != -1:
+		shift_dir = 1 if (gap_right - target_slot) <= (target_slot - gap_left) else -1
+	elif gap_right != -1:
+		shift_dir = 1
+	elif gap_left != -1:
+		shift_dir = -1
+	else:
+		return shifts
+
+	if shift_dir == 1:
+		for i in range(target_slot, gap_right):
+			shifts[i] = 1
+	else:
+		for i in range(gap_left + 1, target_slot + 1):
+			shifts[i] = -1
+
+	return shifts
+

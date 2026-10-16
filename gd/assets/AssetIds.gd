@@ -4,6 +4,7 @@ class_name AssetIds
 # UI fonts
 const UI_FONT_KENNEY_FUTURE: StringName = &"ui/font/kenney_future"
 const UI_FONT_KENNEY_FUTURE_NARROW: StringName = &"ui/font/kenney_future_narrow"
+const UI_FONT_BARLOW_CONDENSED_BOLD: StringName = &"ui/font/barlow_condensed_bold"
 
 # UI shells and buttons
 const UI_PANEL_BORDER_GREY_DETAIL: StringName = &"ui/panel/border_grey_detail"

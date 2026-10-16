@@ -16,6 +16,10 @@ func _init() -> void:
 
 
 func _run() -> void:
+	# Headless SceneTree defaults to 64x64, where screen-space tap margins overlap.
+	root.size = Vector2i(1280, 720)
+	root.content_scale_size = Vector2i(1280, 720)
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT
 	var ps := load("res://ui/GameTable3D.tscn") as PackedScene
 	if ps == null:
 		print("FATAL: missing GameTable3D scene")
@@ -45,6 +49,7 @@ func _run() -> void:
 		hud_bar.visible = false
 
 	# Freeze bot auto-loop so scripted scenarios stay deterministic.
+	game_table.set("bots_enabled", false)
 	game_table.set("_bot_loop_running", true)
 	# Apply deterministic seed path and restart round.
 	scene_root.call("configure_game", RuleConfig.new(), 101101, 4)
@@ -62,10 +67,13 @@ func _run() -> void:
 	await _scenario_07_rack_to_committed_meld()
 	await _scenario_08_draw_from_deck_tap()
 	await _scenario_09_take_discard_legal_tap()
-	await _scenario_10_turn_play_tap_selected_tile_to_draft_noop()
+	await _scenario_10_turn_play_tap_selected_tile_to_draft()
 	await _scenario_11_turn_discard_tap_selected_tile_to_discard_noop()
-	await _scenario_12_committed_meld_reposition_drag()
-	await _scenario_13_round_end_click_new_round()
+	await _scenario_12_committed_meld_fixed_layout()
+	await _scenario_13_round_end_explicit_new_round()
+	await _scenario_14_inspection_blocks_manipulation()
+	await _scenario_15_escape_cancels_drag()
+	await _scenario_16_opponent_turn_rack_reorder()
 
 	print("SCENARIO_SUMMARY: pass=%d fail=%d" % [passes, failures])
 	await _teardown_and_quit(0 if failures == 0 else 1)
@@ -103,6 +111,7 @@ func _teardown_and_quit(exit_code: int) -> void:
 
 
 func _sync_world() -> void:
+	game_table.call("_sync_state")
 	scene_root.call("_force_sync")
 	await _wait_frames(4)
 
@@ -129,6 +138,7 @@ func _set_turn(phase_value: int) -> void:
 	s.phase = phase_value
 	s.turn_required_use_tile_id = -1
 	game_table.set("_action_in_flight", false)
+	game_table.call("_sync_state")
 	await _sync_world()
 
 
@@ -503,10 +513,19 @@ func _scenario_06_turn_play_end_then_discard_drag() -> void:
 
 
 func _scenario_07_rack_to_committed_meld() -> void:
+	await _ensure_draft_empty()
 	await _set_turn(GameState.Phase.TURN_PLAY)
 	await _ensure_committed_meld()
+	# Exercise a legal extension, rather than an arbitrary tile/rejection path.
+	var extension := Tile.new(Tile.TileColor.RED, 8, Tile.Kind.NORMAL, _alloc_uid())
+	controller.state.players[0].has_opened = true
+	controller.state.players[0].hand = [extension, Tile.new(Tile.TileColor.BLUE, 12, Tile.Kind.NORMAL, _alloc_uid())]
+	await _sync_world()
 	var src: Dictionary = _first_rack_tile_screen()
 	var meld_hit: Dictionary = _first_table_meld_tile_screen()
+	for hit in scene_root.get("_local_rack_tile_hits"):
+		if int(hit.get("tile_id", -1)) == extension.unique_id:
+			src = {"tile_id": extension.unique_id, "screen": camera.unproject_position(hit.world)}
 	var before_size: int = 0
 	if controller.state.table_melds.size() > 0:
 		before_size = (controller.state.table_melds[0] as Meld).tiles.size()
@@ -522,8 +541,8 @@ func _scenario_07_rack_to_committed_meld() -> void:
 		if controller.state.table_melds.size() > 0:
 			after_size = (controller.state.table_melds[0] as Meld).tiles.size()
 		var invalid_tid: int = int(scene_root.get("_invalid_feedback_tile_id"))
-		ok = after_size > before_size or invalid_tid == src_tid
-		note = "meld_tiles %d->%d invalid_tid=%d" % [before_size, after_size, invalid_tid]
+		ok = after_size == before_size + 1 and not controller.state.players[0].hand.any(func(tile): return tile.unique_id == src_tid)
+		note = "meld_tiles %d->%d src=%s invalid_tid=%d source=%s target=%s" % [before_size, after_size, src_tid, invalid_tid, src.screen, meld_hit.screen]
 	await _capture("s07_add_to_meld")
 	_record(7, "rack_to_committed_meld", ok, note)
 
@@ -561,7 +580,7 @@ func _scenario_09_take_discard_legal_tap() -> void:
 	_record(9, "take_discard_legal_tap", ok, note)
 
 
-func _scenario_10_turn_play_tap_selected_tile_to_draft_noop() -> void:
+func _scenario_10_turn_play_tap_selected_tile_to_draft() -> void:
 	await _ensure_draft_empty()
 	await _set_turn(GameState.Phase.TURN_PLAY)
 	var src: Dictionary = _first_rack_tile_screen()
@@ -578,10 +597,10 @@ func _scenario_10_turn_play_tap_selected_tile_to_draft_noop() -> void:
 		await _sync_world()
 		var after_draft: Array = game_table.call("get_draft_slots") as Array
 		var after_discard: int = (controller.state.player_discard_stacks[0] as Array).size()
-		ok = not _array_changed(before_draft, after_draft) and after_discard == before_discard
-		note = "draft_unchanged=%s discard=%d->%d" % [str(not _array_changed(before_draft, after_draft)), before_discard, after_discard]
+		ok = _array_changed(before_draft, after_draft) and after_draft.has(int(src.tile_id)) and after_discard == before_discard
+		note = "draft_changed=%s discard=%d->%d" % [str(_array_changed(before_draft, after_draft)), before_discard, after_discard]
 	await _capture("s10_tap_no_draft_place")
-	_record(10, "turn_play_tap_selected_tile_to_draft_noop", ok, note)
+	_record(10, "turn_play_tap_selected_tile_to_draft", ok, note)
 
 
 func _scenario_11_turn_discard_tap_selected_tile_to_discard_noop() -> void:
@@ -604,7 +623,7 @@ func _scenario_11_turn_discard_tap_selected_tile_to_discard_noop() -> void:
 	_record(11, "turn_discard_tap_selected_tile_to_discard_noop", ok, note)
 
 
-func _scenario_12_committed_meld_reposition_drag() -> void:
+func _scenario_12_committed_meld_fixed_layout() -> void:
 	await _set_turn(GameState.Phase.TURN_PLAY)
 	await _ensure_draft_empty()
 	await _ensure_committed_meld()
@@ -624,22 +643,82 @@ func _scenario_12_committed_meld_reposition_drag() -> void:
 			if v.length() > 0.001:
 				moved = true
 				break
-		ok = moved and (before_offsets.size() != after_offsets.size() or before_offsets != after_offsets)
+		ok = not moved and before_offsets == after_offsets
 		note = "offsets_before=%d offsets_after=%d moved=%s" % [before_offsets.size(), after_offsets.size(), str(moved)]
 	await _capture("s12_committed_meld_reposition")
-	_record(12, "committed_meld_reposition_drag", ok, note)
+	_record(12, "committed_meld_fixed_layout", ok, note)
 
 
-func _scenario_13_round_end_click_new_round() -> void:
+func _scenario_13_round_end_explicit_new_round() -> void:
 	controller.state.phase = GameState.Phase.ROUND_END
 	controller.state.current_player_index = 0
 	await _sync_world()
 	await _tap(Vector2(64, 64))
 	await _wait_frames(3)
+	var unchanged: bool = controller.state.phase == GameState.Phase.ROUND_END
+	var hud = scene_root.get("_play_hud")
+	var next_button: Button = null
+	for child in hud.get("_modal_body").get_children():
+		if child is Button and child.text == "Next round":
+			next_button = child
+	var found: bool = next_button != null
+	if next_button != null:
+		next_button.pressed.emit()
+	await _wait_frames(3)
 	var phase_now: int = int(controller.state.phase)
-	var ok: bool = phase_now != int(GameState.Phase.ROUND_END)
-	var note: String = "phase_after_click=%d" % phase_now
+	var ok: bool = unchanged and found and phase_now != int(GameState.Phase.ROUND_END)
+	var note: String = "background_unchanged=%s next_found=%s phase_after_click=%d" % [unchanged, found, phase_now]
 	await _capture("s13_round_end_click")
-	_record(13, "round_end_click_new_round", ok, note)
+	_record(13, "round_end_explicit_new_round", ok, note)
 
 
+func _scenario_14_inspection_blocks_manipulation() -> void:
+	await _set_turn(GameState.Phase.TURN_PLAY)
+	var before: Array = game_table.get_rack_slots().duplicate()
+	var draft: Array = game_table.get_draft_slots().duplicate()
+	scene_root.toggle_inspection()
+	await _wait_frames(3)
+	var source := _first_rack_tile_screen()
+	if not source.is_empty():
+		await _drag(source.screen, _screen_for_lane(0.5, 0.5))
+	var unchanged: bool = before == game_table.get_rack_slots() and draft == game_table.get_draft_slots()
+	scene_root.toggle_inspection()
+	await _sync_world()
+	_record(14, "inspection_blocks_manipulation", unchanged, "rack and draft unchanged")
+
+
+func _scenario_15_escape_cancels_drag() -> void:
+	var before: Array = game_table.get_rack_slots().duplicate()
+	var draft: Array = game_table.get_draft_slots().duplicate()
+	var source := _first_rack_tile_screen()
+	if source.is_empty():
+		_record(15, "escape_cancels_drag", false, "no tile")
+		return
+	_send_left_press(source.screen)
+	_send_motion(_screen_for_lane(0.5, 0.5), Vector2(80, -80))
+	var escape := InputEventKey.new()
+	escape.keycode = KEY_ESCAPE
+	escape.pressed = true
+	scene_root.call("_unhandled_input", escape)
+	_send_left_release(_screen_for_lane(0.5, 0.5))
+	await _sync_world()
+	_record(15, "escape_cancels_drag", before == game_table.get_rack_slots() and draft == game_table.get_draft_slots(), "no placement after cancellation")
+
+
+
+func _scenario_16_opponent_turn_rack_reorder() -> void:
+	await _set_turn(GameState.Phase.TURN_PLAY)
+	controller.state.current_player_index = 1
+	await _sync_world()
+	var source := _first_rack_tile_screen()
+	var draft: Array = game_table.get_draft_slots().duplicate()
+	var hand_size: int = controller.state.players[0].hand.size()
+	var target_screen := _screen_for_rack_slot(true)
+	await _drag(source.screen, target_screen)
+	await _sync_world()
+	var moved := int(game_table.get_rack_slots().find(int(source.tile_id))) != int(source.slot)
+	source = _first_rack_tile_screen()
+	await _drag(source.screen, _screen_for_lane(0.5, 0.5))
+	await _sync_world()
+	var safe: bool = controller.state.current_player_index == 1 and controller.state.phase == GameState.Phase.TURN_PLAY and hand_size == controller.state.players[0].hand.size() and draft == game_table.get_draft_slots()
+	_record(16, "opponent_turn_rack_reorder", moved and safe, "rack reordered; game state and draft unchanged")

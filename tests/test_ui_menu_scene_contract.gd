@@ -14,14 +14,14 @@ var CONTRACTS: Array[Dictionary] = [
 	{
 		"scene": "res://ui/OnlineLobby.tscn",
 		"nodes": PackedStringArray([
-			"Margin/RootCard/CardMargin/VBox/Buttons/LoginBtn",
-			"Margin/RootCard/CardMargin/VBox/Buttons/QuickBtn",
-			"Margin/RootCard/CardMargin/VBox/Buttons/PrivateBtn",
-			"Margin/RootCard/CardMargin/VBox/Buttons/ReadyBtn",
-			"Margin/RootCard/CardMargin/VBox/Buttons/StartBtn",
-			"Margin/RootCard/CardMargin/VBox/Buttons/BackBtn",
-			"Margin/RootCard/CardMargin/VBox/PromptStrip",
-			"Margin/RootCard/CardMargin/VBox/EmoteRow/EmoteButtons",
+			"TopRightStatus/TopVBox/LoginBtn",
+			"Margin/RootCard/CardMargin/MainHBox/SeatsPanel/SeatsMargin/SeatsVBox/SeatsScroll/SeatsList",
+			"Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox/GameButtonsFlow",
+			"Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox/SeatCountRow",
+			"Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox/ActionButtons/ReadyBtn",
+			"Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox/ActionButtons/StartBtn",
+			"Margin/RootCard/CardMargin/MainHBox/RightPanel/RightMargin/RightVBox/ActionButtons/BackBtn",
+			"InviteDialog/DialogVBox/FriendsList",
 		]),
 	},
 	{

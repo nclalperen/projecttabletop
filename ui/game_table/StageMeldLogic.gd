@@ -228,3 +228,242 @@ func _pair_melds(ids: Array, tiles: Array, pair_key_fn: Callable) -> Array:
 			return []
 		out.append({"kind": Meld.Kind.PAIRS, "tile_ids": [ids[i], ids[i + 1]]})
 	return out
+
+
+func evaluate_rack_melds(
+	state,
+	hand: Array,
+	rack_slots: Array[int],
+	rack_row_slots: int,
+	pair_key_fn: Callable
+) -> Dictionary:
+	var empty_res: Dictionary = {
+		"series_melds": [],
+		"series_points": 0,
+		"series_tile_ids": [],
+		"pair_melds": [],
+		"pair_count": 0,
+		"pair_tile_ids": [],
+	}
+	if state == null or hand.is_empty() or rack_slots.is_empty():
+		return empty_res
+
+	var hand_by_id: Dictionary = {}
+	for tile in hand:
+		hand_by_id[int(tile.unique_id)] = tile
+
+	var groups: Array = []
+	var rows: int = maxi(1, int(ceil(float(rack_slots.size()) / float(maxi(1, rack_row_slots)))))
+	for row_idx in range(rows):
+		var start_idx: int = row_idx * rack_row_slots
+		var end_idx: int = mini(rack_slots.size(), start_idx + rack_row_slots)
+		var current: Array[int] = []
+		for i in range(start_idx, end_idx):
+			var tid: int = int(rack_slots[i])
+			if tid == -1 or not hand_by_id.has(tid):
+				if not current.is_empty():
+					groups.append(current)
+					current = []
+				continue
+			current.append(tid)
+		if not current.is_empty():
+			groups.append(current)
+
+	var validator := MeldValidator.new()
+	var series_melds: Array = []
+	var series_points: int = 0
+	var series_tile_ids: Array[int] = []
+	var pair_melds: Array = []
+	var pair_tile_ids: Array[int] = []
+
+	for ids in groups:
+		if ids.size() < 2:
+			continue
+		var tiles: Array = []
+		for tid in ids:
+			tiles.append(hand_by_id[int(tid)])
+
+		if ids.size() >= 3:
+			var run_res: Dictionary = validator.validate_run(tiles, state.okey_context)
+			if bool(run_res.get("ok", false)):
+				series_melds.append({"kind": Meld.Kind.RUN, "tile_ids": ids.duplicate()})
+				series_points += int(run_res.get("points_value", 0))
+				for tid in ids:
+					series_tile_ids.append(int(tid))
+				continue
+
+			var set_res: Dictionary = validator.validate_set(tiles, state.okey_context)
+			if bool(set_res.get("ok", false)):
+				series_melds.append({"kind": Meld.Kind.SET, "tile_ids": ids.duplicate()})
+				series_points += int(set_res.get("points_value", 0))
+				for tid in ids:
+					series_tile_ids.append(int(tid))
+				continue
+
+		if ids.size() % 2 == 0:
+			var p_melds: Array = _pair_melds(ids, tiles, pair_key_fn)
+			if not p_melds.is_empty():
+				for pm in p_melds:
+					pair_melds.append(pm)
+				for tid in ids:
+					pair_tile_ids.append(int(tid))
+
+	return {
+		"series_melds": series_melds,
+		"series_points": series_points,
+		"series_tile_ids": series_tile_ids,
+		"pair_melds": pair_melds,
+		"pair_count": pair_melds.size(),
+		"pair_tile_ids": pair_tile_ids,
+	}
+
+
+func smart_sort_rack_tiles(
+	tiles: Array,
+	okey_context,
+	mode: String,
+	pair_key_fn: Callable
+) -> Array[int]:
+	var out_slots: Array[int] = []
+	out_slots.resize(30)
+	out_slots.fill(-1)
+	if tiles.is_empty():
+		return out_slots
+
+	var used_ids: Dictionary = {}
+	var meld_groups: Array = [] # Array of Array[int]
+
+	if mode == "number" or mode == "pairs":
+		# Group by pair key to extract clean pairs
+		var by_key: Dictionary = {}
+		for t in tiles:
+			if okey_context != null and okey_context.is_real_okey(t):
+				continue
+			var k: String = String(pair_key_fn.call(t)) if pair_key_fn.is_valid() else "%d-%d" % [int(t.color), int(t.number)]
+			if not by_key.has(k):
+				by_key[k] = []
+			by_key[k].append(t)
+		var keys: Array = by_key.keys()
+		keys.sort()
+		for k in keys:
+			var bucket: Array = by_key[k]
+			while bucket.size() >= 2:
+				var a = bucket.pop_front()
+				var b = bucket.pop_front()
+				used_ids[int(a.unique_id)] = true
+				used_ids[int(b.unique_id)] = true
+				meld_groups.append([int(a.unique_id), int(b.unique_id)])
+	else:
+		# Series mode ("color" / "series"): extract valid Runs first, then Sets
+		var validator := MeldValidator.new()
+		for col in range(4):
+			var by_num: Dictionary = {}
+			for t in tiles:
+				if used_ids.has(int(t.unique_id)):
+					continue
+				if okey_context != null and okey_context.is_real_okey(t):
+					continue
+				var eff_col: int = int(okey_context.okey_color) if (okey_context != null and int(t.kind) == Tile.Kind.FAKE_OKEY) else int(t.color)
+				var eff_num: int = int(okey_context.okey_number) if (okey_context != null and int(t.kind) == Tile.Kind.FAKE_OKEY) else int(t.number)
+				if eff_col != col:
+					continue
+				if not by_num.has(eff_num):
+					by_num[eff_num] = []
+				by_num[eff_num].append(t)
+
+			# Extract up to 2 passes of consecutive runs in this color
+			for _pass in range(2):
+				var n: int = 1
+				while n <= 13:
+					if not by_num.has(n) or (by_num[n] as Array).is_empty():
+						n += 1
+						continue
+					var run_tiles: Array = []
+					var cur: int = n
+					while cur <= 13 and by_num.has(cur) and not (by_num[cur] as Array).is_empty():
+						run_tiles.append((by_num[cur] as Array)[0])
+						cur += 1
+					if run_tiles.size() >= 3 and bool(validator.validate_run(run_tiles, okey_context).get("ok", false)):
+						var grp: Array[int] = []
+						for rt in run_tiles:
+							var r_num: int = int(okey_context.okey_number) if (okey_context != null and int(rt.kind) == Tile.Kind.FAKE_OKEY) else int(rt.number)
+							(by_num[r_num] as Array).pop_front()
+							used_ids[int(rt.unique_id)] = true
+							grp.append(int(rt.unique_id))
+						meld_groups.append(grp)
+						n = cur
+					else:
+						n += 1
+
+		# Extract Sets (3 or 4 different colors of the same number, highest numbers first)
+		for num in range(13, 0, -1):
+			var by_col: Dictionary = {}
+			for t in tiles:
+				if used_ids.has(int(t.unique_id)):
+					continue
+				if okey_context != null and okey_context.is_real_okey(t):
+					continue
+				var eff_col: int = int(okey_context.okey_color) if (okey_context != null and int(t.kind) == Tile.Kind.FAKE_OKEY) else int(t.color)
+				var eff_num: int = int(okey_context.okey_number) if (okey_context != null and int(t.kind) == Tile.Kind.FAKE_OKEY) else int(t.number)
+				if eff_num != num:
+					continue
+				if not by_col.has(eff_col):
+					by_col[eff_col] = t
+			if by_col.size() >= 3:
+				var set_tiles: Array = by_col.values()
+				if bool(validator.validate_set(set_tiles, okey_context).get("ok", false)):
+					var grp: Array[int] = []
+					for st in set_tiles:
+						used_ids[int(st.unique_id)] = true
+						grp.append(int(st.unique_id))
+					meld_groups.append(grp)
+
+	var leftovers: Array = []
+	for t in tiles:
+		if not used_ids.has(int(t.unique_id)):
+			leftovers.append(t)
+
+	leftovers.sort_custom(func(a, b):
+		var a_key: int = int(a.number) * 10 + int(a.color) if (mode == "number" or mode == "pairs") else int(a.color) * 20 + int(a.number)
+		var b_key: int = int(b.number) * 10 + int(b.color) if (mode == "number" or mode == "pairs") else int(b.color) * 20 + int(b.number)
+		return int(a.unique_id) < int(b.unique_id) if a_key == b_key else a_key < b_key
+	)
+
+	# Pack meld_groups into row 0 (0..14) and row 1 (15..29) without splitting a meld across row boundary
+	var cursor: int = 0
+	for grp in meld_groups:
+		var g_size: int = grp.size()
+		if cursor < 15 and cursor + g_size > 15:
+			cursor = 15
+		if cursor + g_size + leftovers.size() > 30:
+			# Not enough room for extra gaps; return all remaining tiles to leftovers
+			for tid in grp:
+				for t in tiles:
+					if int(t.unique_id) == int(tid):
+						leftovers.append(t)
+			continue
+		for tid in grp:
+			if cursor < 30:
+				out_slots[cursor] = int(tid)
+				cursor += 1
+		# Leave a 1-slot gap after the group if it doesn't hit row end and leaves room for leftovers
+		if cursor != 15 and cursor < 30 and (30 - (cursor + 1)) >= leftovers.size():
+			cursor += 1
+
+	# Place leftovers in remaining slots (prefer starting on row 1 if melds are on row 0 and leftovers fit on row 1)
+	if not meld_groups.is_empty() and cursor > 0 and cursor < 15 and leftovers.size() <= 15:
+		cursor = 15
+	for lt in leftovers:
+		while cursor < 30 and out_slots[cursor] != -1:
+			cursor += 1
+		if cursor < 30:
+			out_slots[cursor] = int(lt.unique_id)
+			cursor += 1
+		else:
+			# Fallback: find any empty slot
+			var fallback_idx: int = out_slots.find(-1)
+			if fallback_idx != -1:
+				out_slots[fallback_idx] = int(lt.unique_id)
+
+	return out_slots
+
