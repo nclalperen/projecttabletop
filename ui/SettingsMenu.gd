@@ -630,8 +630,9 @@ func _ensure_display_rows() -> void:
 		_display_monitor_option = monitor_row.get("option") as OptionButton
 	if _presentation_mode_option == null:
 		var presentation_row := _build_option_row("Presentation Mode", [
+			{"label": "3D Vector Table (Tournament)", "id": "vector3d"},
+			{"label": "3D Classic Table (Legacy)", "id": "3d"},
 			{"label": "2D Table", "id": "2d"},
-			{"label": "3D Table", "id": "3d"},
 		])
 		presentation_row.get("row").name = "DisplayPresentationMode"
 		settings_list.add_child(presentation_row.get("row"))
