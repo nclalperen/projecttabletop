@@ -153,6 +153,8 @@ static func launch_scene_path(id: StringName, presentation_mode: String) -> Stri
 
 static func _resolve_launch_scene_path(id: StringName, presentation_mode: String, prototype_enabled: bool) -> String:
 	if uses_okey_table(id):
+		if presentation_mode == "vector3d":
+			return "res://ui/vector_table/VectorGameTable3D.tscn"
 		return "res://ui/GameTable3D.tscn" if presentation_mode == "3d" else "res://ui/GameTable.tscn"
 	if prototype_enabled:
 		return "res://ui/ImportedTable3D.tscn"

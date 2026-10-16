@@ -19,6 +19,7 @@ const DiscardPiles3D = preload("res://ui/vector_table/table/DiscardPiles3D.gd")
 const VectorInput3D = preload("res://ui/vector_table/input/VectorInput3D.gd")
 const MeldLayout3D = preload("res://ui/vector_table/melds/MeldLayout3D.gd")
 const MeldInspectionOverlay = preload("res://ui/game_table/MeldInspectionOverlay.gd")
+const TableAudioController = preload("res://ui/game_table/TableAudioController.gd")
 
 # Scene references
 var _world: Node3D = self
@@ -37,6 +38,7 @@ var _melds_container: Node3D
 var _registry: TileRegistry3D
 var _animator: TileAnimator3D
 var _input_handler: VectorInput3D
+var _audio_controller: TableAudioController = null
 var _vignette_layer: CanvasLayer
 
 # Hand state mapping: slot_index -> unique_id
@@ -66,9 +68,14 @@ var _last_action_was_take_discard: bool = false
 func _init() -> void:
 	_build_3d_environment()
 	_build_vignette()
+	_audio_controller = TableAudioController.new()
+	_audio_controller.name = "AudioController"
+	add_child(_audio_controller)
 	_hud = OKEY_HUD_SCENE.instantiate() as OkeyPlayHUD
 	_hud.name = "PlayHUD"
 	add_child(_hud)
+	if _animator != null:
+		_animator.flight_completed.connect(_on_flight_completed)
 
 
 
@@ -96,6 +103,8 @@ func _ready() -> void:
 
 	if _session == null:
 		_init_session()
+	elif _session.has_method("_maybe_auto_bot_turn"):
+		_session.call_deferred("_maybe_auto_bot_turn")
 
 
 
@@ -168,6 +177,7 @@ func _build_3d_environment() -> void:
 
 	# 5. Hand Rig: Camera-attached 2-tier walnut rack (D1, D7)
 	_hand_rig = HandRig3D.new()
+	_hand_rig.name = "HandRig3D"
 	_camera.add_child(_hand_rig)
 
 	# 6. Procedural Walnut & Emerald Felt Table (1.26m x 1.04m widescreen)
@@ -243,22 +253,34 @@ void fragment() {
 
 func _on_hud_commit_melds() -> void:
 	if _session != null:
-		_session.request_open_rack_melds()
+		var res: Dictionary = _session.request_open_rack_melds()
+		if bool(res.get("ok", false)):
+			if _audio_controller != null:
+				_audio_controller.on_melds_committed()
+		else:
+			if _audio_controller != null:
+				_audio_controller.on_invalid_action()
 
 
 func _on_hud_sort(mode: StringName) -> void:
 	if _session != null:
 		_session.overlay_sort_rack(String(mode))
+		if _audio_controller != null:
+			_audio_controller.on_tile_snapped_to_rack()
 
 
 func _on_hud_undo() -> void:
 	if _session != null:
 		_session.overlay_undo()
+		if _audio_controller != null:
+			_audio_controller.on_tile_snapped_to_rack()
 
 
 func _on_hud_return_draft() -> void:
 	if _session != null:
 		_session.overlay_return_draft()
+		if _audio_controller != null:
+			_audio_controller.on_tile_snapped_to_rack()
 
 
 func _toggle_camera_view() -> void:
@@ -299,6 +321,55 @@ func configure_game(rule_config: RuleConfig, game_seed: int = 1701, player_count
 
 	if _input_handler != null:
 		_input_handler.setup(self, _camera, _hand_rig, _registry, _session, _stock_view, _discard_piles_view)
+		if not _input_handler.tile_picked.is_connected(_on_input_tile_picked):
+			_input_handler.tile_picked.connect(_on_input_tile_picked)
+		if not _input_handler.tile_moved.is_connected(_on_input_tile_moved):
+			_input_handler.tile_moved.connect(_on_input_tile_moved)
+
+
+func inject_controller(controller) -> void:
+	if _session == null:
+		_session = OKEY_SESSION.new()
+		add_child(_session)
+		_session.session_state_updated.connect(_on_session_state_updated)
+		_session.rack_and_draft_changed.connect(_on_rack_and_draft_changed)
+		_session.table_melds_updated.connect(_on_melds_updated)
+	_session.inject_controller(controller)
+	if _hud != null:
+		_hud.bind_to_session(_session)
+		_hud.refresh(_session)
+	if _input_handler != null:
+		_input_handler.setup(self, _camera, _hand_rig, _registry, _session, _stock_view, _discard_piles_view)
+		if not _input_handler.tile_picked.is_connected(_on_input_tile_picked):
+			_input_handler.tile_picked.connect(_on_input_tile_picked)
+		if not _input_handler.tile_moved.is_connected(_on_input_tile_moved):
+			_input_handler.tile_moved.connect(_on_input_tile_moved)
+
+
+func get_audio_controller() -> TableAudioController:
+	return _audio_controller
+
+
+func _on_flight_completed(_tile: VectorTile3D, kind: StringName) -> void:
+	if _audio_controller == null:
+		return
+	match kind:
+		&"discard", &"opponent_discard":
+			_audio_controller.on_tile_discarded()
+		&"draw":
+			_audio_controller.on_tile_snapped_to_rack()
+		&"meld":
+			_audio_controller.on_melds_committed()
+
+
+func _on_input_tile_picked(_tile: VectorTile3D) -> void:
+	if _audio_controller != null:
+		_audio_controller.on_tile_picked()
+
+
+func _on_input_tile_moved(_from_slot: int, _to_slot: int) -> void:
+	if _audio_controller != null:
+		_audio_controller.on_tile_snapped_to_rack()
 
 
 func _init_session() -> void:

@@ -119,7 +119,7 @@ static func default_presentation_mode() -> String:
 
 static func sanitize_presentation_mode(raw: String) -> String:
 	var mode: String = raw.to_lower().strip_edges()
-	return mode if PackedStringArray(["2d", "3d"]).has(mode) else PLATFORM_PROFILE_SCRIPT.default_presentation_mode()
+	return mode if PackedStringArray(["2d", "3d", "vector3d"]).has(mode) else PLATFORM_PROFILE_SCRIPT.default_presentation_mode()
 
 
 static func linear_to_db_safe(level: float) -> float:

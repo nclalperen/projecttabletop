@@ -96,6 +96,8 @@ const TEST_SCRIPTS = [
 	"res://tests/test_vector3d_input.gd",
 	"res://tests/test_okey_session_open_rack_melds.gd",
 	"res://tests/test_vector3d_meld_layout.gd",
+	"res://tests/test_ui_vector3d_scene_contract.gd",
+	"res://tests/test_vector3d_audio.gd",
 ]
 
 var _all_ok := true

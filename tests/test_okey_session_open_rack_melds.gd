@@ -3,7 +3,10 @@ extends RefCounted
 const SESSION = preload("res://ui/game_table/OkeySession.gd")
 
 func run() -> bool:
-	return _test_open_rack_melds_valid() and _test_open_rack_melds_below_threshold()
+	var ok: bool = _test_open_rack_melds_valid() and _test_open_rack_melds_below_threshold()
+	if ok:
+		print("  PASS  test_okey_session_open_rack_melds")
+	return ok
 
 func _check(value: bool, message: String) -> bool:
 	if not value:

@@ -16,8 +16,8 @@ func _test_defaults_include_presentation_mode() -> bool:
 		push_error("UI settings missing presentation_mode key")
 		return false
 	var mode: String = str(settings.get("presentation_mode", ""))
-	if not PackedStringArray(["2d", "3d"]).has(mode):
-		push_error("UI settings presentation_mode should be 2d or 3d")
+	if not PackedStringArray(["2d", "3d", "vector3d"]).has(mode):
+		push_error("UI settings presentation_mode should be 2d, 3d, or vector3d")
 		return false
 	return true
 
@@ -28,6 +28,9 @@ func _test_presentation_mode_sanitize() -> bool:
 		return false
 	if UI_SETTINGS_SCRIPT.sanitize_presentation_mode("3d") != "3d":
 		push_error("sanitize_presentation_mode should keep 3d")
+		return false
+	if UI_SETTINGS_SCRIPT.sanitize_presentation_mode("vector3d") != "vector3d":
+		push_error("sanitize_presentation_mode should keep vector3d")
 		return false
 	var fallback: String = UI_SETTINGS_SCRIPT.default_presentation_mode()
 	if UI_SETTINGS_SCRIPT.sanitize_presentation_mode("invalid") != fallback:

@@ -83,3 +83,28 @@ VectorGameTable3D (Node3D)                     VectorGameTable3D.gd — coordina
 ```
 
 All tiles live under `Tiles` **in world space**. When a tile belongs to the hand, its world target is computed every frame from `HandRig.global_transform * slot_local_transform`. Tiles are not re-parented between zones.
+
+---
+
+## 3. Phase P8: Audio Integration, Routing, and Merge Gate
+
+### Audio Integration (`TableAudioController.gd`)
+- `VectorGameTable3D` owns a dedicated `TableAudioController` instance (`"AudioController"`).
+- Sound effects are triggered declaratively on physics and animation signals:
+  - **Tile Landings (`flight_completed`)**: Pitch randomized ±8% on flight completion for `&"discard"`, `&"opponent_discard"`, `&"draw"`, and `&"meld"`.
+  - **Input Events (`VectorInput3D`)**: `tile_picked` clack on initial drag pickup, `tile_moved` snap on slot reordering.
+  - **HUD Operations (`OkeyPlayHUD`)**: `on_melds_committed` chime on valid meld opening, `on_invalid_action` buzz on rejected open, and tactile snap on `sort_runs`, `sort_pairs`, `undo`, and `return_draft`.
+
+### Unified Presentation Routing
+- Added `"vector3d"` as a first-class presentation mode across:
+  - `ui/services/UISettings.gd`: `sanitize_presentation_mode` accepts `"vector3d"`.
+  - `gd/config/TabletopGameCatalog.gd`: `_resolve_launch_scene_path` routes Okey 101 to `VectorGameTable3D.tscn`.
+  - `ui/MainMenu.gd`: Seamless launch of `VectorGameTable3D.tscn` when `presentation_mode == "vector3d"`.
+  - `ui/OnlineLobby.gd`: Multiplayer host/client and local offline matches route to `VectorGameTable3D.tscn` with `inject_controller` support.
+
+### Verification Matrix
+- **Fast Test Suite**: 38/38 tests passing (`.\tools\godot.cmd --headless -s tests/run_tests_fast.gd`).
+- **Scene Contract Guard**: `tests/test_ui_vector3d_scene_contract.gd` verifies 15 required nodes, AgX tonemapping, 40° FOV, and dark `#0d0b0a` room.
+- **Asset Literal Guard**: Fully compliant with `tests/test_no_direct_asset_literals.gd` via `AssetRegistry` and `AssetIds`.
+- **Render Performance**: Sustained 165 FPS at 1080p and 720p forward+ renderer.
+

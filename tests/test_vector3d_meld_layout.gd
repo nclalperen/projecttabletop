@@ -3,7 +3,10 @@ extends RefCounted
 const MELD_LAYOUT_SCRIPT = preload("res://ui/vector_table/melds/MeldLayout3D.gd")
 
 func run() -> bool:
-	return _test_basic_layout() and _test_crowded_layout_32_melds()
+	var ok: bool = _test_basic_layout() and _test_crowded_layout_32_melds()
+	if ok:
+		print("  PASS  test_vector3d_meld_layout")
+	return ok
 
 func _check(value: bool, message: String) -> bool:
 	if not value:

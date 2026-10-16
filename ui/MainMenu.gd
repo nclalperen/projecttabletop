@@ -602,10 +602,15 @@ func _on_lobby_game_started(pc: int, seed_val: int, bot_difficulties: Array = []
 	player_count = pc
 	var actual_seed: int = seed_val if seed_val >= 0 else randi()
 
-	var scene_path: String = "res://ui/GameTable3D.tscn" if presentation_mode == "3d" else "res://ui/GameTable.tscn"
+	var scene_path: String = "res://ui/GameTable.tscn"
+	if presentation_mode == "vector3d":
+		scene_path = "res://ui/vector_table/VectorGameTable3D.tscn"
+	elif presentation_mode == "3d":
+		scene_path = "res://ui/GameTable3D.tscn"
+
 	var launched_mode: String = presentation_mode
 	var game_table_scene: PackedScene = load(scene_path)
-	if game_table_scene == null and presentation_mode == "3d":
+	if game_table_scene == null and (presentation_mode == "3d" or presentation_mode == "vector3d"):
 		scene_path = "res://ui/GameTable.tscn"
 		launched_mode = "2d"
 		game_table_scene = load(scene_path)

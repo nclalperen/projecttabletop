@@ -2,6 +2,7 @@ extends Control
 
 const GAME_TABLE_2D_SCENE_PATH: String = "res://ui/GameTable.tscn"
 const GAME_TABLE_3D_SCENE_PATH: String = "res://ui/GameTable3D.tscn"
+const GAME_TABLE_VECTOR3D_SCENE_PATH: String = "res://ui/vector_table/VectorGameTable3D.tscn"
 const GAME_CATALOG: Script = preload("res://gd/config/TabletopGameCatalog.gd")
 const ONLINE_SERVICE_SCRIPT: Script = preload("res://net/OnlineServiceEOS.gd")
 const LOBBY_SERVICE_SCRIPT: Script = preload("res://net/LobbyServiceEOS.gd")
@@ -1053,8 +1054,15 @@ func _maybe_launch_match_from_lobby(lobby: Dictionary) -> void:
 	var match_id: String = String(attrs.get("match_id", ""))
 	var launched_game_id: StringName = _lobby_game_id(lobby)
 	if GAME_CATALOG.uses_okey_table(launched_game_id):
-		var scene_path: String = GAME_TABLE_3D_SCENE_PATH if _presentation_mode == "3d" else GAME_TABLE_2D_SCENE_PATH
+		var scene_path: String = GAME_TABLE_2D_SCENE_PATH
+		if _presentation_mode == "vector3d":
+			scene_path = GAME_TABLE_VECTOR3D_SCENE_PATH
+		elif _presentation_mode == "3d":
+			scene_path = GAME_TABLE_3D_SCENE_PATH
 		var scene: PackedScene = load(scene_path)
+		if scene == null and (_presentation_mode == "3d" or _presentation_mode == "vector3d"):
+			scene_path = GAME_TABLE_2D_SCENE_PATH
+			scene = load(scene_path)
 		if scene == null:
 			_set_status(&"operation_failed", {"reason": "Failed to load the legacy Okey table scene."})
 			return
@@ -1332,9 +1340,13 @@ func _launch_local_bot_match(plan: Array) -> void:
 		Time.get_unix_time_from_system(),
 	])))
 	if GAME_CATALOG.uses_okey_table(_selected_game_id):
-		var scene_path: String = GAME_TABLE_3D_SCENE_PATH if _presentation_mode == "3d" else GAME_TABLE_2D_SCENE_PATH
+		var scene_path: String = GAME_TABLE_2D_SCENE_PATH
+		if _presentation_mode == "vector3d":
+			scene_path = GAME_TABLE_VECTOR3D_SCENE_PATH
+		elif _presentation_mode == "3d":
+			scene_path = GAME_TABLE_3D_SCENE_PATH
 		var local_scene: PackedScene = load(scene_path)
-		if local_scene == null and _presentation_mode == "3d":
+		if local_scene == null and (_presentation_mode == "3d" or _presentation_mode == "vector3d"):
 			scene_path = GAME_TABLE_2D_SCENE_PATH
 			local_scene = load(scene_path)
 		if local_scene == null:
