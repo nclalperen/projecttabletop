@@ -21,11 +21,11 @@ const SUIT_COLORS: Array[Color] = [
 
 const FONT_ID: StringName = AssetIds.UI_FONT_BARLOW_CONDENSED_BOLD
 
-static var _cached_texture: Texture2D = null
+static var _cached_texture: ImageTexture = null
 static var _is_building: bool = false
 
 
-static func get_texture() -> Texture2D:
+static func get_texture() -> ImageTexture:
 	if _cached_texture != null:
 		return _cached_texture
 	# Fallback before atlas generation or in headless
@@ -90,7 +90,10 @@ static func ensure_atlas(tree: SceneTree) -> void:
 
 	var img: Image = viewport.get_texture().get_image()
 	if img != null and not img.is_empty():
-		_cached_texture = ImageTexture.create_from_image(img)
+		if _cached_texture != null:
+			_cached_texture.set_image(img)
+		else:
+			_cached_texture = ImageTexture.create_from_image(img)
 
 	viewport.queue_free()
 	_is_building = false

@@ -1,6 +1,6 @@
 ## Unified 3D Vector Game Table for Okey 101.
 ## Combines real 3D depth, PBR lighting, and materials with 6-DOF mathematical spring physics,
-## camera-attached hand rig, and crisp texture-atlas tile faces.
+## camera-attached hand rig, persistent TileRegistry3D, and TileAnimator3D flight arcs.
 class_name VectorGameTable3D
 extends Node3D
 
@@ -11,6 +11,8 @@ const SPRING3D = preload("res://ui/vector_table/math/SpringSolver3D.gd")
 const HandRig3D = preload("res://ui/vector_table/hand/HandRig3D.gd")
 const TileFaceAtlas = preload("res://ui/vector_table/render/TileFaceAtlas.gd")
 const VectorTile3D = preload("res://ui/vector_table/render/VectorTile3D.gd")
+const TileRegistry3D = preload("res://ui/vector_table/TileRegistry3D.gd")
+const TileAnimator3D = preload("res://ui/vector_table/TileAnimator3D.gd")
 
 # Scene references
 var _world: Node3D = self
@@ -21,16 +23,19 @@ var _fill_light: OmniLight3D
 var _table_mesh: Node3D
 var _hand_rig: HandRig3D
 var _deck_container: Node3D
-var _indicator_tile: VectorTile3D
 var _melds_container: Node3D
-var _tiles_container: Node3D
-var _discard_tiles: Dictionary = {} # seat -> VectorTile3D
+var _registry: TileRegistry3D
+var _animator: TileAnimator3D
 var _vignette_layer: CanvasLayer
 
-# Hand tiles tracking
-var _hand_tiles: Dictionary = {} # slot -> VectorTile3D
+# Hand state mapping: slot_index -> unique_id
+var _hand_slots_map: Dictionary = {} # slot -> tile_id
+var _hand_tiles_map: Dictionary = {} # tile_id -> VectorTile3D
 
-# Backward-compat property for tests checking table._rack
+# Discard piles tracking: seat -> Array[int] (tile IDs)
+var _discard_pile_ids: Dictionary = {0: [], 1: [], 2: [], 3: []}
+
+# Backward-compat property for test assertions checking table._rack
 var _rack: Node:
 	get: return _hand_rig
 
@@ -46,6 +51,7 @@ var _btn_open_melds: Button
 var _session: Node = null
 var _is_my_turn: bool = false
 var _current_phase: int = 1
+var _last_action_was_take_discard: bool = false
 
 
 func _init() -> void:
@@ -55,9 +61,10 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	# Ensure tile face atlas is built once
 	if get_tree() != null:
 		await TileFaceAtlas.ensure_atlas(get_tree())
+		if _registry != null:
+			_registry.refresh_all_face_textures()
 
 	if _session == null:
 		_init_session()
@@ -138,12 +145,17 @@ func _build_3d_environment() -> void:
 	_table_mesh = TABLE_ART.build_table(self, TUNING.TABLE_SURFACE_Y)
 	_table_mesh.name = "Table"
 
-	# 7. Persistent World-space Tiles Container (D3)
-	_tiles_container = Node3D.new()
-	_tiles_container.name = "Tiles"
-	add_child(_tiles_container)
+	# 7. Persistent World-space Tiles Registry (D3)
+	_registry = TileRegistry3D.new()
+	_registry.name = "Tiles"
+	add_child(_registry)
 
-	# 8. Center Deck & Discard Containers
+	# 8. Flight Animator (D8)
+	_animator = TileAnimator3D.new()
+	_animator.name = "Animator"
+	add_child(_animator)
+
+	# 9. Center Deck & Containers
 	_deck_container = Node3D.new()
 	_deck_container.name = "StockAndIndicator"
 	add_child(_deck_container)
@@ -262,6 +274,18 @@ func _init_session() -> void:
 	configure_game(RuleConfig.new(), 1701, 4)
 
 
+func _process(_delta: float) -> void:
+	# Continuously recompute world target for hand tiles from HandRig (D3)
+	for slot_idx in _hand_slots_map.keys():
+		var tile_id: int = _hand_slots_map[slot_idx]
+		var tile: VectorTile3D = _hand_tiles_map.get(tile_id, null)
+		if tile != null and not tile.is_flying and not tile.is_dragging:
+			var world_xf: Transform3D = _hand_rig.slot_global_transform(slot_idx)
+			tile.set_target_position_3d(world_xf.origin, false)
+			var euler_deg := world_xf.basis.get_euler() * (180.0 / PI)
+			tile.set_target_rotation_3d(euler_deg, false)
+
+
 func _on_session_state_updated(snapshot: Dictionary) -> void:
 	_is_my_turn = bool(snapshot.get("is_local_turn", false))
 	_status_label.text = str(snapshot.get("instruction", "Okey 101 Tabletop"))
@@ -269,13 +293,52 @@ func _on_session_state_updated(snapshot: Dictionary) -> void:
 	# Update Indicator Tile in 3D (flat on table per D5)
 	var ind_tile = snapshot.get("indicator_tile")
 	if ind_tile != null:
-		if _indicator_tile == null:
-			_indicator_tile = VectorTile3D.new()
-			add_child(_indicator_tile)
-		_indicator_tile.setup_tile(ind_tile.unique_id, ind_tile.number, ind_tile.color, ind_tile.kind != 0, true, true)
-		_indicator_tile.set_target_position_3d(TUNING.INDICATOR_POS_3D, true)
-		# Flat on felt, tilted back -90° on X, -6° yaw jitter
-		_indicator_tile.set_target_rotation_3d(Vector3(-90.0, TUNING.INDICATOR_ROT_DEG.y, 0.0), true)
+		var tile_node: VectorTile3D = _registry.ensure(ind_tile.unique_id, ind_tile.number, ind_tile.color, ind_tile.kind != 0, true, true)
+		tile_node.set_target_position_3d(TUNING.INDICATOR_POS_3D, true)
+		tile_node.set_target_rotation_3d(Vector3(-90.0, TUNING.INDICATOR_ROT_DEG.y, 0.0), true)
+		_registry.set_zone(ind_tile.unique_id, &"indicator")
+
+	# Update discard stacks diffing
+	_sync_discards()
+
+
+func _sync_discards() -> void:
+	var controller = _session.get_controller() if _session != null else null
+	if controller == null or controller.state == null:
+		return
+	var state = controller.state
+	var stacks: Array = state.player_discard_stacks if ("player_discard_stacks" in state) else []
+	if stacks.is_empty():
+		return
+
+	for seat in range(mini(stacks.size(), 4)):
+		var pile: Array = stacks[seat]
+		if pile.is_empty():
+			continue
+		var top_tile = pile[pile.size() - 1]
+		var top_id: int = int(top_tile.unique_id)
+		var prev_zone := _registry.zone_of(top_id)
+		var dest_zone := StringName("discard_%d" % seat)
+
+		if prev_zone != dest_zone:
+			var node := _registry.ensure(top_id, top_tile.number, top_tile.color, top_tile.kind != 0, true, true)
+			var pile_pos: Vector3 = TUNING.DISCARD_POS_3D.get(seat, TUNING.DISCARD_POS_3D[0])
+			var pile_rot: Vector3 = TUNING.DISCARD_ROT_DEG.get(seat, TUNING.DISCARD_ROT_DEG[0])
+			var target_xf := Transform3D(Basis.from_euler(Vector3(deg_to_rad(-90.0), deg_to_rad(pile_rot.y), 0.0)), pile_pos)
+
+			if prev_zone == &"hand":
+				# Local discard flight
+				_animator.fly_discard(node, node.global_transform, target_xf)
+			elif prev_zone == &"none":
+				# Opponent discard flight
+				var opp_pos: Vector3 = TUNING.OPPONENT_RACK_POS_3D.get(seat, TUNING.STOCK_POS_3D)
+				var opp_xf := Transform3D(Basis.IDENTITY, opp_pos)
+				_animator.fly_opponent_discard(node, opp_xf, target_xf)
+			else:
+				node.set_target_position_3d(target_xf.origin, true)
+				node.set_target_rotation_3d(target_xf.basis.get_euler() * (180.0 / PI), true)
+
+			_registry.set_zone(top_id, dest_zone)
 
 
 func _get_tile_by_id(tile_id: int):
@@ -289,11 +352,8 @@ func _get_tile_by_id(tile_id: int):
 
 
 func _on_rack_and_draft_changed(rack_slots: Array, _draft_slots: Array, validation: Dictionary) -> void:
-	# Clean up previous hand tiles
-	for tile in _hand_tiles.values():
-		tile.queue_free()
-	_hand_tiles.clear()
-
+	var new_slots_map: Dictionary = {}
+	var new_tiles_map: Dictionary = {}
 	_hand_rig._row_tiles = [[], []]
 
 	var valid_ids: Array = validation.get("valid_tile_ids", []) as Array
@@ -306,22 +366,45 @@ func _on_rack_and_draft_changed(rack_slots: Array, _draft_slots: Array, validati
 		if tile_data == null:
 			continue
 
-		var v_tile := VectorTile3D.new()
-		v_tile.setup_tile(tile_data.unique_id, tile_data.number, tile_data.color, tile_data.kind != 0, true, true)
-		_tiles_container.add_child(v_tile)
-
+		var prev_zone := _registry.zone_of(tile_id)
+		var v_tile: VectorTile3D = _registry.ensure(tile_data.unique_id, tile_data.number, tile_data.color, tile_data.kind != 0, true, true)
 		var world_xf: Transform3D = _hand_rig.slot_global_transform(slot_idx)
-		v_tile.set_target_position_3d(world_xf.origin, true)
-		var euler_deg := world_xf.basis.get_euler() * (180.0 / PI)
-		v_tile.set_target_rotation_3d(euler_deg, true)
 
 		var is_valid: bool = valid_ids.has(tile_data.unique_id)
 		v_tile.set_highlight(&"valid_meld" if is_valid else &"none")
 
-		_hand_tiles[slot_idx] = v_tile
+		if prev_zone == &"none":
+			# Initial deal
+			v_tile.set_target_position_3d(world_xf.origin, true)
+			var euler_deg := world_xf.basis.get_euler() * (180.0 / PI)
+			v_tile.set_target_rotation_3d(euler_deg, true)
+		elif prev_zone == &"stock":
+			# Drawn from stock
+			var from_xf := Transform3D(Basis.from_euler(Vector3(deg_to_rad(-90.0), deg_to_rad(TUNING.STOCK_ROT_DEG.y), 0.0)), TUNING.STOCK_POS_3D)
+			_animator.fly_draw(v_tile, from_xf, world_xf)
+		elif prev_zone.begins_with("discard_"):
+			# Drawn from discard
+			var seat_idx := int(prev_zone.trim_prefix("discard_"))
+			var pile_pos: Vector3 = TUNING.DISCARD_POS_3D.get(seat_idx, TUNING.DISCARD_POS_3D[3])
+			var pile_rot: Vector3 = TUNING.DISCARD_ROT_DEG.get(seat_idx, TUNING.DISCARD_ROT_DEG[3])
+			var from_xf := Transform3D(Basis.from_euler(Vector3(deg_to_rad(-90.0), deg_to_rad(pile_rot.y), 0.0)), pile_pos)
+			_animator.fly_draw(v_tile, from_xf, world_xf)
+		else:
+			# Internal hand reorder / spring update
+			if not v_tile.is_flying and not v_tile.is_dragging:
+				v_tile.set_target_position_3d(world_xf.origin, false)
+				var euler_deg := world_xf.basis.get_euler() * (180.0 / PI)
+				v_tile.set_target_rotation_3d(euler_deg, false)
+
+		_registry.set_zone(tile_id, &"hand")
+		new_slots_map[slot_idx] = tile_id
+		new_tiles_map[tile_id] = v_tile
 
 		var row_idx: int = 0 if slot_idx < TUNING.SLOTS_PER_ROW else 1
 		_hand_rig._row_tiles[row_idx].append(v_tile)
+
+	_hand_slots_map = new_slots_map
+	_hand_tiles_map = new_tiles_map
 
 
 func _on_melds_updated(melds: Array) -> void:

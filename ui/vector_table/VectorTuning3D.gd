@@ -30,10 +30,10 @@ const OPPONENT_RACK_ROT_DEG: Dictionary = {
 const OPPONENT_RACK_SCALE: float = 0.85
 
 const DISCARD_POS_3D: Dictionary = {
-	0: Vector3(0.33, TABLE_SURFACE_Y, 0.27),   # Local out (SE)
-	1: Vector3(0.33, TABLE_SURFACE_Y, -0.27),  # East (NE)
-	2: Vector3(-0.33, TABLE_SURFACE_Y, -0.27), # North (NW)
-	3: Vector3(-0.33, TABLE_SURFACE_Y, 0.27),  # West (SW, local takes from here)
+	0: Vector3(0.28, TABLE_SURFACE_Y, 0.08),   # Local out (SE)
+	1: Vector3(0.28, TABLE_SURFACE_Y, -0.20),  # East (NE)
+	2: Vector3(-0.28, TABLE_SURFACE_Y, -0.20), # North (NW)
+	3: Vector3(-0.28, TABLE_SURFACE_Y, 0.08),  # West (SW, local takes from here)
 }
 
 const DISCARD_ROT_DEG: Dictionary = {

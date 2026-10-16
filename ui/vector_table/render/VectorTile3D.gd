@@ -125,6 +125,15 @@ func setup_tile(uid: int, num: int, col_idx: int, fake_okey: bool = false, stand
 	_rebuild_visuals()
 
 
+func refresh_face_texture() -> void:
+	if _face_mesh != null and _face_mesh.material_override is ShaderMaterial:
+		var sm := _face_mesh.material_override as ShaderMaterial
+		sm.set_shader_parameter("face_atlas", TileFaceAtlas.get_texture())
+		var rect: Rect2 = TileFaceAtlas.uv_rect(number, color_index, is_fake_okey)
+		sm.set_shader_parameter("uv_offset", rect.position)
+		sm.set_shader_parameter("uv_scale", rect.size)
+
+
 func set_target_position_3d(pos: Vector3, snap_immediate: bool = false) -> void:
 	target_pos = pos
 	if snap_immediate:

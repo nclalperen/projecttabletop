@@ -8,6 +8,7 @@ extends SceneTree
 
 const SCENE_PATH := "res://ui/vector_table/VectorGameTable3D.tscn"
 const TUNING := preload("res://ui/vector_table/VectorTuning3D.gd")
+const TileFaceAtlas = preload("res://ui/vector_table/render/TileFaceAtlas.gd")
 
 var board: Node = null
 var session: Node = null
@@ -55,6 +56,8 @@ func _run() -> void:
 		viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 		root.add_child(viewport)
 		capture_view = viewport
+
+	await TileFaceAtlas.ensure_atlas(root.get_tree())
 
 	var scene: PackedScene = load(SCENE_PATH)
 	if scene == null:
@@ -108,7 +111,20 @@ func _run() -> void:
 
 			session._sync_state()
 
-		if delay_sec > 0.0:
+		if fixture == "after_discard" and session != null:
+			await _frames(15)
+			# Find first tile in hand and discard it
+			var controller_state = controller.state if controller != null else null
+			var hand: Array = controller_state.players[0].hand if controller_state != null else []
+			if not hand.is_empty():
+				var tile_to_discard = hand[0]
+				var res: Dictionary = session.overlay_discard_tile(tile_to_discard.unique_id)
+				print("QA after_discard submit result: ", res)
+
+			var delay_frames := maxi(1, int(delay_sec * 60.0)) if delay_sec > 0.0 else 11 # ~0.18s default
+			for _f in range(delay_frames):
+				await process_frame
+		elif delay_sec > 0.0:
 			var delay_frames := int(delay_sec * 60.0)
 			await _frames(maxi(1, delay_frames))
 		else:
