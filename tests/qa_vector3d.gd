@@ -123,7 +123,20 @@ func _run() -> void:
 
 			session._sync_state()
 
-		if fixture == "after_discard" and session != null:
+		if fixture == "dragging":
+			await _frames(15)
+			var input = board.get("_input_handler")
+			var hand_slots: Dictionary = board.get("_hand_slots_map") if "_hand_slots_map" in board else {}
+			var reg = board.get("_registry")
+			if input != null and not hand_slots.is_empty() and reg != null:
+				var center_tid: int = hand_slots.get(7, hand_slots.values()[0])
+				var center_tile = reg.get_node_for(center_tid)
+				if center_tile != null:
+					input._start_drag(center_tile, 7)
+					var drag_screen_pos := Vector2(float(requested_size.x) * 0.5 + 80.0, float(requested_size.y) * 0.65)
+					input._update_drag(drag_screen_pos)
+			await _frames(10)
+		elif fixture == "after_discard" and session != null:
 			await _frames(15)
 			# Find first tile in hand and discard it
 			var controller_state = controller.state if controller != null else null

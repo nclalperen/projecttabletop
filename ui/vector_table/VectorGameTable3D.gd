@@ -16,6 +16,7 @@ const TileAnimator3D = preload("res://ui/vector_table/TileAnimator3D.gd")
 const OpponentRack3D = preload("res://ui/vector_table/opponents/OpponentRack3D.gd")
 const StockView3D = preload("res://ui/vector_table/table/StockView3D.gd")
 const DiscardPiles3D = preload("res://ui/vector_table/table/DiscardPiles3D.gd")
+const VectorInput3D = preload("res://ui/vector_table/input/VectorInput3D.gd")
 
 # Scene references
 var _world: Node3D = self
@@ -32,6 +33,7 @@ var _opponent_racks: Dictionary = {} # seat -> OpponentRack3D
 var _melds_container: Node3D
 var _registry: TileRegistry3D
 var _animator: TileAnimator3D
+var _input_handler: VectorInput3D
 var _vignette_layer: CanvasLayer
 
 # Hand state mapping: slot_index -> unique_id
@@ -185,6 +187,11 @@ func _build_3d_environment() -> void:
 	_melds_container.name = "TableMelds"
 	add_child(_melds_container)
 
+	# 13. Physics Input System (D5)
+	_input_handler = VectorInput3D.new()
+	_input_handler.name = "VectorInput"
+	add_child(_input_handler)
+
 
 func _build_vignette() -> void:
 	_vignette_layer = CanvasLayer.new()
@@ -278,6 +285,9 @@ func configure_game(rule_config: RuleConfig, game_seed: int = 1701, player_count
 	_session._bind_controller_signals()
 	_session._start_round()
 	_session._sync_state()
+
+	if _input_handler != null:
+		_input_handler.setup(self, _camera, _hand_rig, _registry, _session, _stock_view, _discard_piles_view)
 
 
 func _init_session() -> void:

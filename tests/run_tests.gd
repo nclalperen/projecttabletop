@@ -93,6 +93,7 @@ const TEST_SCRIPTS = [
 	"res://tests/test_vector3d_tile_atlas.gd",
 	"res://tests/test_vector3d_registry.gd",
 	"res://tests/test_vector3d_opponents.gd",
+	"res://tests/test_vector3d_input.gd",
 ]
 
 var _all_ok := true

@@ -21,13 +21,36 @@ func _init() -> void:
 	add_child(_rack_mesh)
 
 
+var _push_aside_offsets: Dictionary = {} # slot -> float (x offset in meters)
+
+
+func clear_push_aside() -> void:
+	_push_aside_offsets.clear()
+
+
+func apply_push_aside(drag_local_pos: Vector3, drag_slot: int = -1, amplitude: float = 0.022, sigma: float = 0.040) -> void:
+	_push_aside_offsets.clear()
+	var row_idx: int = 0 if absf(drag_local_pos.y - TUNING.ROW_LOCAL_Y[0]) <= absf(drag_local_pos.y - TUNING.ROW_LOCAL_Y[1]) else 1
+
+	for col in range(TUNING.SLOTS_PER_ROW):
+		var slot_idx: int = row_idx * TUNING.SLOTS_PER_ROW + col
+		if slot_idx == drag_slot:
+			continue
+		var base_x: float = (float(col) - 7.0) * TUNING.TILE_PITCH
+		var dx: float = base_x - drag_local_pos.x
+		var dist: float = absf(dx)
+		if dist < sigma * 3.0:
+			var push: float = amplitude * exp(-(dist * dist) / (2.0 * sigma * sigma)) * signf(dx)
+			_push_aside_offsets[slot_idx] = push
+
+
 func slot_local_transform(slot: int) -> Transform3D:
 	var s: int = clampi(slot, 0, TUNING.TOTAL_HAND_SLOTS - 1)
 	var row_idx: int = 0 if s < TUNING.SLOTS_PER_ROW else 1
 	var col: int = s % TUNING.SLOTS_PER_ROW
 
-	# Symmetric about x = 0 (col 7 is center: x = 0.0)
-	var x: float = (float(col) - 7.0) * TUNING.TILE_PITCH
+	var push_x: float = _push_aside_offsets.get(s, 0.0)
+	var x: float = (float(col) - 7.0) * TUNING.TILE_PITCH + push_x
 	var y: float = TUNING.ROW_LOCAL_Y[row_idx]
 	var z: float = -0.012 if row_idx == 0 else 0.012
 
