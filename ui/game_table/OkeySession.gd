@@ -352,6 +352,78 @@ func overlay_commit_draft() -> Dictionary:
 			all_pairs = false
 	return _submit(Action.new(Action.ActionType.OPEN_MELDS, {"melds": preview.melds, "open_by_pairs": all_pairs}))
 
+func request_open_rack_melds() -> Dictionary:
+	if _controller.state == null or _controller.state.players.is_empty():
+		return {"ok": false, "reason": "The table is not ready"}
+	if _action_in_flight:
+		return {"ok": false, "reason": "Waiting for the previous action"}
+
+	if _slots.has_draft_tiles():
+		var direct_res := overlay_commit_draft()
+		if not bool(direct_res.get("ok", false)):
+			overlay_return_draft()
+		return direct_res
+
+	var state = _controller.state
+	var original_rack: Array = get_rack_slots().duplicate()
+
+	var rack_eval: Dictionary = _draft_logic.evaluate_rack_melds(
+		state,
+		get_hand_tiles(),
+		get_rack_slots(),
+		GEO.STAGE_ROW_SLOTS,
+		_pair_key_for_tile
+	)
+	var series_melds: Array = rack_eval.get("series_melds", [])
+	var pair_melds: Array = rack_eval.get("pair_melds", [])
+	var melds_to_open: Array = []
+
+	if state.players[0].has_opened:
+		if not bool(state.players[0].opened_by_pairs) and not series_melds.is_empty():
+			melds_to_open = series_melds
+	else:
+		var threshold: int = int(state.rule_config.open_min_points_initial)
+		var series_val: Dictionary = _preview_action(Action.new(Action.ActionType.OPEN_MELDS, {"melds": series_melds, "open_by_pairs": false})) if not series_melds.is_empty() else {"ok": false, "reason": "Need %d points to open" % threshold}
+		var pairs_val: Dictionary = _preview_action(Action.new(Action.ActionType.OPEN_MELDS, {"melds": pair_melds, "open_by_pairs": true})) if not pair_melds.is_empty() else {"ok": false, "reason": "Need 5 pairs to open"}
+		if bool(series_val.get("ok", false)):
+			melds_to_open = series_melds
+		elif bool(pairs_val.get("ok", false)):
+			melds_to_open = pair_melds
+		else:
+			return {"ok": false, "reason": str(series_val.get("reason", "Need %d points to open" % threshold))}
+
+	if melds_to_open.is_empty():
+		return {"ok": false, "reason": "No valid melds found on rack"}
+
+	var draft_cursor: int = 0
+	var row_slots: int = GEO.STAGE_ROW_SLOTS
+	for meld in melds_to_open:
+		var ids: Array = meld.get("tile_ids", []) if meld is Dictionary else meld.tile_ids
+		if ids.is_empty():
+			continue
+		var row_end: int = (int(draft_cursor / row_slots) + 1) * row_slots
+		if draft_cursor + ids.size() > row_end:
+			draft_cursor = row_end
+		for tid in ids:
+			var slot_idx: int = _slots.rack_slots.find(int(tid))
+			if slot_idx != -1:
+				overlay_move_rack_to_draft(slot_idx, draft_cursor)
+				draft_cursor += 1
+		if draft_cursor < row_end:
+			draft_cursor += 1
+
+	var commit_res := overlay_commit_draft()
+
+	if not bool(commit_res.get("ok", false)):
+		overlay_return_draft()
+		_slots.rack_slots.assign(original_rack)
+		_slots.sync_slots_with_hand(get_hand_tiles())
+		_emit_changed()
+		return commit_res
+
+	return commit_res
+
+
 func overlay_return_draft() -> Dictionary:
 	if _action_in_flight or not _slots.has_draft_tiles():
 		return {"ok": false, "reason": "No draft to return"}

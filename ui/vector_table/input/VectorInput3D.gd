@@ -186,7 +186,21 @@ func _end_drag() -> void:
 				_cleanup_drag()
 				return
 
-	# 2. Check drop onto hand rack
+	# 2. Check drop onto table melds
+	if table != null and table.has_node("MeldLayout"):
+		var meld_layout = table.get_node("MeldLayout")
+		for m_idx in range(meld_layout.get_meld_count()):
+			var m_data: Dictionary = meld_layout.get_meld_data(m_idx)
+			var c_pos: Vector3 = m_data.get("center_world_pos", Vector3.ZERO)
+			var m_w: float = float(m_data.get("width", 0.15))
+			if abs(drop_pos.x - c_pos.x) <= (m_w * 0.55) and abs(drop_pos.z - c_pos.z) <= 0.045:
+				if session != null:
+					var res: Dictionary = session.overlay_add_to_meld([tile_id], m_idx)
+					if bool(res.get("ok", false)):
+						_cleanup_drag()
+						return
+
+	# 3. Check drop onto hand rack
 	if hand_rig != null:
 		var target_slot: int = hand_rig.nearest_slot(drop_pos)
 		if target_slot != drag_source_slot and drag_source_slot >= 0:
@@ -218,8 +232,9 @@ func _handle_click(tile: VectorTile3D, slot_idx: int) -> void:
 	_last_click_tile_id = tile.unique_id
 
 	if is_double:
-		# Double-click: toggle or send to draft
-		tile.set_highlight(&"selected")
+		# Double-click: discard tile
+		if session != null:
+			session.overlay_discard_tile(tile.unique_id)
 		tile_picked.emit(tile)
 	else:
 		tile.set_highlight(&"selected" if tile.current_highlight != &"selected" else &"none")

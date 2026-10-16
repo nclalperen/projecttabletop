@@ -94,6 +94,8 @@ const TEST_SCRIPTS = [
 	"res://tests/test_vector3d_registry.gd",
 	"res://tests/test_vector3d_opponents.gd",
 	"res://tests/test_vector3d_input.gd",
+	"res://tests/test_okey_session_open_rack_melds.gd",
+	"res://tests/test_vector3d_meld_layout.gd",
 ]
 
 var _all_ok := true

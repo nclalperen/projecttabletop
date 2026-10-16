@@ -17,6 +17,8 @@ const OpponentRack3D = preload("res://ui/vector_table/opponents/OpponentRack3D.g
 const StockView3D = preload("res://ui/vector_table/table/StockView3D.gd")
 const DiscardPiles3D = preload("res://ui/vector_table/table/DiscardPiles3D.gd")
 const VectorInput3D = preload("res://ui/vector_table/input/VectorInput3D.gd")
+const MeldLayout3D = preload("res://ui/vector_table/melds/MeldLayout3D.gd")
+const MeldInspectionOverlay = preload("res://ui/game_table/MeldInspectionOverlay.gd")
 
 # Scene references
 var _world: Node3D = self
@@ -30,11 +32,13 @@ var _deck_container: Node3D
 var _stock_view: StockView3D
 var _discard_piles_view: DiscardPiles3D
 var _opponent_racks: Dictionary = {} # seat -> OpponentRack3D
+var _meld_layout: MeldLayout3D
 var _melds_container: Node3D
 var _registry: TileRegistry3D
 var _animator: TileAnimator3D
 var _input_handler: VectorInput3D
 var _vignette_layer: CanvasLayer
+var _meld_overlay: MeldInspectionOverlay
 
 # Hand state mapping: slot_index -> unique_id
 var _hand_slots_map: Dictionary = {} # slot -> tile_id
@@ -182,10 +186,11 @@ func _build_3d_environment() -> void:
 		add_child(opp)
 		_opponent_racks[seat] = opp
 
-	# 12. Center Table Melds Container
-	_melds_container = Node3D.new()
-	_melds_container.name = "TableMelds"
-	add_child(_melds_container)
+	# 12. Center Table Melds Layout (D5, P6)
+	_meld_layout = MeldLayout3D.new()
+	_meld_layout.name = "MeldLayout"
+	add_child(_meld_layout)
+	_melds_container = _meld_layout
 
 	# 13. Physics Input System (D5)
 	_input_handler = VectorInput3D.new()
@@ -268,10 +273,17 @@ func _build_hud_overlay() -> void:
 
 	_btn_open_melds = Button.new()
 	_btn_open_melds.text = "Melds Aç (Open)"
-	_btn_open_melds.pressed.connect(func(): if _session != null: _session.action_open_melds())
+	_btn_open_melds.pressed.connect(func(): if _session != null: _session.request_open_rack_melds())
 	_action_dock.add_child(_btn_open_melds)
 
 	_hud_layer.add_child(_action_dock)
+
+	# Meld Inspection Overlay (P6)
+	_meld_overlay = MeldInspectionOverlay.new()
+	_meld_overlay.name = "MeldInspectionOverlay"
+	_meld_overlay.camera = _camera
+	_hud_layer.add_child(_meld_overlay)
+
 
 
 func configure_game(rule_config: RuleConfig, game_seed: int = 1701, player_count: int = 4, bot_difficulties: Array = []) -> void:
@@ -417,52 +429,63 @@ func _on_rack_and_draft_changed(rack_slots: Array, _draft_slots: Array, validati
 
 
 func _on_melds_updated(melds: Array) -> void:
-	for child in _melds_container.get_children():
-		child.queue_free()
-
-	if melds.is_empty():
+	if _meld_layout == null:
 		return
 
-	# Place 3D melds onto the center felt in organic horizontal groups
-	var start_z: float = -0.06
-	var group_x: float = -0.28
-	for meld in melds:
-		var tiles_list: Array = []
-		if meld is Dictionary:
-			tiles_list = meld.get("tiles", [])
-		elif "tiles" in meld and meld.tiles != null and not meld.tiles.is_empty():
-			tiles_list = meld.tiles
-		elif "tile_ids" in meld and meld.tile_ids != null:
-			tiles_list = meld.tile_ids
+	var okey_ctx = null
+	if _session != null and _session.get_controller() != null and _session.get_controller().state != null:
+		okey_ctx = _session.get_controller().state.okey_context
 
-		for i in range(tiles_list.size()):
-			var item = tiles_list[i]
-			var uid: int = -1
+	_meld_layout.sync_melds(melds, okey_ctx)
+
+	if _meld_overlay != null:
+		_meld_overlay.sync_meld_groups(_meld_layout.get_all_meld_data())
+
+	var tile_delay_sec: float = 0.0
+	for m_idx in range(_meld_layout.get_meld_count()):
+		var m_data: Dictionary = _meld_layout.get_meld_data(m_idx)
+		var ids: Array = m_data.get("tile_ids", [])
+		var tiles_arr: Array = m_data.get("tiles", [])
+		for k in range(ids.size()):
+			var tid: int = ids[k]
 			var num: int = 1
 			var col: int = 0
 			var is_fake: bool = false
-
-			if item is int:
-				uid = item
-				var t_data = _get_tile_by_id(uid)
+			if k < tiles_arr.size():
+				var t = tiles_arr[k]
+				if t is Tile:
+					num = t.number
+					col = t.color
+					is_fake = (t.kind != 0)
+				elif t is Dictionary:
+					num = int(t.get("number", 1))
+					col = int(t.get("color", 0))
+					is_fake = (int(t.get("kind", 0)) != 0)
+			else:
+				var t_data = _get_tile_by_id(tid)
 				if t_data != null:
 					num = t_data.number
 					col = t_data.color
 					is_fake = (t_data.kind != 0)
-			elif item is Dictionary:
-				uid = int(item.get("unique_id", -1))
-				num = int(item.get("number", 1))
-				col = int(item.get("color", 0))
-				is_fake = (item.get("kind", 0) != 0)
-			else:
-				uid = int(item.unique_id) if ("unique_id" in item) else -1
-				num = int(item.number) if ("number" in item) else 1
-				col = int(item.color) if ("color" in item) else 0
-				is_fake = bool(item.kind != 0) if ("kind" in item) else false
 
-			var t: VectorTile3D = _registry.ensure(uid, num, col, is_fake, false, true)
-			var target_pos := Vector3(group_x + (float(i) * 0.046), TUNING.TABLE_SURFACE_Y + 0.005, start_z)
-			t.set_target_position_3d(target_pos, true)
-			t.set_target_rotation_3d(Vector3(-90.0, 0.0, 0.0), true)
-			_registry.set_zone(uid, &"meld")
-		group_x += (float(tiles_list.size()) * 0.046) + 0.035
+			var prev_zone := _registry.zone_of(tid)
+			var v_tile: VectorTile3D = _registry.ensure(tid, num, col, is_fake, false, true)
+			var target_xf: Transform3D = _meld_layout.get_tile_transform(tid)
+
+			if prev_zone == &"hand":
+				# Staggered Bezier flight from hand to meld (D8: 0.05s per tile, 0.32s each)
+				var from_xf := v_tile.global_transform
+				_animator.fly_meld(v_tile, from_xf, target_xf, tile_delay_sec)
+				tile_delay_sec += 0.05
+			elif prev_zone == &"none":
+				v_tile.position = target_xf.origin
+				v_tile.rotation_degrees = target_xf.basis.get_euler() * (180.0 / PI)
+				v_tile.set_target_position_3d(target_xf.origin, true)
+				v_tile.set_target_rotation_3d(Vector3(-90.0, 0.0, 0.0), true)
+			else:
+				if not v_tile.is_flying and not v_tile.is_dragging:
+					v_tile.set_target_position_3d(target_xf.origin, false)
+					v_tile.set_target_rotation_3d(Vector3(-90.0, 0.0, 0.0), false)
+
+			_registry.set_zone(tid, &"meld_%d" % m_idx)
+

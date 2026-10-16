@@ -36,7 +36,7 @@ func sync_meld_groups(meld_groups: Array, valid_target_ids: Array = []) -> void:
 			summary_text = "%s (%d)" % [kind_str, count]
 
 		_meld_anchors[meld_id] = {
-			"world_pos": world_pos + Vector3(0.0, 0.045, 0.0),
+			"world_pos": world_pos + Vector3(0.0, 0.020, 0.0),
 			"summary_text": summary_text,
 			"is_valid_target": valid_target_ids.has(meld_id)
 		}
