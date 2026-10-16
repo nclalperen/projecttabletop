@@ -38,7 +38,6 @@ var _registry: TileRegistry3D
 var _animator: TileAnimator3D
 var _input_handler: VectorInput3D
 var _vignette_layer: CanvasLayer
-var _meld_overlay: MeldInspectionOverlay
 
 # Hand state mapping: slot_index -> unique_id
 var _hand_slots_map: Dictionary = {} # slot -> tile_id
@@ -51,13 +50,11 @@ var _discard_pile_ids: Dictionary = {0: [], 1: [], 2: [], 3: []}
 var _rack: Node:
 	get: return _hand_rig
 
-# HUD Overlay
-var _hud_layer: CanvasLayer
-var _status_label: Label
-var _action_dock: HBoxContainer
-var _btn_sort_runs: Button
-var _btn_sort_pairs: Button
-var _btn_open_melds: Button
+# Declarative OkeyPlayHUD (P7)
+const OKEY_HUD_SCENE = preload("res://ui/game_table/OkeyPlayHUD.tscn")
+var _hud: OkeyPlayHUD = null
+var _is_top_down_view: bool = false
+var _cam_tween: Tween = null
 
 # Authoritative Session
 var _session: Node = null
@@ -69,7 +66,10 @@ var _last_action_was_take_discard: bool = false
 func _init() -> void:
 	_build_3d_environment()
 	_build_vignette()
-	_build_hud_overlay()
+	_hud = OKEY_HUD_SCENE.instantiate() as OkeyPlayHUD
+	_hud.name = "PlayHUD"
+	add_child(_hud)
+
 
 
 func _ready() -> void:
@@ -78,8 +78,25 @@ func _ready() -> void:
 		if _registry != null:
 			_registry.refresh_all_face_textures()
 
+	if _hud != null:
+		_hud.set_camera(_camera)
+		_hud.board = self
+		if not _hud.commit_melds_requested.is_connected(_on_hud_commit_melds):
+			_hud.commit_melds_requested.connect(_on_hud_commit_melds)
+		if not _hud.sort_requested.is_connected(_on_hud_sort):
+			_hud.sort_requested.connect(_on_hud_sort)
+		if not _hud.undo_requested.is_connected(_on_hud_undo):
+			_hud.undo_requested.connect(_on_hud_undo)
+		if not _hud.return_draft_requested.is_connected(_on_hud_return_draft):
+			_hud.return_draft_requested.connect(_on_hud_return_draft)
+		if not _hud.camera_toggle_requested.is_connected(_toggle_camera_view):
+			_hud.camera_toggle_requested.connect(_toggle_camera_view)
+		if not _hud.back_to_hub_requested.is_connected(_on_back_to_hub):
+			_hud.back_to_hub_requested.connect(_on_back_to_hub)
+
 	if _session == null:
 		_init_session()
+
 
 
 func _build_3d_environment() -> void:
@@ -224,65 +241,43 @@ void fragment() {
 	add_child(_vignette_layer)
 
 
-func _build_hud_overlay() -> void:
-	_hud_layer = CanvasLayer.new()
-	_hud_layer.name = "HUDLayer"
-	_hud_layer.layer = 1
-	add_child(_hud_layer)
+func _on_hud_commit_melds() -> void:
+	if _session != null:
+		_session.request_open_rack_melds()
 
-	# Top Status Bar
-	var top_panel := PanelContainer.new()
-	top_panel.anchor_left = 0.5
-	top_panel.anchor_right = 0.5
-	top_panel.offset_left = -340.0
-	top_panel.offset_right = 340.0
-	top_panel.offset_top = 16.0
-	top_panel.offset_bottom = 54.0
 
-	var top_hbox := HBoxContainer.new()
-	top_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	top_panel.add_child(top_hbox)
+func _on_hud_sort(mode: StringName) -> void:
+	if _session != null:
+		_session.overlay_sort_rack(String(mode))
 
-	_status_label = Label.new()
-	_status_label.text = "Okey 101: 3D Vector Table"
-	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	top_hbox.add_child(_status_label)
-	_hud_layer.add_child(top_panel)
 
-	# Bottom Action Dock
-	_action_dock = HBoxContainer.new()
-	_action_dock.anchor_left = 0.5
-	_action_dock.anchor_right = 0.5
-	_action_dock.anchor_top = 1.0
-	_action_dock.anchor_bottom = 1.0
-	_action_dock.offset_left = -260.0
-	_action_dock.offset_right = 260.0
-	_action_dock.offset_top = -48.0
-	_action_dock.offset_bottom = -14.0
-	_action_dock.alignment = BoxContainer.ALIGNMENT_CENTER
+func _on_hud_undo() -> void:
+	if _session != null:
+		_session.overlay_undo()
 
-	_btn_sort_runs = Button.new()
-	_btn_sort_runs.text = "Seri Diz (Runs)"
-	_btn_sort_runs.pressed.connect(func(): if _session != null: _session.overlay_sort_rack(&"runs"))
-	_action_dock.add_child(_btn_sort_runs)
 
-	_btn_sort_pairs = Button.new()
-	_btn_sort_pairs.text = "Çift Diz (Pairs)"
-	_btn_sort_pairs.pressed.connect(func(): if _session != null: _session.overlay_sort_rack(&"pairs"))
-	_action_dock.add_child(_btn_sort_pairs)
+func _on_hud_return_draft() -> void:
+	if _session != null:
+		_session.overlay_return_draft()
 
-	_btn_open_melds = Button.new()
-	_btn_open_melds.text = "Melds Aç (Open)"
-	_btn_open_melds.pressed.connect(func(): if _session != null: _session.request_open_rack_melds())
-	_action_dock.add_child(_btn_open_melds)
 
-	_hud_layer.add_child(_action_dock)
+func _toggle_camera_view() -> void:
+	_is_top_down_view = not _is_top_down_view
+	if _cam_tween != null and _cam_tween.is_running():
+		_cam_tween.kill()
+	_cam_tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if _is_top_down_view:
+		_cam_tween.tween_property(_camera, ^"position", Vector3(0.0, 0.95, 0.001), 0.35)
+		_cam_tween.parallel().tween_property(_camera, ^"rotation_degrees", Vector3(-90.0, 0.0, 0.0), 0.35)
+	else:
+		_cam_tween.tween_property(_camera, ^"position", TUNING.CAMERA_POS, 0.35)
+		_cam_tween.parallel().tween_property(_camera, ^"rotation_degrees", Vector3(-43.0, 0.0, 0.0), 0.35)
 
-	# Meld Inspection Overlay (P6)
-	_meld_overlay = MeldInspectionOverlay.new()
-	_meld_overlay.name = "MeldInspectionOverlay"
-	_meld_overlay.camera = _camera
-	_hud_layer.add_child(_meld_overlay)
+
+func _on_back_to_hub() -> void:
+	if get_tree() != null:
+		get_tree().change_scene_to_file("res://ui/StarterMenu.tscn")
+
 
 
 
@@ -297,6 +292,10 @@ func configure_game(rule_config: RuleConfig, game_seed: int = 1701, player_count
 	_session._bind_controller_signals()
 	_session._start_round()
 	_session._sync_state()
+
+	if _hud != null:
+		_hud.bind_to_session(_session)
+		_hud.refresh(_session)
 
 	if _input_handler != null:
 		_input_handler.setup(self, _camera, _hand_rig, _registry, _session, _stock_view, _discard_piles_view)
@@ -317,10 +316,28 @@ func _process(_delta: float) -> void:
 			var euler_deg := world_xf.basis.get_euler() * (180.0 / PI)
 			tile.set_target_rotation_3d(euler_deg, false)
 
+	# Dynamic projection for opponent seat badges to 3D rack positions clamped to screen edges (P7)
+	if _camera != null and _hud != null and _hud.seat_badges.size() >= 4:
+		var vp_size := get_viewport().get_visible_rect().size if get_viewport() != null else Vector2(1920, 1080)
+		# East (Seat 1)
+		var p1 := _camera.unproject_position(TUNING.OPPONENT_RACK_POS_3D[1])
+		var b1: Control = _hud.seat_badges[1] as Control
+		if b1 != null:
+			b1.global_position.y = clampf(p1.y - 26.0, 60.0, vp_size.y - 120.0)
+		# North (Seat 2)
+		var p2 := _camera.unproject_position(TUNING.OPPONENT_RACK_POS_3D[2])
+		var b2: Control = _hud.seat_badges[2] as Control
+		if b2 != null:
+			b2.global_position.x = clampf(p2.x - 90.0, 260.0, vp_size.x - 350.0)
+		# West (Seat 3)
+		var p3 := _camera.unproject_position(TUNING.OPPONENT_RACK_POS_3D[3])
+		var b3: Control = _hud.seat_badges[3] as Control
+		if b3 != null:
+			b3.global_position.y = clampf(p3.y - 26.0, 60.0, vp_size.y - 120.0)
+
 
 func _on_session_state_updated(snapshot: Dictionary) -> void:
 	_is_my_turn = bool(snapshot.get("is_local_turn", false))
-	_status_label.text = str(snapshot.get("instruction", "Okey 101 Tabletop"))
 
 	# 1. Update Stock Count
 	var deck_count: int = int(snapshot.get("deck_count", 0))
@@ -438,8 +455,9 @@ func _on_melds_updated(melds: Array) -> void:
 
 	_meld_layout.sync_melds(melds, okey_ctx)
 
-	if _meld_overlay != null:
-		_meld_overlay.sync_meld_groups(_meld_layout.get_all_meld_data())
+	if _hud != null and _hud.meld_inspection_overlay != null:
+		_hud.meld_inspection_overlay.sync_meld_groups(_meld_layout.get_all_meld_data())
+
 
 	var tile_delay_sec: float = 0.0
 	for m_idx in range(_meld_layout.get_meld_count()):

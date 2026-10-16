@@ -108,3 +108,5 @@ func update_seat(data) -> void:
 	if turn_indicator != null:
 		turn_indicator.visible = is_turn
 		turn_indicator.color = seat_color
+
+	theme_type_variation = &"DraftPillReady" if is_turn else &"HUDGlassPanel"
