@@ -23,6 +23,15 @@ func run() -> bool:
 	file.close()
 
 	var libraries := _parse_libraries(text)
+	# Offline builds are explicit; the standard export keeps its native EOS bridge.
+	for mode in ["debug", "release"]:
+		var offline_key: String = "windows.%s.eos_disabled.x86_64" % mode
+		if libraries.get(offline_key, "") != "bin/windows/libeosg.editor_disabled.x86_64.dll":
+			push_error("Offline Windows exports must select the safe EOS stub")
+			return false
+		if String(libraries.get("windows.%s.x86_64" % mode, "")).contains("editor_disabled"):
+			push_error("Standard Windows exports must retain native EOS")
+			return false
 	for key in REQUIRED_WINDOWS_EDITOR_KEYS:
 		if not libraries.has(key):
 			push_error("Missing required EOS library mapping key: %s" % key)

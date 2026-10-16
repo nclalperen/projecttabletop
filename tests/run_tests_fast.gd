@@ -22,12 +22,23 @@ func _init() -> void:
 			ok = false
 		test = null
 		script = null
+		LocalGameController.free_test_tracked_instances()
+		HostMatchController.free_test_tracked_instances()
+		ClientMatchController.free_test_tracked_instances()
+		P2PTransportEOS.free_test_tracked_instances()
+		OnlineServiceEOS.free_test_tracked_instances()
+		LobbyServiceEOS.free_test_tracked_instances()
 
 	if ok:
 		print("All tests passed (fast)")
 	else:
 		print("Tests failed (fast)")
-	quit()
+	call_deferred("_complete", ok)
+
+func _complete(ok: bool) -> void:
+	await process_frame
+	await process_frame
+	quit(0 if ok else 1)
 
 func _load_full_test_list() -> Array:
 	if FULL_RUNNER_SCRIPT == null:

@@ -58,26 +58,26 @@ static var _games: Dictionary = {
 	GAME_OKEY_101: {
 		"id": GAME_OKEY_101,
 		"name": "Okey 101",
-		"subtitle": "Legacy implemented table",
-		"description": "The original rules implementation stays available while the project expands into a broader tabletop platform.",
+		"subtitle": "Runs, sets, and friendly competition",
+		"description": "Build runs and sets, open your rack, and race your friends or bots to finish a full Okey 101 match.",
 		"player_counts": [4],
 		"default_players": 4,
 		"ruleset_id": "tr_101_classic",
-		"chip_copy": "Legacy Rules Live",
+		"chip_copy": "Ready to Play",
 		"flow": FLOW_OKEY,
 	},
 }
 
 static func default_game_id() -> StringName:
-	return GAME_POKER
+	return GAME_OKEY_101
 
 
 static func primary_game_ids() -> Array[StringName]:
-	return [GAME_POKER, GAME_BLACKJACK, GAME_BACKGAMMON, GAME_CHESS]
+	return [GAME_OKEY_101, GAME_POKER, GAME_BLACKJACK, GAME_BACKGAMMON, GAME_CHESS]
 
 
 static func all_game_ids() -> Array[StringName]:
-	return [GAME_POKER, GAME_BLACKJACK, GAME_BACKGAMMON, GAME_CHESS, GAME_OKEY_101]
+	return primary_game_ids()
 
 
 static func game(id: StringName) -> Dictionary:
@@ -148,15 +148,43 @@ static func uses_okey_table(id: StringName) -> bool:
 
 
 static func launch_scene_path(id: StringName, presentation_mode: String) -> String:
-	if _prototype_table_scene_enabled():
-		return "res://ui/ImportedTable3D.tscn"
+	return _resolve_launch_scene_path(id, presentation_mode, _prototype_table_scene_enabled())
+
+
+static func _resolve_launch_scene_path(id: StringName, presentation_mode: String, prototype_enabled: bool) -> String:
 	if uses_okey_table(id):
 		return "res://ui/GameTable3D.tscn" if presentation_mode == "3d" else "res://ui/GameTable.tscn"
+	if prototype_enabled:
+		return "res://ui/ImportedTable3D.tscn"
 	return "res://ui/PlaceholderTable.tscn"
 
 
 static func legacy_label(id: StringName) -> String:
-	return "Legacy" if uses_okey_table(id) else "New"
+	return "Ready to Play" if uses_okey_table(id) else "Prototype"
+
+
+static func default_table_config(id: StringName):
+	var norm: StringName = _normalize_id(id)
+	if uses_okey_table(norm):
+		var okey_cfg_script = load("res://core/config/Okey101TableConfig.gd")
+		if okey_cfg_script != null:
+			return okey_cfg_script.create()
+	elif norm == GAME_POKER:
+		var poker_cfg_script = load("res://core/config/PokerTableConfig.gd")
+		if poker_cfg_script != null:
+			return poker_cfg_script.create(default_player_count(norm))
+	elif norm == GAME_CHESS:
+		var chess_cfg_script = load("res://core/config/ChessTableConfig.gd")
+		if chess_cfg_script != null:
+			return chess_cfg_script.create()
+	var table_cfg_script = load("res://core/config/TableConfig.gd")
+	if table_cfg_script != null:
+		var cfg = table_cfg_script.new()
+		cfg.table_id = norm
+		cfg.display_name = display_name(norm)
+		cfg.seat_count = default_player_count(norm)
+		return cfg
+	return null
 
 
 static func _normalize_id(id: StringName) -> StringName:

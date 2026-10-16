@@ -1,6 +1,7 @@
 extends Control
 
 const OKEY_TILE_SCENE: PackedScene = preload("res://ui/widgets/OkeyTile.tscn")
+const SESSION = preload("res://ui/game_table/OkeySession.gd")
 const LOCAL_CONTROLLER_SCRIPT: Script = preload("res://core/controller/LocalGameController.gd")
 const GEO = preload("res://ui/game_table/TableGeometry.gd")
 const TILE_HELPERS = preload("res://ui/game_table/TileHelpers.gd")
@@ -11,6 +12,7 @@ const DRAFT_GRID = preload("res://ui/game_table/DraftGrid.gd")
 const INTERACTION_RESOLVER = preload("res://ui/game_table/InteractionResolver.gd")
 const INTERACTION_TUNING = preload("res://ui/game_table/InteractionTuning.gd")
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
+const ROUND_SUMMARY_MODAL_SCENE: PackedScene = preload("res://ui/game_table/OkeyRoundSummaryModal.tscn")
 
 # ─── Scene node references ───
 @onready var _top_bar: PanelContainer = $TopBar
@@ -53,15 +55,14 @@ const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 @onready var _btn_menu: Button = $ActionBar/MenuBtn
 
 # ─── Game logic ───
-var _controller = LOCAL_CONTROLLER_SCRIPT.new()
+var _session = SESSION.new()
+var _controller = _session.get_controller()
 var _controller_injected_external: bool = false
-var _bots: Array = []  # per-seat bot instances (index 0 unused, seats 1..N-1)
-var _bot_fallback: BotRandom = BotRandom.new(7007)
 var _bot_difficulties: Array = []
 var _rule_config: RuleConfig = null
 var _game_seed: int = -1
 var _player_count: int = 4
-var _slots = RACK_SLOT_MANAGER.new()
+var _slots = _session._slots
 var _draft_logic = STAGE_MELD_LOGIC.new()
 
 # ─── Rack state ───
@@ -73,12 +74,11 @@ var _draft_slot_controls: Array[Control] = []
 var _tile_controls: Dictionary = {}
 var _hand_zoom: float = 0.94
 var _slot_size: Vector2 = Vector2(52, 72)
-var _round_index: int = 0
 
 # ─── UI state ───
+var _action_buttons: Dictionary = {}
 var _action_in_flight: bool = false
-var _bot_loop_running: bool = false
-var _round_dialog: PanelContainer = null
+var _round_dialog: Control = null
 var _round_controls: HBoxContainer = null
 var _round_new_btn: Button = null
 var _round_menu_btn: Button = null
@@ -152,7 +152,9 @@ func _ready() -> void:
 
 	_btn_new_round.pressed.connect(_start_round)
 	_btn_menu.pressed.connect(_return_to_main_menu)
-	_btn_end_play.pressed.connect(_on_end_play_pressed)
+	_btn_end_play.text = "Discard selected"
+	_btn_end_play.pressed.connect(func(): _session.overlay_discard_tile(_slots.last_tile_id))
+	_create_session_actions()
 
 	_draw_deck.gui_input.connect(_on_deck_input)
 	_my_discard.gui_input.connect(_on_my_discard_input)
@@ -174,10 +176,12 @@ func _ready() -> void:
 	_row2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_row2.visible = true
 	_open_meter_bottom.visible = false
-	_btn_end_play.visible = false
+	_btn_end_play.visible = true
+	_btn_new_round.visible = false
+	_btn_menu.visible = false
 	# Keep gameplay interactions drag/tap only; hide the button bar to avoid overlap/hitbox conflicts.
-	_action_bar.visible = false
-	_action_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_action_bar.visible = _presentation_mode != "3d"
+	_action_bar.mouse_filter = Control.MOUSE_FILTER_STOP
 	_my_discard_title.visible = false
 	_my_discard_count.visible = false
 	_apply_discard_zone_style(_my_discard)
@@ -186,10 +190,9 @@ func _ready() -> void:
 
 	get_viewport().size_changed.connect(_apply_responsive_layout)
 	_apply_responsive_layout()
-	if not _controller_injected_external:
-		_start_round()
-	else:
-		_render_all()
+	_session.name = "OkeySession"
+	add_child(_session)
+	_on_session_changed()
 
 func set_presentation_mode(mode: String) -> void:
 	_presentation_mode = mode.to_lower()
@@ -246,14 +249,10 @@ func _apply_presentation_mode() -> void:
 # ═══════════════════════════════════════════
 
 func inject_controller(controller) -> void:
-	if controller == null:
-		return
-	_unbind_controller_signals()
-	_controller = controller
+	_session.inject_controller(controller)
+	_controller = _session.get_controller()
 	_controller_injected_external = true
-	_bind_controller_signals()
-	_action_in_flight = false
-	if is_inside_tree():
+	if is_node_ready():
 		_render_all()
 
 func get_controller():
@@ -272,173 +271,31 @@ func get_draft_row_slots() -> int:
 	return GEO.STAGE_ROW_SLOTS
 
 func overlay_draw_from_deck() -> Dictionary:
-	if not _is_my_turn() or _action_in_flight:
-		return {"ok": false, "reason": "not_my_turn"}
-	if _controller.state == null or _controller.state.phase != GameState.Phase.TURN_DRAW:
-		return {"ok": false, "reason": "wrong_phase"}
-	_action_in_flight = true
-	var res: Dictionary = _controller.draw_from_deck(0)
-	if not bool(res.get("ok", false)):
-		_action_in_flight = false
-	return res
+	return _session.overlay_draw_from_deck()
 
 func overlay_take_discard() -> Dictionary:
-	if not _is_my_turn() or _action_in_flight:
-		return {"ok": false, "reason": "not_my_turn"}
-	if _controller.state == null or _controller.state.phase != GameState.Phase.TURN_DRAW:
-		return {"ok": false, "reason": "wrong_phase"}
-	if _controller.state.discard_pile.is_empty():
-		return {"ok": false, "reason": "discard_empty"}
-	_action_in_flight = true
-	var res: Dictionary = _controller.take_discard(0)
-	if not bool(res.get("ok", false)):
-		_action_in_flight = false
-	return res
+	return _session.overlay_take_discard()
 
 func overlay_discard_tile(tile_id: int) -> Dictionary:
-	if _action_in_flight or _controller.state == null:
-		return {"ok": false, "reason": "busy"}
-	if not _is_tile_in_my_hand(tile_id):
-		return {"ok": false, "reason": "not_in_hand"}
-	var phase: int = _controller.state.phase
-	if phase != GameState.Phase.STARTER_DISCARD and phase != GameState.Phase.TURN_DISCARD:
-		return {"ok": false, "reason": "wrong_phase"}
-	_action_in_flight = true
-	var result: Dictionary
-	if phase == GameState.Phase.STARTER_DISCARD:
-		result = _controller.starter_discard(0, tile_id)
-	else:
-		result = _controller.discard_tile(0, tile_id)
-	if not bool(result.get("ok", false)):
-		_action_in_flight = false
-	return result
+	return _session.overlay_discard_tile(tile_id)
 
 func overlay_end_play_then_discard(tile_id: int) -> Dictionary:
-	if _action_in_flight or _controller.state == null:
-		return {"ok": false, "reason": "busy"}
-	if _controller.state.phase != GameState.Phase.TURN_PLAY:
-		return {"ok": false, "reason": "wrong_phase"}
-	# Submit any draft melds first
-	if _has_draft_tiles():
-		if not _submit_draft_melds():
-			_restore_draft_to_rack()
-			return {"ok": false, "reason": _last_draft_error}
-	_action_in_flight = true
-	var end_res: Dictionary = _controller.end_play_turn(0)
-	if not bool(end_res.get("ok", false)):
-		_action_in_flight = false
-		return end_res
-	_action_in_flight = true
-	var discard_res: Dictionary = _controller.discard_tile(0, tile_id)
-	if not bool(discard_res.get("ok", false)):
-		_action_in_flight = false
-	return discard_res
+	return _session.overlay_end_play_then_discard(tile_id)
 
-# Deprecated compatibility shim; retained for external/dynamic callers.
 func overlay_end_play() -> Dictionary:
-	if not _is_my_turn() or _action_in_flight:
-		return {"ok": false, "reason": "not_my_turn"}
-	if _controller.state == null or _controller.state.phase != GameState.Phase.TURN_PLAY:
-		return {"ok": false, "reason": "wrong_phase"}
-	_action_in_flight = true
-	var res: Dictionary = _controller.end_play_turn(0)
-	if not bool(res.get("ok", false)):
-		_action_in_flight = false
-	return res
+	return _session.overlay_end_play()
 
 func overlay_move_rack_to_draft(from_slot: int, to_draft_slot: int) -> Dictionary:
-	if _action_in_flight:
-		return {"ok": false, "reason": "busy"}
-	if _controller.state == null:
-		return {"ok": false, "reason": "no_state"}
-	if not _is_my_turn():
-		return {"ok": false, "reason": "not_my_turn"}
-	if _controller.state.phase != GameState.Phase.TURN_PLAY:
-		return {"ok": false, "reason": "wrong_phase"}
-	if from_slot < 0 or from_slot >= _slots.rack_slots.size() or to_draft_slot < 0 or to_draft_slot >= _slots.draft_slots.size():
-		return {"ok": false, "reason": "invalid_slot"}
-	var tile_id: int = int(_slots.rack_slots[from_slot])
-	if tile_id == -1:
-		return {"ok": false, "reason": "empty_source"}
-	var rack_before: Array = _slots.rack_slots.duplicate()
-	var draft_before: Array = _slots.draft_slots.duplicate()
-	_move_rack_to_draft(from_slot, to_draft_slot)
-	if _slots.rack_slots == rack_before and _slots.draft_slots == draft_before:
-		return {"ok": false, "reason": "no_change"}
-	if _slots.draft_slots.find(tile_id) == -1:
-		return {"ok": false, "reason": "move_failed"}
-	return {"ok": true}
+	return _session.overlay_move_rack_to_draft(from_slot, to_draft_slot)
 
 func overlay_move_draft_to_rack(from_draft_slot: int, to_rack_slot: int) -> Dictionary:
-	if _action_in_flight:
-		return {"ok": false, "reason": "busy"}
-	if _controller.state == null:
-		return {"ok": false, "reason": "no_state"}
-	if not _is_my_turn():
-		return {"ok": false, "reason": "not_my_turn"}
-	if _controller.state.phase != GameState.Phase.TURN_PLAY:
-		return {"ok": false, "reason": "wrong_phase"}
-	if from_draft_slot < 0 or from_draft_slot >= _slots.draft_slots.size() or to_rack_slot < 0 or to_rack_slot >= _slots.rack_slots.size():
-		return {"ok": false, "reason": "invalid_slot"}
-	var tile_id: int = int(_slots.draft_slots[from_draft_slot])
-	if tile_id == -1:
-		return {"ok": false, "reason": "empty_source"}
-	var rack_before: Array = _slots.rack_slots.duplicate()
-	var draft_before: Array = _slots.draft_slots.duplicate()
-	_move_draft_to_rack(from_draft_slot, to_rack_slot)
-	if _slots.rack_slots == rack_before and _slots.draft_slots == draft_before:
-		return {"ok": false, "reason": "no_change"}
-	if _slots.rack_slots.find(tile_id) == -1:
-		return {"ok": false, "reason": "move_failed"}
-	return {"ok": true}
+	return _session.overlay_move_draft_to_rack(from_draft_slot, to_rack_slot)
 
 func overlay_move_slot(from_slot: int, to_slot: int) -> Dictionary:
-	if _action_in_flight:
-		return {"ok": false, "reason": "busy"}
-	if _controller.state == null:
-		return {"ok": false, "reason": "no_state"}
-	if not _is_my_turn():
-		return {"ok": false, "reason": "not_my_turn"}
-	if not _can_overlay_rack_reorder_phase(int(_controller.state.phase)):
-		return {"ok": false, "reason": "wrong_phase"}
-	if from_slot < 0 or from_slot >= _slots.rack_slots.size() or to_slot < 0 or to_slot >= _slots.rack_slots.size():
-		return {"ok": false, "reason": "invalid_slot"}
-	if from_slot == to_slot:
-		return {"ok": false, "reason": "no_change"}
-	var tile_id: int = int(_slots.rack_slots[from_slot])
-	if tile_id == -1:
-		return {"ok": false, "reason": "empty_source"}
-	var rack_before: Array = _slots.rack_slots.duplicate()
-	_move_slot(from_slot, to_slot)
-	if _slots.rack_slots == rack_before:
-		return {"ok": false, "reason": "no_change"}
-	if int(_slots.rack_slots[to_slot]) != tile_id:
-		return {"ok": false, "reason": "move_failed"}
-	return {"ok": true}
+	return _session.overlay_move_slot(from_slot, to_slot)
 
 func overlay_move_draft_slot(from_draft_slot: int, to_draft_slot: int) -> Dictionary:
-	if _action_in_flight:
-		return {"ok": false, "reason": "busy"}
-	if _controller.state == null:
-		return {"ok": false, "reason": "no_state"}
-	if not _is_my_turn():
-		return {"ok": false, "reason": "not_my_turn"}
-	if _controller.state.phase != GameState.Phase.TURN_PLAY:
-		return {"ok": false, "reason": "wrong_phase"}
-	if from_draft_slot < 0 or from_draft_slot >= _slots.draft_slots.size() or to_draft_slot < 0 or to_draft_slot >= _slots.draft_slots.size():
-		return {"ok": false, "reason": "invalid_slot"}
-	if from_draft_slot == to_draft_slot:
-		return {"ok": false, "reason": "no_change"}
-	var tile_id: int = int(_slots.draft_slots[from_draft_slot])
-	if tile_id == -1:
-		return {"ok": false, "reason": "empty_source"}
-	var draft_before: Array = _slots.draft_slots.duplicate()
-	_move_draft_slot(from_draft_slot, to_draft_slot)
-	if _slots.draft_slots == draft_before:
-		return {"ok": false, "reason": "no_change"}
-	if int(_slots.draft_slots[to_draft_slot]) != tile_id:
-		return {"ok": false, "reason": "move_failed"}
-	return {"ok": true}
+	return _session.overlay_move_draft_slot(from_draft_slot, to_draft_slot)
 
 func _can_overlay_rack_reorder_phase(phase: int) -> bool:
 	return phase == GameState.Phase.STARTER_DISCARD \
@@ -447,24 +304,11 @@ func _can_overlay_rack_reorder_phase(phase: int) -> bool:
 		or phase == GameState.Phase.TURN_DISCARD
 
 func overlay_add_to_meld(tile_ids: Array, meld_index: int) -> Dictionary:
-	if _action_in_flight:
-		return {"ok": false, "reason": "busy"}
-	_action_in_flight = true
-	var action: Action = Action.new(Action.ActionType.ADD_TO_MELD, {"target_meld_index": meld_index, "tile_ids": tile_ids})
-	var result: Dictionary = _controller.apply_action_if_valid(0, action)
-	if not bool(result.get("ok", false)):
-		_action_in_flight = false
-	return result
+	return _session.overlay_add_to_meld(tile_ids, meld_index)
 
 func overlay_new_round() -> void:
-	if _controller_injected_external:
-		var res: Dictionary = _controller.request_new_round()
-		if not bool(res.get("ok", false)):
-			_instructions.text = "Rejected: %s" % str(res.get("reason", "round restart unavailable"))
-		return
-	_start_round()
+	_session.overlay_new_round()
 
-# Deprecated compatibility shim; retained for external/dynamic callers.
 func overlay_return_to_menu() -> void:
 	_return_to_main_menu()
 
@@ -481,12 +325,10 @@ func get_meld_island_global_rect() -> Rect2:
 	return _meld_island.get_global_rect()
 
 func is_action_in_flight() -> bool:
-	return _action_in_flight
+	return _session.is_action_in_flight()
 
-# Deprecated compatibility shim; retained for external/dynamic callers.
 func get_instruction_text() -> String:
-	return _instructions.text if _instructions != null else ""
-
+	return _session.get_instruction_text()
 
 func _create_table_rails() -> void:
 	_rail_top = Panel.new()
@@ -763,22 +605,7 @@ func configure_game(rule_config: RuleConfig, game_seed: int, player_count: int, 
 	_game_seed = game_seed
 	_player_count = player_count
 	_bot_difficulties = bot_difficulties
-	_init_bots()
-
-
-func _init_bots() -> void:
-	_bots.clear()
-	_bots.append(null)  # seat 0 = human player
-	for i in range(1, _player_count):
-		var diff: String = "Normal"
-		if i - 1 < _bot_difficulties.size():
-			diff = str(_bot_difficulties[i - 1])
-		_bots.append(BotBase.create(diff, _game_seed + i))
-
-
-# ═══════════════════════════════════════════
-# OPPONENT AREAS (dynamic, positioned in TableArea)
-# ═══════════════════════════════════════════
+	_session.configure_game(rule_config, game_seed, player_count, bot_difficulties)
 
 func _create_opponent_areas() -> void:
 	var opp_names: Array[String] = ["Bot 1", "Bot 2", "Bot 3"]
@@ -1139,31 +966,20 @@ func _set_anchors(node: Control, a: Array) -> void:
 # ═══════════════════════════════════════════
 
 func _start_round() -> void:
-	var cfg: RuleConfig = _rule_config if _rule_config != null else RuleConfig.new()
-	var round_seed: int = GEO.compute_round_seed(_game_seed, _round_index)
-	if _controller_injected_external:
-		return
-	_controller.start_new_round(cfg, round_seed, _player_count)
-	_round_index += 1
-	_slots.last_tile_id = -1
-	_clear_draft_slots()
-	_action_in_flight = false
-	_render_all()
-	_maybe_auto_bot_turn()
+	_session.overlay_new_round()
 
 func _on_state_changed(_new_state) -> void:
-	_action_in_flight = false
+	_action_in_flight = _session.is_action_in_flight()
+	if _instructions == null:
+		return
 	_render_all()
-	if _controller.state == null:
-		return
-	if _controller.state.phase == GameState.Phase.ROUND_END:
+	if _controller.state != null and _controller.state.phase == GameState.Phase.ROUND_END:
 		_show_round_end_dialog()
-		return
-	call_deferred("_maybe_auto_bot_turn")
 
 func _on_action_rejected(reason: String) -> void:
-	_action_in_flight = false
-	_instructions.text = "Rejected: %s" % reason
+	_action_in_flight = _session.is_action_in_flight()
+	if _instructions != null:
+		_instructions.text = reason
 
 func _on_action_applied(_player_index: int, _action_type: int) -> void:
 	_render_all()
@@ -1298,33 +1114,12 @@ func _update_ambient_fx(delta: float) -> void:
 			glow.modulate = Color(1, 1, 1, 0.66 + pulse_fast * 0.30)
 
 func _on_deck_input(event: InputEvent) -> void:
-	if not _is_primary_tap(event):
-		return
-	if not _is_my_turn() or _action_in_flight:
-		return
-	if _controller.state.phase != GameState.Phase.TURN_DRAW:
-		return
-	_action_in_flight = true
-	var res: Dictionary = _controller.draw_from_deck(0)
-	if not bool(res.get("ok", false)):
-		_action_in_flight = false
-		_instructions.text = "Rejected: %s" % str(res.get("reason", ""))
+	if _is_primary_tap(event):
+		overlay_draw_from_deck()
 
 func _on_opp_discard_input(player_index: int, event: InputEvent) -> void:
-	if not _is_primary_tap(event):
-		return
-	if not _is_my_turn() or _action_in_flight:
-		return
-	if _controller.state == null:
-		return
-	if _controller.state.phase == GameState.Phase.TURN_DRAW:
-		var prev: int = _prev_player(0)
-		if player_index == prev and not _controller.state.discard_pile.is_empty():
-			_action_in_flight = true
-			var res: Dictionary = _controller.take_discard(0)
-			if not bool(res.get("ok", false)):
-				_action_in_flight = false
-				_instructions.text = "Rejected: %s" % str(res.get("reason", ""))
+	if _is_primary_tap(event) and player_index == _prev_player(0):
+		overlay_take_discard()
 
 func _on_my_discard_input(event: InputEvent) -> void:
 	if not _is_primary_tap(event):
@@ -1332,21 +1127,7 @@ func _on_my_discard_input(event: InputEvent) -> void:
 	# Intentional no-op: discard is drag/drop only to avoid accidental taps.
 
 func _on_end_play_pressed() -> void:
-	if not _is_my_turn() or _action_in_flight:
-		return
-	if _controller.state == null:
-		return
-	if _controller.state.phase != GameState.Phase.TURN_PLAY:
-		return
-	_action_in_flight = true
-	var res: Dictionary = _controller.end_play_turn(0)
-	if not bool(res.get("ok", false)):
-		_action_in_flight = false
-		_instructions.text = "Rejected: %s" % str(res.get("reason", ""))
-
-# ═══════════════════════════════════════════
-# RENDERING
-# ═══════════════════════════════════════════
+	overlay_end_play()
 
 func _render_all() -> void:
 	if _controller.state == null:
@@ -1572,10 +1353,12 @@ func _render_rack() -> void:
 func _on_tile_clicked(tile_ctrl: OkeyTile) -> void:
 	var tile_id: int = int(tile_ctrl.tile_data.unique_id)
 	_slots.last_tile_id = tile_id
+	_session.select_tile(tile_id)
 	_apply_selection_and_required()
 
 func _on_tile_drag_started(tile_ctrl: OkeyTile) -> void:
 	_slots.last_tile_id = int(tile_ctrl.tile_data.unique_id)
+	_session.select_tile(_slots.last_tile_id)
 
 func _on_tile_drag_ended(tile_ctrl: OkeyTile, global_pos: Vector2) -> void:
 	if _controller.state == null:
@@ -1594,6 +1377,10 @@ func _on_tile_drag_ended(tile_ctrl: OkeyTile, global_pos: Vector2) -> void:
 	var committed_meld_index: int = _find_meld_cluster(global_pos) if _is_my_turn() and phase == GameState.Phase.TURN_PLAY else -1
 	var draft_target_slot: int = _find_draft_drop_slot(global_pos) if on_draft_lane else -1
 	var rack_target_slot: int = _find_drop_slot(global_pos) if on_rack_zone else -1
+
+	if not _is_my_turn() and on_rack_zone and from_slot != -1 and rack_target_slot != -1:
+		_session.overlay_move_slot(from_slot, rack_target_slot)
+		return
 
 	var decision: Dictionary = INTERACTION_RESOLVER.resolve_drop({
 		"is_my_turn": _is_my_turn(),
@@ -1646,91 +1433,18 @@ func _apply_drop_decision_2d(decision: Dictionary) -> bool:
 			return false
 
 func _try_end_play_then_discard(tile_id: int) -> void:
-	if _action_in_flight:
-		return
-	if not _is_tile_in_my_hand(tile_id):
-		_render_rack()
-		return
-	var discard_tile_id: int = tile_id
-	if _controller.state != null and _controller.state.phase == GameState.Phase.TURN_PLAY and _has_draft_tiles():
-		if not _submit_draft_melds():
-			_restore_draft_to_rack()
-			_controller.apply_manual_penalty(0, 101)
-			if _last_draft_error == "":
-				_last_draft_error = "Invalid draft melds"
-			_instructions.text = "%s. Tiles returned to rack, +101 penalty" % _last_draft_error
-		# If the intended discard tile got consumed by draft meld submission,
-		# choose a fallback tile before ending play to avoid confusing TURN_DISCARD failure.
-		if not _is_tile_in_my_hand(discard_tile_id):
-			var hand_after_submit: Array = _rack_hand()
-			if hand_after_submit.is_empty():
-				_instructions.text = "No tile left to discard"
-				_render_rack()
-				return
-			discard_tile_id = int(hand_after_submit[0].unique_id)
-			_instructions.text = "Selected discard was used in melds; discarding %s" % _tile_label(hand_after_submit[0])
-	_action_in_flight = true
-	var end_res: Dictionary = _controller.end_play_turn(0)
-	if not bool(end_res.get("ok", false)):
-		_action_in_flight = false
-		_instructions.text = "Rejected: %s" % str(end_res.get("reason", ""))
-		return
-	# state_changed from END_PLAY may clear this; force it for the follow-up discard action.
-	_action_in_flight = true
-	var discard_res: Dictionary = _controller.discard_tile(0, discard_tile_id)
-	if not bool(discard_res.get("ok", false)):
-		_action_in_flight = false
-		_instructions.text = "Rejected: %s" % str(discard_res.get("reason", ""))
+	_session.overlay_end_play_then_discard(tile_id)
 
 func _discard_tile(tile_id: int) -> void:
-	if _action_in_flight or _controller.state == null:
-		return
-	if not _is_tile_in_my_hand(tile_id):
-		_render_rack()
-		return
-	var phase: int = _controller.state.phase
-	if phase != GameState.Phase.STARTER_DISCARD and phase != GameState.Phase.TURN_DISCARD:
-		return
-	_action_in_flight = true
-	var result: Dictionary
-	if phase == GameState.Phase.STARTER_DISCARD:
-		result = _controller.starter_discard(0, tile_id)
-	else:
-		result = _controller.discard_tile(0, tile_id)
-	if not bool(result.get("ok", false)):
-		_action_in_flight = false
-		_instructions.text = "Rejected: %s" % str(result.get("reason", ""))
+	_session.overlay_discard_tile(tile_id)
 
 func _add_to_meld(tile_ids: Array, meld_index: int) -> void:
-	if _action_in_flight:
-		return
-	if tile_ids.is_empty():
-		return
-	_action_in_flight = true
-	var action: Action = Action.new(Action.ActionType.ADD_TO_MELD, {"target_meld_index": meld_index, "tile_ids": tile_ids})
-	var result: Dictionary = _controller.apply_action_if_valid(0, action)
-	if not bool(result.get("ok", false)):
-		_action_in_flight = false
-		_instructions.text = "Rejected: %s" % str(result.get("reason", ""))
-	else:
-		pass
+	_session.overlay_add_to_meld(tile_ids, meld_index)
 
 func _submit_draft_melds() -> bool:
-	_last_draft_error = ""
-	_action_in_flight = true
-	var result: Dictionary = _draft_logic.submit_draft_melds(
-		_controller,
-		_controller.state,
-		_rack_hand(),
-		_slots,
-		GEO.STAGE_ROW_SLOTS,
-		Callable(self, "_pair_key_for_tile")
-	)
-	if not bool(result.get("ok", false)):
-		_action_in_flight = false
-		_last_draft_error = str(result.get("reason", "Draft melds rejected"))
-		return false
-	return true
+	var result: Dictionary = _session.overlay_commit_draft()
+	_last_draft_error = str(result.get("reason", ""))
+	return bool(result.get("ok", false))
 
 func _all_draft_tile_ids() -> Array:
 	return _slots.all_draft_tile_ids()
@@ -2109,304 +1823,64 @@ func _find_draft_drop_slot(global_pos: Vector2) -> int:
 	)
 
 func _move_slot(from_slot: int, to_slot: int) -> void:
-	if _slots.move_slot(from_slot, to_slot):
-		_render_rack()
+	_session.overlay_move_slot(from_slot, to_slot)
 
 func _move_rack_to_draft(from_slot: int, to_draft_slot: int) -> void:
-	if _slots.move_rack_to_draft(from_slot, to_draft_slot, GEO.STAGE_ROW_SLOTS, GEO.STAGE_SLOT_COUNT):
-		_render_rack()
+	_session.overlay_move_rack_to_draft(from_slot, to_draft_slot)
 
 func _move_draft_to_rack(from_draft_slot: int, to_slot: int) -> void:
-	if _slots.move_draft_to_rack(from_draft_slot, to_slot):
-		_render_rack()
+	_session.overlay_move_draft_to_rack(from_draft_slot, to_slot)
 
 func _move_draft_slot(from_slot: int, to_slot: int) -> void:
-	if _slots.move_draft_slot(from_slot, to_slot):
-		_render_rack()
-
-# ═══════════════════════════════════════════
-# BOT TURNS
-# ═══════════════════════════════════════════
-
-func _compute_bot_action_async(bot, state, bot_index: int):
-	var result: Array = [null]
-	var thread := Thread.new()
-	thread.start(func(): result[0] = bot.choose_action(state, bot_index))
-	while thread.is_alive():
-		await get_tree().process_frame
-	thread.wait_to_finish()
-	return result[0]
+	_session.overlay_move_draft_slot(from_slot, to_slot)
 
 func _maybe_auto_bot_turn() -> void:
-	if _controller_injected_external:
-		return
-	if _bot_loop_running:
-		return
-	if _controller.state == null:
-		return
-	if _bots.is_empty():
-		_init_bots()
-	_bot_loop_running = true
-	var safety: int = 0
-	while _controller.state != null and _controller.state.phase != GameState.Phase.ROUND_END and _controller.state.current_player_index != 0 and safety < 96:
-		safety += 1
-		await get_tree().process_frame
-		if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END or _controller.state.current_player_index == 0:
-			break
-		var bot_index: int = int(_controller.state.current_player_index)
-		var seat_bot = _bots[bot_index] if bot_index < _bots.size() and _bots[bot_index] != null else BotHeuristic.new()
-		var action = await _compute_bot_action_async(seat_bot, _controller.state, bot_index)
-		if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END or _controller.state.current_player_index == 0:
-			break
-		if action == null:
-			action = await _compute_bot_action_async(_bot_fallback, _controller.state, bot_index)
-			if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END or _controller.state.current_player_index == 0:
-				break
-		if action == null and _controller.state.phase == GameState.Phase.TURN_DRAW and _controller.state.deck.is_empty() and not _controller.state.discard_pile.is_empty():
-			action = Action.new(Action.ActionType.TAKE_DISCARD, {})
-		if action == null:
-			_instructions.text = "Bot stalled (no legal action)"
-			break
-		var result: Dictionary = _controller.apply_action_if_valid(bot_index, action)
-		if not bool(result.get("ok", false)):
-			if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END:
-				break
-			var fallback_try = await _compute_bot_action_async(_bot_fallback, _controller.state, bot_index)
-			if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END or _controller.state.current_player_index == 0:
-				break
-			if fallback_try != null:
-				var fallback_try_res: Dictionary = _controller.apply_action_if_valid(bot_index, fallback_try)
-				if bool(fallback_try_res.get("ok", false)):
-					continue
-				if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END:
-					break
-			var fallback: Action = null
-			if _controller.state.phase == GameState.Phase.TURN_DRAW:
-				if _controller.state.deck.is_empty() and not _controller.state.discard_pile.is_empty():
-					fallback = Action.new(Action.ActionType.TAKE_DISCARD, {})
-				else:
-					fallback = Action.new(Action.ActionType.DRAW_FROM_DECK, {})
-			elif _controller.state.phase == GameState.Phase.TURN_PLAY:
-				fallback = Action.new(Action.ActionType.END_PLAY, {})
-			elif _controller.state.phase == GameState.Phase.STARTER_DISCARD or _controller.state.phase == GameState.Phase.TURN_DISCARD:
-				var hand: Array = _controller.state.players[bot_index].hand
-				if not hand.is_empty():
-					var tid: int = int(hand[0].unique_id)
-					if _controller.state.phase == GameState.Phase.STARTER_DISCARD:
-						fallback = Action.new(Action.ActionType.STARTER_DISCARD, {"tile_id": tid})
-					else:
-						fallback = Action.new(Action.ActionType.DISCARD, {"tile_id": tid})
-			if fallback == null:
-				_instructions.text = "Bot stalled (no fallback action)"
-				break
-			var fb_res: Dictionary = _controller.apply_action_if_valid(bot_index, fallback)
-			if not bool(fb_res.get("ok", false)):
-				if _controller.state == null or _controller.state.phase == GameState.Phase.ROUND_END:
-					break
-				_instructions.text = "Bot stalled (%s)" % str(fb_res.get("reason", "unknown"))
-				break
-	_bot_loop_running = false
+	# The shared session owns bot scheduling for both presentations.
+	pass
 
 func _bind_controller_signals() -> void:
-	if _controller == null:
-		return
-	if not _controller.state_changed.is_connected(_on_state_changed):
-		_controller.state_changed.connect(_on_state_changed)
-	if not _controller.action_rejected.is_connected(_on_action_rejected):
-		_controller.action_rejected.connect(_on_action_rejected)
-	if not _controller.action_applied.is_connected(_on_action_applied):
-		_controller.action_applied.connect(_on_action_applied)
+	if not _session.changed.is_connected(_on_session_changed):
+		_session.changed.connect(_on_session_changed)
+	if not _session.feedback.is_connected(_on_action_rejected):
+		_session.feedback.connect(_on_action_rejected)
 
 func _unbind_controller_signals() -> void:
-	if _controller == null:
-		return
-	if _controller.state_changed.is_connected(_on_state_changed):
-		_controller.state_changed.disconnect(_on_state_changed)
-	if _controller.action_rejected.is_connected(_on_action_rejected):
-		_controller.action_rejected.disconnect(_on_action_rejected)
-	if _controller.action_applied.is_connected(_on_action_applied):
-		_controller.action_applied.disconnect(_on_action_applied)
+	if _session.changed.is_connected(_on_session_changed):
+		_session.changed.disconnect(_on_session_changed)
+	if _session.feedback.is_connected(_on_action_rejected):
+		_session.feedback.disconnect(_on_action_rejected)
 
-# ═══════════════════════════════════════════
-# ROUND END DIALOG
-# ═══════════════════════════════════════════
-
-func _show_round_end_dialog() -> void:
+func _show_round_end_dialog(force_in_headless: bool = false) -> void:
 	if _controller.state == null:
 		return
-	if DisplayServer.get_name() == "headless":
+	if DisplayServer.get_name() == "headless" and not force_in_headless:
 		return
-	if _round_dialog != null:
+	if _round_dialog != null and is_instance_valid(_round_dialog):
 		_round_dialog.queue_free()
 		_round_dialog = null
 
-	var overlay := ColorRect.new()
-	overlay.name = "ScoreOverlay"
-	overlay.color = Color(0.0, 0.0, 0.0, 0.5)
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(overlay)
-
-	_round_dialog = PanelContainer.new()
-	_round_dialog.name = "RoundEndScoreboard"
-	_round_dialog.custom_minimum_size = Vector2(420, 0)
-	_round_dialog.set_anchors_preset(Control.PRESET_CENTER)
-	_round_dialog.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_round_dialog.grow_vertical = Control.GROW_DIRECTION_BOTH
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.14, 0.12, 0.09, 0.96)
-	panel_style.border_width_top = 2
-	panel_style.border_width_bottom = 2
-	panel_style.border_width_left = 2
-	panel_style.border_width_right = 2
-	panel_style.border_color = Color(0.92, 0.80, 0.59, 0.92)
-	panel_style.corner_radius_top_left = 10
-	panel_style.corner_radius_top_right = 10
-	panel_style.corner_radius_bottom_left = 10
-	panel_style.corner_radius_bottom_right = 10
-	panel_style.content_margin_left = 24
-	panel_style.content_margin_right = 24
-	panel_style.content_margin_top = 20
-	panel_style.content_margin_bottom = 20
-	_round_dialog.add_theme_stylebox_override("panel", panel_style)
-	overlay.add_child(_round_dialog)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 12)
-	_round_dialog.add_child(vbox)
-
-	var title := Label.new()
-	title.text = "Round Complete"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 26)
-	title.add_theme_color_override("font_color", Color(0.96, 0.90, 0.78, 1.0))
-	vbox.add_child(title)
-
-	var sep := HSeparator.new()
-	sep.add_theme_color_override("separator", Color(0.92, 0.80, 0.59, 0.5))
-	vbox.add_child(sep)
-
-	# Header row
-	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 8)
-	var h_name := Label.new()
-	h_name.text = "Player"
-	h_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	h_name.add_theme_font_size_override("font_size", 18)
-	h_name.add_theme_color_override("font_color", Color(0.82, 0.77, 0.67, 0.88))
-	header.add_child(h_name)
-	var h_round := Label.new()
-	h_round.text = "Round"
-	h_round.custom_minimum_size = Vector2(80, 0)
-	h_round.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	h_round.add_theme_font_size_override("font_size", 18)
-	h_round.add_theme_color_override("font_color", Color(0.82, 0.77, 0.67, 0.88))
-	header.add_child(h_round)
-	var h_total := Label.new()
-	h_total.text = "Total"
-	h_total.custom_minimum_size = Vector2(80, 0)
-	h_total.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	h_total.add_theme_font_size_override("font_size", 18)
-	h_total.add_theme_color_override("font_color", Color(0.82, 0.77, 0.67, 0.88))
-	header.add_child(h_total)
-	vbox.add_child(header)
-
-	# Find winner (lowest total score)
-	var winner_idx: int = 0
-	var lowest_total: float = INF
-	for i in range(_controller.state.players.size()):
-		var total: float = float(_controller.state.players[i].score_total)
-		if total < lowest_total:
-			lowest_total = total
-			winner_idx = i
-
-	# Player rows
-	for i in range(_controller.state.players.size()):
-		var p = _controller.state.players[i]
-		var is_you: bool = (i == 0)
-		var is_winner: bool = (i == winner_idx)
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-
-		var row_bg := StyleBoxFlat.new()
-		if is_winner:
-			row_bg.bg_color = Color(0.28, 0.22, 0.08, 0.6)
-		elif is_you:
-			row_bg.bg_color = Color(0.18, 0.16, 0.12, 0.4)
-		else:
-			row_bg.bg_color = Color(0.0, 0.0, 0.0, 0.0)
-		row_bg.content_margin_left = 8
-		row_bg.content_margin_right = 8
-		row_bg.content_margin_top = 4
-		row_bg.content_margin_bottom = 4
-		row_bg.corner_radius_top_left = 4
-		row_bg.corner_radius_top_right = 4
-		row_bg.corner_radius_bottom_left = 4
-		row_bg.corner_radius_bottom_right = 4
-		var row_panel := PanelContainer.new()
-		row_panel.add_theme_stylebox_override("panel", row_bg)
-		row_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-		var row_inner := HBoxContainer.new()
-		row_inner.add_theme_constant_override("separation", 8)
-
-		var player_name := Label.new()
-		var name_text: String = "You" if is_you else "Bot %d" % i
-		if is_winner:
-			name_text += " (Winner)"
-		player_name.text = name_text
-		player_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		player_name.add_theme_font_size_override("font_size", 20)
-		var name_color: Color = Color(0.99, 0.91, 0.74) if is_you else Color(0.92, 0.87, 0.78, 0.95)
-		player_name.add_theme_color_override("font_color", name_color)
-		row_inner.add_child(player_name)
-
-		var round_score := Label.new()
-		round_score.text = str(int(p.score_round))
-		round_score.custom_minimum_size = Vector2(80, 0)
-		round_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		round_score.add_theme_font_size_override("font_size", 20)
-		var score_color: Color = Color(0.65, 0.85, 0.55) if int(p.score_round) < 0 else Color(0.95, 0.65, 0.55)
-		round_score.add_theme_color_override("font_color", score_color)
-		row_inner.add_child(round_score)
-
-		var total_score := Label.new()
-		total_score.text = str(int(p.score_total))
-		total_score.custom_minimum_size = Vector2(80, 0)
-		total_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		total_score.add_theme_font_size_override("font_size", 20)
-		total_score.add_theme_color_override("font_color", Color(0.96, 0.90, 0.78))
-		row_inner.add_child(total_score)
-
-		row_panel.add_child(row_inner)
-		vbox.add_child(row_panel)
-
-	var sep2 := HSeparator.new()
-	sep2.add_theme_color_override("separator", Color(0.92, 0.80, 0.59, 0.3))
-	vbox.add_child(sep2)
-
-	var btn_row := HBoxContainer.new()
-	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	btn_row.add_theme_constant_override("separation", 16)
-	var new_round_btn := Button.new()
-	new_round_btn.text = "New Round"
-	new_round_btn.custom_minimum_size = Vector2(140, 40)
-	new_round_btn.pressed.connect(func() -> void:
-		overlay.queue_free()
-		_round_dialog = null
-		_start_round()
-	)
-	btn_row.add_child(new_round_btn)
-	var menu_btn := Button.new()
-	menu_btn.text = "Return to Menu"
-	menu_btn.custom_minimum_size = Vector2(160, 40)
-	menu_btn.pressed.connect(func() -> void:
-		overlay.queue_free()
-		_round_dialog = null
-		_return_to_main_menu()
-	)
-	btn_row.add_child(menu_btn)
-	vbox.add_child(btn_row)
+	var modal := ROUND_SUMMARY_MODAL_SCENE.instantiate() as Control
+	if modal == null:
+		return
+	modal.name = "RoundEndScoreboard"
+	add_child(modal)
+	_round_dialog = modal
+	if modal.has_signal("next_round_requested"):
+		modal.connect("next_round_requested", func() -> void:
+			if is_instance_valid(modal):
+				modal.queue_free()
+			_round_dialog = null
+			_start_round()
+		)
+	if modal.has_signal("main_menu_requested"):
+		modal.connect("main_menu_requested", func() -> void:
+			if is_instance_valid(modal):
+				modal.queue_free()
+			_round_dialog = null
+			_return_to_main_menu()
+		)
+	if modal.has_method("display_summary"):
+		modal.call("display_summary", _controller.state, false)
 
 func _return_to_main_menu() -> void:
 	get_tree().change_scene_to_file("res://ui/Main.tscn")
@@ -2459,6 +1933,7 @@ func _render_round_controls() -> void:
 
 func _apply_responsive_layout() -> void:
 	var vp: Vector2 = get_viewport_rect().size
+	_set_rect_pixels(_action_bar, 20, vp.y - 44, vp.x - 40, 36)
 	var margin: float = GEO.OUTER_MARGIN
 	var content_top: float = 8.0 if _presentation_mode == "3d" else GEO.TOP_BAR_HEIGHT + 8.0
 	var tile_gap: float = 4.0
@@ -2472,7 +1947,7 @@ func _apply_responsive_layout() -> void:
 	rack_w = min(rack_w, vp.x - margin * 2.0)
 	var rack_h: float = clamp(tile_h * 2.0 + 14.0, GEO.RACK_MIN_HEIGHT, GEO.RACK_MAX_HEIGHT)
 	var rack_x: float = (vp.x - rack_w) * 0.5
-	var rack_y: float = vp.y - rack_h - GEO.BOTTOM_PADDING
+	var rack_y: float = vp.y - rack_h - GEO.BOTTOM_PADDING - (48.0 if _presentation_mode != "3d" else 0.0)
 	if _presentation_mode == "3d":
 		rack_y -= 82.0
 	_set_rect_pixels(_rack_panel, rack_x, rack_y, rack_w, rack_h)
@@ -2708,7 +2183,7 @@ func _set_rect_pixels(node: Control, x: float, y: float, w: float, h: float) -> 
 # ═══════════════════════════════════════════
 
 func _instruction_for_state() -> String:
-	return TILE_HELPERS.instruction_for_state(_controller.state, _is_my_turn())
+	return _session.get_instruction_text()
 
 func _phase_name(phase: int) -> String:
 	return TILE_HELPERS.phase_name(phase)
@@ -2738,3 +2213,34 @@ func _is_tile_in_my_hand(tile_id: int) -> bool:
 func _prev_player(player_index: int) -> int:
 	return TILE_HELPERS.prev_player(_controller.state, player_index)
 
+
+func _on_session_changed() -> void:
+	_on_state_changed(_controller.state)
+	if _instructions == null:
+		return
+	var available: Dictionary = _session.get_available_actions()
+	for key in _action_buttons:
+		var action: Dictionary = available[key]
+		_action_buttons[key].disabled = not bool(action.get("ok", false))
+		_action_buttons[key].tooltip_text = str(action.get("reason", ""))
+	if _controller.state != null and not _controller.state.players.is_empty():
+		_action_buttons.commit.text = "Play melds" if _controller.state.players[0].has_opened else "Open melds"
+	_btn_end_play.disabled = not bool(available.discard.get("ok", false))
+	_btn_end_play.tooltip_text = str(available.discard.get("reason", ""))
+	_set_rect_pixels(_action_bar, 20, get_viewport_rect().size.y - 44, get_viewport_rect().size.x - 40, 36)
+
+func _create_session_actions() -> void:
+	for spec in [["Draw tile", "draw", _session.overlay_draw_from_deck],
+		["Take discard", "take_discard", _session.overlay_take_discard],
+		["Play melds", "commit", _session.overlay_commit_draft],
+		["Return draft", "return_draft", _session.overlay_return_draft],
+		["Undo", "undo", _session.overlay_undo]]:
+		var button := Button.new()
+		button.text = spec[0]
+		button.pressed.connect(spec[2])
+		_action_bar.add_child(button)
+		_action_buttons[spec[1]] = button
+	var sort_button := Button.new()
+	sort_button.text = "Sort colors"
+	sort_button.pressed.connect(func(): _session.overlay_sort_rack("color"))
+	_action_bar.add_child(sort_button)

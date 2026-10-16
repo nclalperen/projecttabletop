@@ -5,6 +5,10 @@ compatibility_minimum = 4.1
 reloadable = false
 
 [libraries]
+; Explicit offline exports use the same no-op bridge as the editor. Standard
+; exports retain native EOS; the bundled bridge crashes with Godot 4.7 on Windows.
+windows.debug.eos_disabled.x86_64 = "bin/windows/libeosg.editor_disabled.x86_64.dll"
+windows.release.eos_disabled.x86_64 = "bin/windows/libeosg.editor_disabled.x86_64.dll"
 windows.debug.editor.x86_64 = "bin/windows/libeosg.editor_disabled.x86_64.dll"
 windows.release.editor.x86_64 = "bin/windows/libeosg.editor_disabled.x86_64.dll"
 linux.debug.x86_64 = "bin/linux/libeosg.linux.template_debug.dev.x86_64.so"

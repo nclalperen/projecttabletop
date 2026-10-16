@@ -104,3 +104,24 @@ Before public release, set production lane to `runtime_required` and verify:
 - no silent fallback to mock in runtime app paths,
 - startup fails clearly if EOS runtime is unavailable,
 - runtime lane is green on supported platforms.
+
+## 7) Godot 4.7 Windows offline preview
+
+The bundled EOSG 2.2.8 Windows native bridges crash during Godot 4.7.1
+export startup with Windows exception `0xC0000374`, before scripts or logging.
+Both bundled debug and release bridges reproduce the crash. Swapping only the
+exported bridge for the existing editor-disabled stub allows the same executable
+to start. This is independent of the D3D12/OpenGL renderer selection.
+
+Use the explicit **trial-offline** export preset for a playable local preview:
+
+```powershell
+& .\tools\godot.ps1 -CliArgs @('--headless', '--path', '.', '--export-release', 'trial-offline', 'exports/okey-offline.exe')
+```
+
+That preset adds the `eos_disabled` feature and maps only Windows builds with that
+feature to the safe no-op bridge. It supports local Okey/bot matches; it does not
+provide live Epic authentication, lobbies, or P2P. The standard **trial** preset and
+other platform mappings retain their native EOS bridges and backend policy. A
+compatible rebuilt EOSG native bridge plus successful live runtime checks are
+required before shipping the standard Windows online build with Godot 4.7.

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File d:/Projects/projecttabletop/.agents/scripts/check_asset_literals_hook.ps1",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

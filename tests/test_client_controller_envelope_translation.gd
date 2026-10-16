@@ -63,5 +63,38 @@ func _test_client_envelope_translation_against_host() -> bool:
 		cleanup.call()
 		return false
 
+	# Exercise the real transport gate for meld actions, which have no imported item_id.
+	core.state.rule_config.open_min_points_initial = 1
+	core.state.okey_context = OkeyContext.new(Tile.new(Tile.TileColor.YELLOW, 12, Tile.Kind.NORMAL, 70000))
+	core.state.players[1].has_opened = false
+	core.state.players[1].hand = [
+		Tile.new(Tile.TileColor.RED, 5, Tile.Kind.NORMAL, 70001),
+		Tile.new(Tile.TileColor.RED, 6, Tile.Kind.NORMAL, 70002),
+		Tile.new(Tile.TileColor.RED, 7, Tile.Kind.NORMAL, 70003),
+		Tile.new(Tile.TileColor.RED, 8, Tile.Kind.NORMAL, 70004),
+		Tile.new(Tile.TileColor.BLUE, 12, Tile.Kind.NORMAL, 70005)]
+	client.submit_action_envelope({"type": "OPEN_MELDS", "player_id": 0, "payload": {"melds": [{"kind": Meld.Kind.RUN, "tile_ids": [70001, 70002, 70003]}]}})
+	if core.state.table_melds.size() != 1:
+		push_error("Client opening must reach the Okey validator through transport")
+		cleanup.call()
+		return false
+	client.submit_action_envelope({"type": "ADD_TO_MELD", "player_id": 0, "payload": {"target_meld_index": 0, "tile_ids": [70004]}})
+	if core.state.table_melds[0].tiles.size() != 4:
+		push_error("Client extension must reach the Okey validator through transport")
+		cleanup.call()
+		return false
+	var before: int = core.state.players[1].hand.size()
+	client.draw_from_deck(0)
+	if core.state.players[1].hand.size() != before:
+		push_error("Host must reject a second draw in TURN_PLAY")
+		cleanup.call()
+		return false
+	core.state.current_player_index = 2
+	client.submit_action_envelope({"type": "END_PLAY", "player_id": 0, "payload": {}})
+	if core.state.phase != GameState.Phase.TURN_PLAY:
+		push_error("Host must reject out-of-turn actions")
+		cleanup.call()
+		return false
+
 	cleanup.call()
 	return true

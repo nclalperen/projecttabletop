@@ -1052,7 +1052,7 @@ func _maybe_launch_match_from_lobby(lobby: Dictionary) -> void:
 	var match_seed: int = int(attrs.get("match_seed", _game_seed if _game_seed >= 0 else randi()))
 	var match_id: String = String(attrs.get("match_id", ""))
 	var launched_game_id: StringName = _lobby_game_id(lobby)
-	if GAME_CATALOG.uses_okey_table(launched_game_id) and not _is_imported_prototype_enabled():
+	if GAME_CATALOG.uses_okey_table(launched_game_id):
 		var scene_path: String = GAME_TABLE_3D_SCENE_PATH if _presentation_mode == "3d" else GAME_TABLE_2D_SCENE_PATH
 		var scene: PackedScene = load(scene_path)
 		if scene == null:
@@ -1267,8 +1267,8 @@ func _start_block_reason(lobby: Dictionary, plan: Array) -> String:
 		return "Fill every seat with a player or bot first."
 	if not _all_human_slots_ready(plan):
 		return "All human players must be ready."
-	if _plan_contains_bot(plan) and GAME_CATALOG.uses_okey_table(_lobby_game_id(lobby)) and not _is_imported_prototype_enabled():
-		return "Legacy Okey start does not support staged bot seats."
+	if _plan_contains_bot(plan) and GAME_CATALOG.uses_okey_table(_lobby_game_id(lobby)):
+		return "Online Okey requires human seats. Use a local table to play with bots."
 	var compatibility_reason: String = _compatibility_reason_for_lobby(lobby)
 	if compatibility_reason != "":
 		return compatibility_reason
@@ -1331,7 +1331,7 @@ func _launch_local_bot_match(plan: Array) -> void:
 		local_puid,
 		Time.get_unix_time_from_system(),
 	])))
-	if GAME_CATALOG.uses_okey_table(_selected_game_id) and not _is_imported_prototype_enabled():
+	if GAME_CATALOG.uses_okey_table(_selected_game_id):
 		var scene_path: String = GAME_TABLE_3D_SCENE_PATH if _presentation_mode == "3d" else GAME_TABLE_2D_SCENE_PATH
 		var local_scene: PackedScene = load(scene_path)
 		if local_scene == null and _presentation_mode == "3d":

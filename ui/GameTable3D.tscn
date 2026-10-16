@@ -44,7 +44,3 @@ light_energy = 0.42
 light_color = Color(1, 0.74, 0.56, 1)
 light_energy = 0.55
 omni_range = 9.0
-
-[node name="GameViewport" type="SubViewport" parent="."]
-size = Vector2i(1920, 1080)
-render_target_update_mode = 4

@@ -52,7 +52,7 @@ const WELCOME_MESSAGES: Array[String] = [
 	"Welcome %s. The project is a tabletop hub now, not a single-game menu.",
 	"Welcome %s. Multiplayer first, more rulesets next.",
 	"Welcome %s. Choose a board, choose a seat, start a session.",
-	"Welcome %s. Okey stays as legacy while the new tables land.",
+	"Welcome %s. Okey 101 is ready. Build a run and join the fun.",
 ]
 
 # Game configuration
@@ -95,7 +95,7 @@ func _ready() -> void:
 	_settings_button.pressed.connect(_on_settings_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
 
-	rule_config = null
+	rule_config = _make_rule_config()
 	var ui_settings: Dictionary = UI_SETTINGS_SCRIPT.load_from_disk()
 	_sync_presentation_mode_from_settings(ui_settings)
 	_apply_runtime_display_settings(ui_settings)
@@ -650,16 +650,16 @@ func _on_settings_pressed() -> void:
 		_menu_audio.play_confirm()
 	if not GAME_CATALOG.uses_okey_table(selected_game_id):
 		if _banner != null and _banner.has_method("set_text"):
-			_banner.call("set_text", "Advanced rules settings are only wired for the legacy Okey table right now.")
+			_banner.call("set_text", "Advanced rules settings are available for Okey 101.")
 		return
 	if rule_config == null:
 		if _banner != null and _banner.has_method("set_text"):
-			_banner.call("set_text", "Legacy Okey settings are unavailable until the old rules stack compiles cleanly again.")
+			_banner.call("set_text", "Okey settings are unavailable. Please check the game installation.")
 		return
 	var settings_scene: PackedScene = load(SETTINGS_MENU_SCENE_PATH)
 	if settings_scene == null:
 		if _banner != null and _banner.has_method("set_text"):
-			_banner.call("set_text", "Failed to load the legacy settings scene.")
+			_banner.call("set_text", "Failed to load Okey settings.")
 		return
 	var settings_menu = settings_scene.instantiate()
 	add_child(settings_menu)

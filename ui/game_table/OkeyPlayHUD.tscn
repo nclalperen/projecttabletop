@@ -1,0 +1,377 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Theme" uid="uid://dimbghy4snmvf" path="res://ui/themes/okey_theme.tres" id="1_theme"]
+[ext_resource type="Script" path="res://ui/game_table/OkeyPlayHUD.gd" id="2_script"]
+[ext_resource type="PackedScene" path="res://ui/common_tabletop/PlayerSeatBadge.tscn" id="3_badge"]
+[ext_resource type="Script" path="res://ui/game_table/MeldInspectionOverlay.gd" id="4_overlay"]
+[ext_resource type="PackedScene" path="res://ui/game_table/OkeyRoundSummaryModal.tscn" id="5_summary"]
+
+[node name="OkeyPlayHUD" type="CanvasLayer"]
+layer = 10
+script = ExtResource("2_script")
+
+[node name="SafeAreaRoot" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("1_theme")
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="TopBar" type="HBoxContainer" parent="SafeAreaRoot"]
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="LeftCluster" type="HBoxContainer" parent="SafeAreaRoot/TopBar"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BackToHubButton" type="Button" parent="SafeAreaRoot/TopBar/LeftCluster"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 36)
+layout_mode = 2
+theme_type_variation = &"RackUtilityButton"
+text = "Menu"
+
+[node name="IndicatorTileBadge" type="PanelContainer" parent="SafeAreaRoot/TopBar/LeftCluster"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 36)
+layout_mode = 2
+theme_type_variation = &"HUDGlassPanel"
+
+[node name="IndicatorHBox" type="HBoxContainer" parent="SafeAreaRoot/TopBar/LeftCluster/IndicatorTileBadge"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="IndicatorLabel" type="Label" parent="SafeAreaRoot/TopBar/LeftCluster/IndicatorTileBadge/IndicatorHBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.88, 0.72, 1)
+theme_override_font_sizes/font_size = 12
+text = "Indicator: --"
+
+[node name="FactsBadge" type="PanelContainer" parent="SafeAreaRoot/TopBar/LeftCluster"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 36)
+layout_mode = 2
+theme_type_variation = &"HUDGlassPanel"
+
+[node name="FactsLabel" type="Label" parent="SafeAreaRoot/TopBar/LeftCluster/FactsBadge"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.86, 0.76, 1)
+theme_override_font_sizes/font_size = 12
+text = "ROUND 1 · STOCK 48"
+horizontal_alignment = 1
+
+[node name="TopOpponentSlot" type="CenterContainer" parent="SafeAreaRoot/TopBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="SeatBadgeTop" parent="SafeAreaRoot/TopBar/TopOpponentSlot" instance=ExtResource("3_badge")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RightCluster" type="HBoxContainer" parent="SafeAreaRoot/TopBar"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CameraViewToggle" type="Button" parent="SafeAreaRoot/TopBar/RightCluster"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 36)
+layout_mode = 2
+theme_type_variation = &"RackUtilityButton"
+text = "View"
+
+[node name="MeldsButton" type="Button" parent="SafeAreaRoot/TopBar/RightCluster"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 36)
+layout_mode = 2
+theme_type_variation = &"RackUtilityButton"
+text = "Melds"
+
+[node name="HelpGuideButton" type="Button" parent="SafeAreaRoot/TopBar/RightCluster"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 36)
+layout_mode = 2
+theme_type_variation = &"RackUtilityButton"
+text = "Help"
+
+[node name="MiddleSideSeats" type="Control" parent="SafeAreaRoot"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="SeatBadgeLeft" parent="SafeAreaRoot/MiddleSideSeats" instance=ExtResource("3_badge")]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.43
+anchor_bottom = 0.43
+offset_left = 10.0
+offset_top = -26.0
+offset_right = 190.0
+offset_bottom = 26.0
+grow_vertical = 2
+
+[node name="SeatBadgeRight" parent="SafeAreaRoot/MiddleSideSeats" instance=ExtResource("3_badge")]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.43
+anchor_right = 1.0
+anchor_bottom = 0.43
+offset_left = -190.0
+offset_top = -26.0
+offset_right = -10.0
+offset_bottom = 26.0
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="TopNotificationAnchor" type="Control" parent="SafeAreaRoot"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="TurnInstructionBanner" type="PanelContainer" parent="SafeAreaRoot/TopNotificationAnchor"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(400, 32)
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -200.0
+offset_top = 48.0
+offset_right = 200.0
+offset_bottom = 80.0
+grow_horizontal = 2
+theme_type_variation = &"HUDGlassPanel"
+
+[node name="InstructionLabel" type="Label" parent="SafeAreaRoot/TopNotificationAnchor/TurnInstructionBanner"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.9, 0.8, 1)
+theme_override_font_sizes/font_size = 13
+text = "Draw a tile from the stock or discard stack"
+horizontal_alignment = 1
+
+[node name="WorldSpaceOverlayLayer" type="Control" parent="SafeAreaRoot"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+
+[node name="MeldInspectionPills" type="Control" parent="SafeAreaRoot/WorldSpaceOverlayLayer"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_overlay")
+
+[node name="BottomDock" type="VBoxContainer" parent="SafeAreaRoot"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 8
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="DraftAndTurnBannerRow" type="HBoxContainer" parent="SafeAreaRoot/BottomDock"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 12
+
+[node name="DraftMeterPill" type="PanelContainer" parent="SafeAreaRoot/BottomDock/DraftAndTurnBannerRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(280, 40)
+layout_mode = 2
+theme_type_variation = &"DraftPillPending"
+
+[node name="DraftHBox" type="HBoxContainer" parent="SafeAreaRoot/BottomDock/DraftAndTurnBannerRow/DraftMeterPill"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="DraftPointsLabel" type="Label" parent="SafeAreaRoot/BottomDock/DraftAndTurnBannerRow/DraftMeterPill/DraftHBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.96, 0.92, 0.85, 1)
+theme_override_font_sizes/font_size = 13
+text = "Open: 0 / 101 pts"
+horizontal_alignment = 1
+
+[node name="DraftProgressBar" type="ProgressBar" parent="SafeAreaRoot/BottomDock/DraftAndTurnBannerRow/DraftMeterPill/DraftHBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 14)
+layout_mode = 2
+size_flags_vertical = 4
+max_value = 101.0
+show_percentage = false
+
+[node name="CommitMeldsButton" type="Button" parent="SafeAreaRoot/BottomDock/DraftAndTurnBannerRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 40)
+layout_mode = 2
+theme_type_variation = &"PrimaryActionButton"
+text = "Open Melds"
+
+[node name="RackControlBar" type="HBoxContainer" parent="SafeAreaRoot/BottomDock"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="LocalPlayerBadge" parent="SafeAreaRoot/BottomDock/RackControlBar" instance=ExtResource("3_badge")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RackUtilityGroup" type="HBoxContainer" parent="SafeAreaRoot/BottomDock/RackControlBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="SortColorButton" type="Button" parent="SafeAreaRoot/BottomDock/RackControlBar/RackUtilityGroup"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(130, 40)
+layout_mode = 2
+theme_type_variation = &"RackUtilityButton"
+text = "Seri Diz (Runs)"
+
+[node name="SortNumberButton" type="Button" parent="SafeAreaRoot/BottomDock/RackControlBar/RackUtilityGroup"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(130, 40)
+layout_mode = 2
+theme_type_variation = &"RackUtilityButton"
+text = "Çift Diz (Pairs)"
+
+[node name="UndoButton" type="Button" parent="SafeAreaRoot/BottomDock/RackControlBar/RackUtilityGroup"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 40)
+layout_mode = 2
+theme_type_variation = &"RackUtilityButton"
+text = "Undo"
+
+[node name="ReturnDraftButton" type="Button" parent="SafeAreaRoot/BottomDock/RackControlBar/RackUtilityGroup"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(110, 40)
+layout_mode = 2
+theme_type_variation = &"RackUtilityButton"
+text = "Return Draft"
+
+[node name="TurnActionGroup" type="HBoxContainer" parent="SafeAreaRoot/BottomDock/RackControlBar"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DrawButton" type="Button" parent="SafeAreaRoot/BottomDock/RackControlBar/TurnActionGroup"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(110, 40)
+layout_mode = 2
+theme_type_variation = &"PrimaryActionButton"
+text = "Draw Tile"
+
+[node name="TakeDiscardButton" type="Button" parent="SafeAreaRoot/BottomDock/RackControlBar/TurnActionGroup"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(120, 40)
+layout_mode = 2
+theme_type_variation = &"PrimaryActionButton"
+text = "Take Discard"
+
+[node name="DiscardSelectedButton" type="Button" parent="SafeAreaRoot/BottomDock/RackControlBar/TurnActionGroup"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(130, 40)
+layout_mode = 2
+theme_type_variation = &"DangerActionButton"
+text = "Discard"
+
+[node name="ToastAnchor" type="CenterContainer" parent="SafeAreaRoot"]
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+
+[node name="FeedbackToast" type="PanelContainer" parent="SafeAreaRoot/ToastAnchor"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(320, 36)
+layout_mode = 2
+theme_type_variation = &"DraftPillPending"
+
+[node name="FeedbackLabel" type="Label" parent="SafeAreaRoot/ToastAnchor/FeedbackToast"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+theme_override_font_sizes/font_size = 12
+text = "Feedback notification"
+horizontal_alignment = 1
+
+[node name="ModalOverlay" type="ColorRect" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.04, 0.03, 0.03, 0.82)
+
+[node name="ModalCenter" type="CenterContainer" parent="ModalOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ModalPanel" type="PanelContainer" parent="ModalOverlay/ModalCenter"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(580, 440)
+layout_mode = 2
+theme = ExtResource("1_theme")
+theme_type_variation = &"HUDGlassPanel"
+
+[node name="ModalVBox" type="VBoxContainer" parent="ModalOverlay/ModalCenter/ModalPanel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="ModalTitle" type="Label" parent="ModalOverlay/ModalCenter/ModalPanel/ModalVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.85, 0.58, 1)
+theme_override_font_sizes/font_size = 18
+text = "Modal Title"
+horizontal_alignment = 1
+
+[node name="ModalScroll" type="ScrollContainer" parent="ModalOverlay/ModalCenter/ModalPanel/ModalVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ModalBody" type="VBoxContainer" parent="ModalOverlay/ModalCenter/ModalPanel/ModalVBox/ModalScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="ModalCloseButton" type="Button" parent="ModalOverlay/ModalCenter/ModalPanel/ModalVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_type_variation = &"PrimaryActionButton"
+text = "Close"
+
+[node name="RoundSummaryModal" parent="." instance=ExtResource("5_summary")]
+unique_name_in_owner = true
+visible = false
+

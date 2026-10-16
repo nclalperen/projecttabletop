@@ -1,4 +1,4 @@
-﻿extends SceneTree
+extends SceneTree
 
 const TEST_SCRIPTS = [
 	"res://tests/test_deck_builder.gd",
@@ -62,6 +62,13 @@ const TEST_SCRIPTS = [
 	"res://tests/test_ui_gametable3d_scene_contract.gd",
 	"res://tests/test_ui_no_legacy_controls.gd",
 	"res://tests/test_ui_menu_scene_contract.gd",
+	"res://tests/test_tabletop_game_catalog.gd",
+	"res://tests/test_okey_session.gd",
+	"res://tests/test_okey_play_hud_declarative.gd",
+	"res://tests/test_tile_drag_and_input_subsystems.gd",
+	"res://tests/test_meld_and_discard_subsystems.gd",
+	"res://tests/test_common_tabletop_components.gd",
+	"res://tests/test_phase5_polish_subsystems.gd",
 	"res://tests/test_ui_settings_visual.gd",
 	"res://tests/test_ui_settings_presentation_mode.gd",
 	"res://tests/test_display_settings_service.gd",
@@ -73,6 +80,11 @@ const TEST_SCRIPTS = [
 	"res://tests/test_interaction_resolver.gd",
 	"res://tests/test_rack_slot_manager.gd",
 	"res://tests/test_draft_api_hardcut.gd",
+	"res://tests/test_table_config_resources.gd",
+	"res://tests/test_camera_rig.gd",
+	"res://tests/test_material_factory.gd",
+	"res://tests/test_audio_controller.gd",
+	"res://tests/test_game_table_config_swapping.gd",
 ]
 
 var _all_ok := true
@@ -86,6 +98,7 @@ func _init() -> void:
 func _run_all_tests() -> bool:
 	var ok = true
 	for path in TEST_SCRIPTS:
+		print("RUN ", path.get_file())
 		var script = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
 		if script == null:
 			push_error("Failed to load test: %s" % path)
@@ -113,4 +126,4 @@ func _complete() -> void:
 	else:
 		print("Tests failed")
 
-	quit()
+	quit(0 if _all_ok else 1)
