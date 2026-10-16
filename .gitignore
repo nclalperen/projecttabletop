@@ -28,6 +28,7 @@ ai agent docs/screenshots/auto/
 tests/_tmp_*.gd
 tests/_tmp_*.gd.uid
 dev/.tmp_*
+dev/qa/
 
 # EOS addon temp reload artifacts
 addons/epic-online-services-godot/bin/windows/~*

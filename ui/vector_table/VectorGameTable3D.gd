@@ -6,20 +6,24 @@ extends Node3D
 
 const OKEY_SESSION = preload("res://ui/game_table/OkeySession.gd")
 const TABLE_ART = preload("res://ui/game_table/OkeyTableArt.gd")
+const TUNING = preload("res://ui/vector_table/VectorTuning3D.gd")
 const SPRING3D = preload("res://ui/vector_table/math/SpringSolver3D.gd")
 const FluidRack3D = preload("res://ui/vector_table/rack/FluidRack3D.gd")
 const VectorTile3D = preload("res://ui/vector_table/render/VectorTile3D.gd")
 
 # Scene references
-var _world: Node3D
+var _world: Node3D = self
+var _world_env: WorldEnvironment
 var _camera: Camera3D
 var _light: DirectionalLight3D
+var _fill_light: OmniLight3D
 var _table_mesh: Node3D
 var _rack: FluidRack3D
 var _deck_container: Node3D
 var _indicator_tile: VectorTile3D
 var _melds_container: Node3D
 var _discard_tiles: Dictionary = {} # seat -> VectorTile3D
+var _vignette_layer: CanvasLayer
 
 # HUD Overlay
 var _hud_layer: CanvasLayer
@@ -34,20 +38,10 @@ var _session: Node = null
 var _is_my_turn: bool = false
 var _current_phase: int = 1
 
-# Anchors
-const TABLE_SURFACE_Y: float = 0.075
-const DECK_POS_3D: Vector3 = Vector3(-0.04, TABLE_SURFACE_Y, -0.22)
-const INDICATOR_POS_3D: Vector3 = Vector3(0.04, TABLE_SURFACE_Y, -0.22)
-const DISCARD_POS_3D: Dictionary = {
-	0: Vector3(0.38, TABLE_SURFACE_Y, 0.12),   # Local player right (outgoing)
-	1: Vector3(0.40, TABLE_SURFACE_Y, -0.22),  # East
-	2: Vector3(0.0, TABLE_SURFACE_Y, -0.34),   # North
-	3: Vector3(-0.38, TABLE_SURFACE_Y, 0.12),  # West (incoming to local)
-}
-
 
 func _init() -> void:
 	_build_3d_environment()
+	_build_vignette()
 	_build_hud_overlay()
 
 
@@ -57,59 +51,133 @@ func _ready() -> void:
 
 
 func _build_3d_environment() -> void:
-	_world = Node3D.new()
-	_world.name = "World"
-	add_child(_world)
+	# 1. WorldEnvironment with warm tone, HDRI ambient, AgX tonemapping, SSAO, and subtle glow
+	_world_env = WorldEnvironment.new()
+	_world_env.name = "WorldEnvironment"
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color("#0d0b0a") # Warm dark room, never grey
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.35
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 
-	# 1. Warm Directional Key Light with Soft Shadows
+	var sky := Sky.new()
+	var sky_mat := PanoramaSkyMaterial.new()
+	var hdr_tex := AssetRegistry.texture(AssetIds.GAMEPLAY_HDRI_STUDIO_SMALL_03)
+	if hdr_tex != null:
+		sky_mat.panorama = hdr_tex
+		sky.sky_material = sky_mat
+		env.sky = sky
+
+	env.tonemap_mode = Environment.TONE_MAPPER_AGX
+	env.tonemap_exposure = 1.0
+	env.tonemap_white = 6.0
+
+	env.ssao_enabled = true
+	env.ssao_radius = 0.08
+	env.ssao_intensity = 1.6
+
+	env.glow_enabled = true
+	env.glow_intensity = 0.25
+	env.glow_bloom = 0.0
+	env.glow_hdr_threshold = 2.0
+
+	env.adjustment_enabled = true
+	env.adjustment_contrast = 1.05
+	env.adjustment_saturation = 1.05
+
+	_world_env.environment = env
+	add_child(_world_env)
+
+	# 2. KeyLight: Warm Directional Key Light with Soft Shadows
 	_light = DirectionalLight3D.new()
 	_light.name = "KeyLight"
-	_light.rotation_degrees = Vector3(-58.0, 32.0, 0.0)
-	_light.light_color = Color(1.0, 0.96, 0.88)
-	_light.light_energy = 1.15
+	_light.rotation_degrees = Vector3(-52.0, 28.0, 0.0)
+	_light.light_color = Color("#fff1dc")
+	_light.light_energy = 1.6
 	_light.shadow_enabled = true
-	_world.add_child(_light)
+	_light.shadow_blur = 1.5
+	_light.directional_shadow_max_distance = 2.5
+	add_child(_light)
 
-	# 2. Camera: Locked 48° Framing (No jumping!)
+	# 3. FillLight: Cool Omni Fill Light (no shadows)
+	_fill_light = OmniLight3D.new()
+	_fill_light.name = "FillLight"
+	_fill_light.position = Vector3(-0.6, 0.9, 0.5)
+	_fill_light.light_color = Color("#9fb8ff")
+	_fill_light.light_energy = 0.25
+	_fill_light.omni_range = 3.0
+	_fill_light.shadow_enabled = false
+	add_child(_fill_light)
+
+	# 4. Camera: Locked 40° FOV Framing (per D6, no jumping!)
 	_camera = Camera3D.new()
 	_camera.name = "Camera3D"
-	_camera.fov = 48.0
-	_camera.look_at_from_position(Vector3(0.0, 0.96, 0.82), Vector3(0.0, 0.015, 0.14), Vector3.UP)
-	_world.add_child(_camera)
+	_camera.fov = TUNING.CAMERA_FOV
+	_camera.look_at_from_position(TUNING.CAMERA_POS, TUNING.CAMERA_LOOK_AT, Vector3.UP)
+	add_child(_camera)
 
-	# 3. Procedural Walnut & Emerald Felt Table (1.26m x 1.04m widescreen)
-	_table_mesh = TABLE_ART.build_table(_world, TABLE_SURFACE_Y)
-	_table_mesh.name = "EmeraldTable"
+	# 5. Procedural Walnut & Emerald Felt Table (1.26m x 1.04m widescreen)
+	_table_mesh = TABLE_ART.build_table(self, TUNING.TABLE_SURFACE_Y)
+	_table_mesh.name = "Table"
 
-	# 4. Continuous 3D Fluid Rack
+	# 6. Continuous 3D Fluid Rack (replaced by HandRig in P2)
 	_rack = FluidRack3D.new()
 	_rack.name = "FluidRack3D"
-	_rack.position = Vector3(0.0, TABLE_SURFACE_Y, 0.42)
-	_world.add_child(_rack)
+	_rack.position = Vector3(0.0, TUNING.TABLE_SURFACE_Y, 0.42)
+	add_child(_rack)
 
-	# 5. Center Deck & Discard Containers
+	# 7. Center Deck & Discard Containers
 	_deck_container = Node3D.new()
-	_deck_container.name = "DeckContainer"
-	_world.add_child(_deck_container)
+	_deck_container.name = "StockAndIndicator"
+	add_child(_deck_container)
 
 	_melds_container = Node3D.new()
 	_melds_container.name = "TableMelds"
-	_world.add_child(_melds_container)
+	add_child(_melds_container)
 
 	_build_3d_deck_stack()
+
+
+func _build_vignette() -> void:
+	_vignette_layer = CanvasLayer.new()
+	_vignette_layer.name = "VignetteLayer"
+	_vignette_layer.layer = 0
+	var vignette_rect := ColorRect.new()
+	vignette_rect.name = "VignetteRect"
+	vignette_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vignette_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var vig_mat := ShaderMaterial.new()
+	var vig_shader := Shader.new()
+	vig_shader.code = """shader_type canvas_item;
+
+void fragment() {
+	vec2 uv = UV - vec2(0.5);
+	float dist = length(uv);
+	float vig = smoothstep(0.40, 0.85, dist);
+	COLOR = vec4(0.0, 0.0, 0.0, vig * 0.35);
+}
+"""
+	vig_mat.shader = vig_shader
+	vignette_rect.material = vig_mat
+	_vignette_layer.add_child(vignette_rect)
+	add_child(_vignette_layer)
 
 
 func _build_3d_deck_stack() -> void:
 	# Build 3D deck stack of physical ivory tiles
 	for i in range(4):
 		var tile := TABLE_ART.build_tile(false, false)
-		tile.position = DECK_POS_3D + Vector3(0.0, float(i) * 0.0092, 0.0)
+		tile.position = TUNING.STOCK_POS_3D + Vector3(0.0, float(i) * 0.0092, 0.0)
+		tile.rotation_degrees = TUNING.STOCK_ROT_DEG
 		_deck_container.add_child(tile)
 
 
 func _build_hud_overlay() -> void:
 	_hud_layer = CanvasLayer.new()
 	_hud_layer.name = "HUDLayer"
+	_hud_layer.layer = 1
 	add_child(_hud_layer)
 
 	# Top Status Bar
@@ -145,17 +213,17 @@ func _build_hud_overlay() -> void:
 
 	_btn_sort_runs = Button.new()
 	_btn_sort_runs.text = "Seri Diz (Runs)"
-	_btn_sort_runs.pressed.connect(func(): _session.overlay_sort_rack(&"runs"))
+	_btn_sort_runs.pressed.connect(func(): if _session != null: _session.overlay_sort_rack(&"runs"))
 	_action_dock.add_child(_btn_sort_runs)
 
 	_btn_sort_pairs = Button.new()
 	_btn_sort_pairs.text = "Çift Diz (Pairs)"
-	_btn_sort_pairs.pressed.connect(func(): _session.overlay_sort_rack(&"pairs"))
+	_btn_sort_pairs.pressed.connect(func(): if _session != null: _session.overlay_sort_rack(&"pairs"))
 	_action_dock.add_child(_btn_sort_pairs)
 
 	_btn_open_melds = Button.new()
 	_btn_open_melds.text = "Melds Aç (Open)"
-	_btn_open_melds.pressed.connect(func(): _session.action_open_melds())
+	_btn_open_melds.pressed.connect(func(): if _session != null: _session.action_open_melds())
 	_action_dock.add_child(_btn_open_melds)
 
 	_hud_layer.add_child(_action_dock)
@@ -182,15 +250,16 @@ func _on_session_state_updated(snapshot: Dictionary) -> void:
 	_is_my_turn = bool(snapshot.get("is_local_turn", false))
 	_status_label.text = str(snapshot.get("instruction", "Okey 101 Tabletop"))
 
-	# Update Indicator Tile in 3D
+	# Update Indicator Tile in 3D (flat on table per D5)
 	var ind_tile = snapshot.get("indicator_tile")
 	if ind_tile != null:
 		if _indicator_tile == null:
 			_indicator_tile = VectorTile3D.new()
-			_world.add_child(_indicator_tile)
+			add_child(_indicator_tile)
 		_indicator_tile.setup_tile(ind_tile.unique_id, ind_tile.number, ind_tile.color, ind_tile.kind != 0, false, true)
-		_indicator_tile.set_target_position_3d(INDICATOR_POS_3D, true)
-		_indicator_tile.set_target_rotation_3d(Vector3(-90.0, 0.0, 0.0), true)
+		_indicator_tile.set_target_position_3d(TUNING.INDICATOR_POS_3D, true)
+		# Face-up flat tile: do NOT rotate -90 on X again
+		_indicator_tile.set_target_rotation_3d(TUNING.INDICATOR_ROT_DEG, true)
 
 
 func _get_tile_by_id(tile_id: int):
@@ -236,8 +305,8 @@ func _on_melds_updated(melds: Array) -> void:
 			var data: Dictionary = tiles[i]
 			var t := VectorTile3D.new()
 			t.setup_tile(data.get("unique_id", -1), data.get("number", 1), data.get("color", 0), data.get("kind", 0) != 0, false, true)
-			var target_pos := Vector3(group_x + (float(i) * 0.046), TABLE_SURFACE_Y + 0.005, start_z)
+			var target_pos := Vector3(group_x + (float(i) * 0.046), TUNING.TABLE_SURFACE_Y + 0.005, start_z)
 			t.set_target_position_3d(target_pos, true)
-			t.set_target_rotation_3d(Vector3(-90.0, 0.0, 0.0), true)
+			t.set_target_rotation_3d(Vector3.ZERO, true)
 			_melds_container.add_child(t)
 		group_x += (float(tiles.size()) * 0.046) + 0.035
