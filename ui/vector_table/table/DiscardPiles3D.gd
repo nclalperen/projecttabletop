@@ -46,18 +46,20 @@ func setup(registry: TileRegistry3D) -> void:
 		add_child(anchor)
 		_anchors[seat] = anchor
 
-		# 1. Physical Discard Tray: Crafted Honey-Beech Wooden Frame
-		TABLE_ART.piece(anchor, "TrayFrame", Vector3(0.144, 0.007, 0.188), Vector3(0.0, 0.002, 0.0), 0.003, tray_wood)
+		# 1. Flush Tournament Felt Inlay (Ultra-low-profile 0.8mm)
+		TABLE_ART.piece(anchor, "DiscardMat", Vector3(0.118, 0.0008, 0.158), Vector3(0.0, 0.0004, 0.0), 0.003, tray_felt)
 
-		# 2. Polished Brass Inlay Rim
-		TABLE_ART.piece(anchor, "TrayBrassRim", Vector3(0.130, 0.002, 0.174), Vector3(0.0, 0.0055, 0.0), 0.001, brass)
+		# 2. Four Delicate Polished Brass Corner Brackets Framing the Discard Mat
+		var corner_x: float = 0.052
+		var corner_z: float = 0.072
+		for sx in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				TABLE_ART.piece(anchor, "CornerArmH", Vector3(0.018, 0.0008, 0.0025), Vector3(sx * (corner_x - 0.008), 0.0008, sz * corner_z), 0.0004, brass)
+				TABLE_ART.piece(anchor, "CornerArmV", Vector3(0.0025, 0.0008, 0.018), Vector3(sx * corner_x, 0.0008, sz * (corner_z - 0.008)), 0.0004, brass)
 
-		# 3. Dark Velvet Felt Bed
-		TABLE_ART.piece(anchor, "TrayFelt", Vector3(0.124, 0.0025, 0.168), Vector3(0.0, 0.0062, 0.0), 0.002, tray_felt)
-
-		# 4. For Seat 0: Glowing amber drop zone indicator ("DISCARD HERE")
+		# 3. Glowing amber perimeter ring indicator for Seat 0 ("DISCARD HERE")
 		if seat == 0:
-			_seat0_drop_glow = TABLE_ART.piece(anchor, "DropGlow", Vector3(0.126, 0.0025, 0.170), Vector3(0.0, 0.0075, 0.0), 0.002, tray_glow)
+			_seat0_drop_glow = TABLE_ART.ring(anchor, "DropGlow", Vector2(0.120, 0.160), Vector2(0.114, 0.154), 0.005, 0.0006, 0.0016, 0.0003, tray_glow)
 			_seat0_drop_glow.visible = false
 
 		# 4. Pick area for Seat 3 (West pile, which player 0 can draw from)
@@ -101,8 +103,8 @@ func get_pile_target_transform(seat: int, layer_from_top: int = 0) -> Transform3
 	var off_x: float = float(layer_from_top) * FAN_OFFSET_X
 	var off_z: float = float(layer_from_top) * FAN_OFFSET_Z
 	var rot_yaw: float = base_rot.y + float(layer_from_top) * FAN_ROT_DEG
-	# + 0.0125 ensures flat tile (thickness 0.009) rests cleanly on top of the velvet felt tray inlay
-	var y_pos: float = TUNING.TABLE_SURFACE_Y + 0.0125 + float(-layer_from_top) * LAYER_Y_STEP
+	# + 0.0055 ensures flat tile (thickness 0.009, half-height 0.0045) rests cleanly on top of the velvet felt mat
+	var y_pos: float = TUNING.TABLE_SURFACE_Y + 0.0055 + float(-layer_from_top) * LAYER_Y_STEP
 
 	var target_pos := Vector3(base_pos.x + off_x, y_pos, base_pos.z + off_z)
 	var target_rot := Vector3(-90.0, rot_yaw, 0.0)
