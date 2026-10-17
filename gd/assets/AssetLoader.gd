@@ -4,6 +4,7 @@ class_name AssetLoader
 static var _texture_cache: Dictionary = {}
 static var _audio_cache: Dictionary = {}
 static var _font_cache: Dictionary = {}
+static var _mesh_cache: Dictionary = {}
 static var _path_cache: Dictionary = {}
 
 
@@ -61,6 +62,19 @@ static func load_font(path: String) -> FontFile:
 	return font
 
 
+static func load_mesh(path: String) -> Mesh:
+	if path == "":
+		return null
+	if _mesh_cache.has(path):
+		return _mesh_cache[path] as Mesh
+	var m: Mesh = null
+	if ResourceLoader.exists(path):
+		m = load(path) as Mesh
+	if m != null:
+		_mesh_cache[path] = m
+	return m
+
+
 static func has_path(path: String) -> bool:
 	if path == "":
 		return false
@@ -75,4 +89,5 @@ static func clear_cache() -> void:
 	_texture_cache.clear()
 	_audio_cache.clear()
 	_font_cache.clear()
+	_mesh_cache.clear()
 	_path_cache.clear()

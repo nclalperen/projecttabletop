@@ -26,6 +26,13 @@ static func font(id: StringName) -> FontFile:
 	return LOADER.load_font(p)
 
 
+static func mesh(id: StringName) -> Mesh:
+	var p: String = path(id)
+	if p == "":
+		return null
+	return LOADER.load_mesh(p)
+
+
 static func path(id: StringName) -> String:
 	return CATALOG.path_for(id)
 

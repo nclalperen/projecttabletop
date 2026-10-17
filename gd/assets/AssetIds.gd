@@ -74,6 +74,7 @@ const GAMEPLAY_TEXTURE_RACK_WOOD_ROUGHNESS: StringName = &"gameplay/texture/rack
 
 # Gameplay 3D models
 const GAMEPLAY_MODEL_RACK: StringName = &"gameplay/model/rack"
+const GAMEPLAY_MODEL_AUTHENTIC_STAKA: StringName = &"gameplay/model/authentic_staka"
 const GAMEPLAY_MODEL_TILE: StringName = &"gameplay/model/tile"
 const GAMEPLAY_MODEL_TILES_LIBRARY: StringName = &"gameplay/model/tiles_library"
 const GAMEPLAY_MODEL_TILESET_RED: StringName = &"gameplay/model/tileset_red"

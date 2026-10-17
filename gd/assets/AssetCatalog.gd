@@ -78,6 +78,7 @@ static var _id_to_path: Dictionary = {
 
 	# Gameplay 3D models
 	IDS.GAMEPLAY_MODEL_RACK: "res://uassets/gameplay/3d/models/rack.glb",
+	IDS.GAMEPLAY_MODEL_AUTHENTIC_STAKA: "res://uassets/gameplay/3d/models/authentic_staka.obj",
 	IDS.GAMEPLAY_MODEL_TILE: "res://uassets/gameplay/3d/models/tiles_library.glb",
 	IDS.GAMEPLAY_MODEL_TILES_LIBRARY: "res://uassets/gameplay/3d/models/tiles_library.glb",
 	IDS.GAMEPLAY_MODEL_TILESET_RED: "res://uassets/gameplay/3d/models/tiles_library.glb",

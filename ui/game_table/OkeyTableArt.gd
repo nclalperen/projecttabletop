@@ -173,10 +173,11 @@ static func material(key: String) -> Material:
 				return _materials["honey_beech"] as Material
 			var mat := ShaderMaterial.new()
 			mat.shader = WOOD_SHADER
-			var base_col := Color("#9a5420").srgb_to_linear()
-			var high_col := Color("#be7536").srgb_to_linear()
+			var base_col := Color("#7e4218").srgb_to_linear()
+			var high_col := Color("#be7c3e").srgb_to_linear()
 			mat.set_shader_parameter("wood_color", base_col)
 			mat.set_shader_parameter("wood_highlight", high_col)
+			mat.set_shader_parameter("grain_scale", 140.0)
 			_materials["honey_beech"] = mat
 			return mat
 		"honey_beech_edge":

@@ -1,19 +1,19 @@
 class_name OpponentRack3D
 extends Node3D
 ## Procedural 3D Opponent Rack for VectorGameTable3D.
-## Authentic Turkish coffeehouse craftsmanship:
-## - Rich golden honey-beech wood with natural grain and satin lacquer sheen
-## - Solid tall backboard with center brass maker plaque facing the table (Image 2 & 3)
-## - Iconic cream enamel end brackets with brass rivets (Image 3)
-## - Opponent tiles concealed completely behind the wooden backboard
+## Built directly from authentic Turkish coffeehouse Okey istaka CAD geometry (AssetIds.GAMEPLAY_MODEL_AUTHENTIC_STAKA):
+## - Rich golden honey-beech wood with natural grain rings and satin lacquer sheen
+## - Solid tall backboard with center brass maker plaque facing the table
+## - Concealed opponent tiles sitting on authentic stepped shelves inside the rack
+## - Delicate brass mounting rivets on solid wooden end caps
 
 const TABLE_ART = preload("res://ui/game_table/OkeyTableArt.gd")
 const TUNING = preload("res://ui/vector_table/VectorTuning3D.gd")
 
 const TILE_PITCH: float = 0.040
-const ROW_Y: Array[float] = [0.032, 0.002]
-const ROW_Z: Array[float] = [0.010, 0.038]
-const TILT_DEG: float = 6.0 # Leans back against the backboard (towards -Z)
+const ROW_Y: Array[float] = [0.0835, 0.0357]
+const ROW_Z: Array[float] = [-0.0100, 0.0200]
+const ROW_TILT: Array[float] = [-20.0, -33.4]
 
 var seat_index: int = 1
 var tile_count: int = 21
@@ -62,41 +62,37 @@ func _build_mesh() -> void:
 	add_child(_rack_mesh)
 
 	var beech := TABLE_ART.material("honey_beech")
-	var beech_edge := TABLE_ART.material("honey_beech_edge")
-	var beech_dark := TABLE_ART.material("honey_beech_dark")
-	var bracket_cream := TABLE_ART.material("rack_bracket_cream")
 	var brass_screw := TABLE_ART.material("bracket_screw")
-	var brass := TABLE_ART.material("brass_inlay")
 	var gold := TABLE_ART.material("rack_badge")
 
 	var width: float = 0.65
 
-	# 1. Solid Honey-Beech Backboard (faces -Z into the table, completely hiding tiles)
-	# 0.102m tall ensures tiles (0.065m) are 100% concealed from table view
-	TABLE_ART.piece(_rack_mesh, "SolidBackboard", Vector3(width - 0.016, 0.102, 0.016), Vector3(0.0, 0.038, -0.016), 0.004, beech)
+	# 1. Authentic Turkish Istaka CAD Mesh
+	var staka_mesh: Mesh = AssetRegistry.mesh(AssetIds.GAMEPLAY_MODEL_AUTHENTIC_STAKA)
+	if staka_mesh != null:
+		var staka_inst := MeshInstance3D.new()
+		staka_inst.name = "AuthenticStakaMesh"
+		staka_inst.mesh = staka_mesh
+		staka_inst.set_surface_override_material(0, beech)
+		# Mesh natural length is 0.376362. Scale X to desired width (0.65) while preserving CAD height & profile
+		staka_inst.scale = Vector3(width / 0.376362, 1.0, 1.0)
+		# Base rests directly on table surface at Y = 0
+		staka_inst.position = Vector3.ZERO
+		_rack_mesh.add_child(staka_inst)
 
-	# 2. Polished Brass Center Maker Plaque facing table (Image 2 & 3)
-	TABLE_ART.piece(_rack_mesh, "BackMakerPlaque", Vector3(0.046, 0.012, 0.002), Vector3(0.0, 0.042, -0.025), 0.0008, gold)
+	# 2. Solid Furniture-Grade Honey-Beech Backboard facing table (-Z)
+	TABLE_ART.piece(_rack_mesh, "SolidBackboard", Vector3(width - 0.004, 0.086, 0.010), Vector3(0.0, 0.043, -0.033), 0.003, beech)
 
-	# 3. Solid Honey-Beech Foundation Base sitting on table
-	TABLE_ART.piece(_rack_mesh, "SolidBase", Vector3(width - 0.012, 0.024, 0.076), Vector3(0.0, 0.008, 0.018), 0.005, beech)
+	# 3. Polished Brass Center Maker Plaque facing table (-Z)
+	TABLE_ART.piece(_rack_mesh, "BackMakerPlaque", Vector3(0.046, 0.012, 0.002), Vector3(0.0, 0.045, -0.0385), 0.0008, gold)
 
-	# 4. Shelves facing opponent (+Z)
-	TABLE_ART.piece(_rack_mesh, "UpperBed", Vector3(width - 0.024, 0.006, 0.022), Vector3(0.0, 0.028, 0.010), 0.002, beech_dark)
-	TABLE_ART.piece(_rack_mesh, "UpperLip", Vector3(width - 0.020, 0.007, 0.005), Vector3(0.0, 0.033, 0.022), 0.0015, beech_edge)
-	TABLE_ART.piece(_rack_mesh, "LowerBed", Vector3(width - 0.024, 0.006, 0.022), Vector3(0.0, -0.002, 0.038), 0.002, beech_dark)
-	TABLE_ART.piece(_rack_mesh, "LowerLip", Vector3(width - 0.020, 0.007, 0.005), Vector3(0.0, 0.003, 0.050), 0.0015, beech_edge)
-
-	# 5. Iconic Triangular End Caps with Cream Brackets & Brass Screws (Image 3)
+	# 4. Delicate Brass Mounting Rivets on Solid Wooden End Caps
 	for side in [-1.0, 1.0]:
 		var prefix: String = "L" if side < 0.0 else "R"
-		var side_x: float = side * (width * 0.5 - 0.007)
+		var side_x: float = side * (width * 0.5 - 0.001)
 
-		TABLE_ART.piece(_rack_mesh, "EndCap_%s" % prefix, Vector3(0.014, 0.108, 0.082), Vector3(side_x, 0.035, 0.014), 0.005, beech)
-		TABLE_ART.piece(_rack_mesh, "Bracket_%s" % prefix, Vector3(0.0025, 0.080, 0.058), Vector3(side_x + side * 0.0082, 0.035, 0.014), 0.0025, bracket_cream)
-		TABLE_ART.piece(_rack_mesh, "BracketTop_%s" % prefix, Vector3(0.015, 0.003, 0.038), Vector3(side_x, 0.088, -0.004), 0.0015, bracket_cream)
-		TABLE_ART.piece(_rack_mesh, "ScrewTop_%s" % prefix, Vector3(0.003, 0.006, 0.006), Vector3(side_x + side * 0.0094, 0.062, -0.004), 0.002, brass_screw)
-		TABLE_ART.piece(_rack_mesh, "ScrewBottom_%s" % prefix, Vector3(0.003, 0.006, 0.006), Vector3(side_x + side * 0.0094, 0.012, 0.028), 0.002, brass_screw)
+		TABLE_ART.piece(_rack_mesh, "ScrewTop_%s" % prefix, Vector3(0.002, 0.004, 0.004), Vector3(side_x + side * 0.0008, 0.068, -0.015), 0.001, brass_screw)
+		TABLE_ART.piece(_rack_mesh, "ScrewBottom_%s" % prefix, Vector3(0.002, 0.004, 0.004), Vector3(side_x + side * 0.0008, 0.020, 0.022), 0.001, brass_screw)
 
 	_tiles_container = Node3D.new()
 	_tiles_container.name = "Tiles"
@@ -122,7 +118,7 @@ func _rebuild_tiles() -> void:
 		var tile := TABLE_ART.build_tile(true, false) # standing, face-down
 		tile.name = "OppTile_0_%d" % i
 		tile.position = Vector3(start_x0 + float(i) * TILE_PITCH, ROW_Y[0], ROW_Z[0])
-		tile.rotation_degrees = Vector3(TILT_DEG, 0.0, 0.0)
+		tile.rotation_degrees = Vector3(ROW_TILT[0], 0.0, 0.0)
 		_tiles_container.add_child(tile)
 		_tile_nodes.append(tile)
 
@@ -132,6 +128,6 @@ func _rebuild_tiles() -> void:
 		var tile := TABLE_ART.build_tile(true, false) # standing, face-down
 		tile.name = "OppTile_1_%d" % i
 		tile.position = Vector3(start_x1 + float(i) * TILE_PITCH, ROW_Y[1], ROW_Z[1])
-		tile.rotation_degrees = Vector3(TILT_DEG, 0.0, 0.0)
+		tile.rotation_degrees = Vector3(ROW_TILT[1], 0.0, 0.0)
 		_tiles_container.add_child(tile)
 		_tile_nodes.append(tile)

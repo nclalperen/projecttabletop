@@ -52,9 +52,10 @@ func slot_local_transform(slot: int) -> Transform3D:
 	var push_x: float = _push_aside_offsets.get(s, 0.0)
 	var x: float = (float(col) - 7.0) * TUNING.TILE_PITCH + push_x
 	var y: float = TUNING.ROW_LOCAL_Y[row_idx]
-	var z: float = -0.012 if row_idx == 0 else 0.012
+	var z: float = TUNING.ROW_LOCAL_Z[row_idx]
 
-	var rot_basis := Basis.from_euler(Vector3(deg_to_rad(TUNING.TILE_STAND_TILT_DEG.x), 0.0, 0.0))
+	var tilt_x: float = TUNING.ROW_TILT_DEG[row_idx] if "ROW_TILT_DEG" in TUNING else TUNING.TILE_STAND_TILT_DEG.x
+	var rot_basis := Basis.from_euler(Vector3(deg_to_rad(tilt_x), 0.0, 0.0))
 	return Transform3D(rot_basis, Vector3(x, y, z))
 
 

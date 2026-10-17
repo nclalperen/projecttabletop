@@ -66,8 +66,10 @@ const ROW_COUNT: int = 2
 const SLOTS_PER_ROW: int = 15
 const TOTAL_HAND_SLOTS: int = 30
 
-const ROW_LOCAL_Y: Array[float] = [0.040, -0.030]
-const TILE_STAND_TILT_DEG: Vector3 = Vector3(-6.0, 0.0, 0.0)
+const ROW_LOCAL_Y: Array[float] = [0.0417, -0.0051]
+const ROW_LOCAL_Z: Array[float] = [-0.0209, 0.0119]
+const ROW_TILT_DEG: Array[float] = [-20.0, -33.4]
+const TILE_STAND_TILT_DEG: Vector3 = Vector3(-33.4, 0.0, 0.0)
 
 # ─── Animation & Kinematics Tuning (D8) ───
 # Springs
