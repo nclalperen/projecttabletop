@@ -12,15 +12,15 @@ void vertex() {
 
 void fragment() {
 	vec3 p = local_position;
-	// Realistic cylindrical tree trunk growth ring simulation:
-	// Wood grain flows along X with subtle concentric rings in Y-Z
-	float ring_dist = length(vec2(p.y * 2.5, p.z * 1.8));
-	float ring_noise = sin(p.x * 24.0) * 0.008 + sin(p.x * 6.0) * 0.015;
+	// Off-center plank cut from tree trunk: avoids concentric bullseye on end caps
+	// and produces natural linear grain along X.
+	float ring_dist = length(vec2((p.y + 0.22) * 1.4, (p.z - 0.18) * 1.6));
+	float ring_noise = sin(p.x * 16.0) * 0.005 + sin(p.x * 4.5) * 0.010;
 	float ring_coord = (ring_dist + ring_noise) * grain_scale;
 	
-	float rings = sin(ring_coord) * 0.25;
-	float micro_grain = sin(ring_coord * 4.0) * 0.08;
-	float fibers = sin((p.x + p.z * 0.2) * 540.0) * 0.05;
+	float rings = sin(ring_coord) * 0.20;
+	float micro_grain = sin(ring_coord * 3.5) * 0.06;
+	float fibers = sin((p.x + p.z * 0.15) * 480.0) * 0.04;
 	
 	float t = clamp(0.5 + rings + micro_grain + fibers, 0.0, 1.0);
 	vec3 col = mix(wood_color.rgb, wood_highlight.rgb, t);

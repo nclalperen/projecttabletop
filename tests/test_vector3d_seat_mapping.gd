@@ -1,18 +1,9 @@
-extends SceneTree
+extends RefCounted
 ## Verifies the mathematical seat-to-discard mapping according to Okey 101 rules:
 ## Player 0 (South) takes discard from Player 3 (West, sitting on local player's left),
 ## and discards to their right towards Player 1 (East).
 
 const VectorTuning3D = preload("res://ui/vector_table/VectorTuning3D.gd")
-
-func _init() -> void:
-	var ok: bool = run()
-	if ok:
-		print("  PASS  test_vector3d_seat_mapping")
-	else:
-		print("  FAIL  test_vector3d_seat_mapping")
-	quit(0 if ok else 1)
-
 
 func run() -> bool:
 	var ok: bool = true

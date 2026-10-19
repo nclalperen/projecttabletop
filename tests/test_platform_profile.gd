@@ -16,14 +16,8 @@ func _test_platform_name_and_default_mode() -> bool:
 		push_error("PlatformProfile returned empty platform name")
 		return false
 	var default_mode: String = PLATFORM_PROFILE_SCRIPT.default_presentation_mode()
-	if not PackedStringArray(["2d", "3d"]).has(default_mode):
-		push_error("PlatformProfile returned invalid default presentation mode")
-		return false
-	if PLATFORM_PROFILE_SCRIPT.is_android() and default_mode != "2d":
-		push_error("Android should default to 2d presentation mode")
-		return false
-	if not PLATFORM_PROFILE_SCRIPT.is_android() and default_mode != "3d":
-		push_error("Non-Android platforms should default to 3d presentation mode")
+	if default_mode != "vector3d":
+		push_error("All platforms should default to vector3d presentation")
 		return false
 	return true
 

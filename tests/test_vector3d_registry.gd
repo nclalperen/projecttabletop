@@ -1,23 +1,11 @@
-extends SceneTree
+extends RefCounted
 ## Unit test for TileRegistry3D node persistence and zone transitions.
 
 const TileRegistry3D = preload("res://ui/vector_table/TileRegistry3D.gd")
 const VectorTile3D = preload("res://ui/vector_table/render/VectorTile3D.gd")
 
-func _init() -> void:
-	call_deferred("_run")
-
-
-func _run() -> void:
-	var ok := run()
-	if ok:
-		print("  PASS  test_vector3d_registry")
-	else:
-		print("  FAIL  test_vector3d_registry")
-	quit(0 if ok else 1)
-
-
 func run() -> bool:
+	var root := (Engine.get_main_loop() as SceneTree).root
 	var ok: bool = true
 
 	var reg := TileRegistry3D.new()

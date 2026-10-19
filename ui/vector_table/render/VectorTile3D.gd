@@ -17,9 +17,9 @@ const TileFaceAtlas = preload("res://ui/vector_table/render/TileFaceAtlas.gd")
 const TILE_WIDTH: float = 0.045
 const TILE_HEIGHT: float = 0.065
 const TILE_DEPTH: float = 0.009
-const FACE_WIDTH: float = 0.040
-const FACE_HEIGHT: float = 0.0598
-const FACE_LOCAL_Z: float = 0.00455
+const FACE_WIDTH: float = 0.0394
+const FACE_HEIGHT: float = 0.0594
+const FACE_LOCAL_Z: float = 0.00452
 
 # Shared Face Shader
 static var _face_shader: Shader = null
@@ -87,19 +87,13 @@ render_mode specular_schlick_ggx, diffuse_burley;
 uniform sampler2D face_atlas : source_color, filter_linear_mipmap_anisotropic;
 uniform vec2 uv_offset = vec2(0.0, 0.0);
 uniform vec2 uv_scale = vec2(0.0714285, 0.25);
-uniform vec4 ivory_tint : source_color = vec4(0.965, 0.942, 0.905, 1.0);
 
 void fragment() {
-	vec2 atlas_uv = uv_offset + UV * uv_scale;
-	vec3 col = texture(face_atlas, atlas_uv).rgb;
-	
-	vec2 d = abs(UV - vec2(0.5)) * 2.0;
-	float edge = max(d.x, d.y);
-	float edge_ao = 1.0 - smoothstep(0.85, 1.0, edge) * 0.10;
-	
-	ALBEDO = col * edge_ao;
-	ROUGHNESS = 0.28;
-	SPECULAR = 0.35;
+	vec2 uv = clamp(UV, vec2(0.008), vec2(0.992));
+	vec2 atlas_uv = uv_offset + uv * uv_scale;
+	ALBEDO = texture(face_atlas, atlas_uv).rgb * 0.88;
+	ROUGHNESS = 0.34;
+	SPECULAR = 0.24;
 }
 """
 

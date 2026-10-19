@@ -13,8 +13,9 @@ func run() -> bool:
 			return false
 	var correct_routes := true
 	for prototype_enabled in [true, false]:
-		correct_routes = correct_routes and CATALOG._resolve_launch_scene_path(CATALOG.GAME_OKEY_101, "3d", prototype_enabled) == "res://ui/GameTable3D.tscn"
-		correct_routes = correct_routes and CATALOG._resolve_launch_scene_path(CATALOG.GAME_OKEY_101, "2d", prototype_enabled) == "res://ui/GameTable.tscn"
+		correct_routes = correct_routes and CATALOG._resolve_launch_scene_path(CATALOG.GAME_OKEY_101, "3d", prototype_enabled) == "res://ui/vector_table/VectorGameTable3D.tscn"
+		correct_routes = correct_routes and CATALOG._resolve_launch_scene_path(CATALOG.GAME_OKEY_101, "vector3d", prototype_enabled) == "res://ui/vector_table/VectorGameTable3D.tscn"
+		correct_routes = correct_routes and CATALOG._resolve_launch_scene_path(CATALOG.GAME_OKEY_101, "2d", prototype_enabled) == "res://ui/vector_table/VectorGameTable3D.tscn"
 	correct_routes = correct_routes and CATALOG._resolve_launch_scene_path(CATALOG.GAME_CHESS, "3d", true) == "res://ui/ImportedTable3D.tscn"
 	correct_routes = correct_routes and CATALOG._resolve_launch_scene_path(CATALOG.GAME_CHESS, "3d", false) == "res://ui/PlaceholderTable.tscn"
 	if not correct_routes:

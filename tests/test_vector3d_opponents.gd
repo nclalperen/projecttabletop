@@ -1,4 +1,4 @@
-extends SceneTree
+extends RefCounted
 ## Unit test for OpponentRack3D, StockView3D, and DiscardPiles3D subsystems.
 
 const OpponentRack3D = preload("res://ui/vector_table/opponents/OpponentRack3D.gd")
@@ -6,16 +6,8 @@ const StockView3D = preload("res://ui/vector_table/table/StockView3D.gd")
 const DiscardPiles3D = preload("res://ui/vector_table/table/DiscardPiles3D.gd")
 const TileRegistry3D = preload("res://ui/vector_table/TileRegistry3D.gd")
 
-func _init() -> void:
-	var ok := run()
-	if ok:
-		print("  PASS  test_vector3d_opponents")
-	else:
-		print("  FAIL  test_vector3d_opponents")
-	quit(0 if ok else 1)
-
-
 func run() -> bool:
+	var root := (Engine.get_main_loop() as SceneTree).root
 	var ok: bool = true
 
 	# 1. OpponentRack3D tests

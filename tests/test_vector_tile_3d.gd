@@ -1,16 +1,7 @@
-extends SceneTree
+extends RefCounted
 ## Unit tests for VectorTile3D physical dimensions and kinematics in 3D.
 
 const VectorTile3D = preload("res://ui/vector_table/render/VectorTile3D.gd")
-
-func _init() -> void:
-	var ok: bool = run()
-	if ok:
-		print("  PASS  test_vector_tile_3d")
-	else:
-		print("  FAIL  test_vector_tile_3d")
-	quit(0 if ok else 1)
-
 
 func run() -> bool:
 	var ok: bool = true

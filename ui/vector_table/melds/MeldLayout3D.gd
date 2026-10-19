@@ -14,12 +14,83 @@ const TILE_L: float = 0.0598
 const TILE_Y: float = TUNING.TABLE_SURFACE_Y + 0.005
 const LAYER_ZONE: int = 4 # collision layer 3 (bitmask 4)
 
+# Runtime layout tuning properties (adjustable live via BoardLayoutTuner3D)
+var independent_seat_areas: bool = false
+var seat_area_pos: Dictionary = {
+	0: TUNING.MELD_AREA_POS_3D[0],
+	1: TUNING.MELD_AREA_POS_3D[1],
+	2: TUNING.MELD_AREA_POS_3D[2],
+	3: TUNING.MELD_AREA_POS_3D[3],
+}
+var seat_area_rot_deg: Dictionary = {
+	0: TUNING.MELD_AREA_ROT_DEG[0],
+	1: TUNING.MELD_AREA_ROT_DEG[1],
+	2: TUNING.MELD_AREA_ROT_DEG[2],
+	3: TUNING.MELD_AREA_ROT_DEG[3],
+}
+var seat_area_size: Dictionary = {
+	0: TUNING.MELD_AREA_SIZE[0],
+	1: TUNING.MELD_AREA_SIZE[1],
+	2: TUNING.MELD_AREA_SIZE[2],
+	3: TUNING.MELD_AREA_SIZE[3],
+}
+var seat_area_scales: Dictionary = {
+	0: 1.0,
+	1: 1.0,
+	2: 1.0,
+	3: 1.0,
+}
+
+var zone_offset: Vector3 = Vector3.ZERO
+var zone_yaw_deg: float = 0.0
+var per_seat_orientation: bool = false
+var seat_offsets: Dictionary = {
+	0: Vector3.ZERO,
+	1: Vector3.ZERO,
+	2: Vector3.ZERO,
+	3: Vector3.ZERO,
+}
+var seat_yaw_deg: Dictionary = {
+	0: 0.0,
+	1: 0.0,
+	2: 0.0,
+	3: 0.0,
+}
+var row_pitch_scale: float = 1.0
+var tile_pitch_scale: float = 1.0
+var group_gap_scale: float = 1.0
+
 # Meld index -> Dictionary of layout metadata
 var _melds_data: Array[Dictionary] = []
 # Tile unique_id -> Transform3D
 var _tile_transforms: Dictionary = {}
 # Area3D drop zones
 var _drop_areas: Array[Area3D] = []
+
+
+func get_seat_area_position(seat: int) -> Vector3:
+	return seat_area_pos.get(seat, TUNING.MELD_AREA_POS_3D.get(seat, Vector3.ZERO))
+
+
+func get_seat_area_rotation_deg(seat: int) -> Vector3:
+	return seat_area_rot_deg.get(seat, TUNING.MELD_AREA_ROT_DEG.get(seat, Vector3.ZERO))
+
+
+func get_seat_area_size(seat: int) -> Vector2:
+	return seat_area_size.get(seat, TUNING.MELD_AREA_SIZE.get(seat, Vector2(0.50, 0.145)))
+
+
+func get_seat_area_scale(seat: int) -> float:
+	return float(seat_area_scales.get(seat, 1.0))
+
+
+func set_seat_area_transform(seat: int, pos: Vector3, rot_deg: Vector3, area_size: Vector2 = Vector2.ZERO, area_scale: float = 1.0) -> void:
+	seat_area_pos[seat] = pos
+	seat_area_rot_deg[seat] = rot_deg
+	if area_size != Vector2.ZERO:
+		seat_area_size[seat] = area_size
+	seat_area_scales[seat] = area_scale
+
 
 func clear() -> void:
 	for area in _drop_areas:
@@ -33,6 +104,10 @@ func clear() -> void:
 func sync_melds(table_melds: Array, okey_context = null) -> void:
 	clear()
 	if table_melds.is_empty():
+		return
+
+	if independent_seat_areas:
+		_sync_independent_seat_areas(table_melds, okey_context)
 		return
 
 	var total_melds := table_melds.size()
@@ -65,8 +140,12 @@ func sync_melds(table_melds: Array, okey_context = null) -> void:
 		row_pitch = 0.062 # > TILE_L (0.0598), so strictly no tile overlap in Z
 		num_rows = 8
 
+	tile_pitch *= tile_pitch_scale
+	group_gap *= group_gap_scale
+	row_pitch *= row_pitch_scale
+
 	# Compute row Z centers from South (+Z) to North (-Z)
-	var z_start: float = 0.045 if num_rows <= 4 else 0.138
+	var z_start: float = (0.045 if num_rows <= 4 else 0.138) + zone_offset.z
 	var row_z_positions: Array[float] = []
 	for r in range(num_rows):
 		row_z_positions.append(z_start - float(r) * row_pitch)
@@ -154,7 +233,7 @@ func sync_melds(table_melds: Array, okey_context = null) -> void:
 			continue
 
 		var z_pos: float = row_z_positions[r]
-		var crosses_stock: bool = (z_pos >= -0.09 and z_pos <= 0.03)
+		var crosses_stock: bool = (z_pos >= -0.125 and z_pos <= 0.065)
 
 		if crosses_stock:
 			if melds_in_row.size() >= 2:
@@ -178,24 +257,155 @@ func sync_melds(table_melds: Array, okey_context = null) -> void:
 			_position_melds_subrow(melds_in_row, start_x, z_pos, tile_pitch, group_gap, row_pitch, okey_context)
 
 
+func _sync_independent_seat_areas(table_melds: Array, okey_context = null) -> void:
+	var total_melds := table_melds.size()
+	_melds_data.resize(total_melds)
+
+	var melds_by_seat: Dictionary = {0: [], 1: [], 2: [], 3: []}
+	for i in range(total_melds):
+		var meld = table_melds[i]
+		var owner: int = 0
+		if meld is Dictionary:
+			owner = int(meld.get("owner_index", 0)) % 4
+		elif "owner_index" in meld:
+			owner = int(meld.owner_index) % 4
+		if owner < 0:
+			owner = 0
+		melds_by_seat[owner].append({"index": i, "meld": meld})
+
+	for seat in range(4):
+		var seat_items: Array = melds_by_seat[seat]
+		if seat_items.is_empty():
+			continue
+
+		var area_pos: Vector3 = get_seat_area_position(seat)
+		var area_rot: Vector3 = get_seat_area_rotation_deg(seat)
+		var area_sz: Vector2 = get_seat_area_size(seat)
+		var area_sc: float = get_seat_area_scale(seat)
+		var yaw_deg: float = area_rot.y
+
+		var tile_pitch: float = 0.044 * tile_pitch_scale * area_sc
+		var group_gap: float = 0.022 * group_gap_scale * area_sc
+		var row_pitch: float = 0.066 * row_pitch_scale * area_sc
+		var max_row_w: float = maxf(0.22, area_sz.x * area_sc)
+
+		# Pack this seat's melds into local rows within its own independent area box
+		var local_rows: Array = [[]]
+		for item in seat_items:
+			var m = item["meld"]
+			var ids: Array = _extract_tile_ids(m)
+			var tiles_arr: Array = _extract_tiles(m)
+			var count: int = ids.size()
+			var meld_w: float = (float(maxi(1, count) - 1) * tile_pitch) + (TILE_W * area_sc)
+
+			var cur_row: Array = local_rows[local_rows.size() - 1]
+			var cur_w: float = _calc_row_width(cur_row, group_gap)
+			if not cur_row.is_empty() and (cur_w + group_gap + meld_w > max_row_w):
+				local_rows.append([])
+				cur_row = local_rows[local_rows.size() - 1]
+
+			cur_row.append({
+				"index": item["index"],
+				"meld": m,
+				"width": meld_w,
+				"tile_ids": ids,
+				"tiles": tiles_arr,
+				"owner": seat,
+			})
+
+		var num_seat_rows: int = local_rows.size()
+		var seat_basis := Basis.from_euler(Vector3(0.0, deg_to_rad(yaw_deg), 0.0))
+		var tile_basis := seat_basis * Basis.from_euler(Vector3(deg_to_rad(-90.0), 0.0, 0.0))
+
+		for r_idx in range(num_seat_rows):
+			var row_melds: Array = local_rows[r_idx]
+			if row_melds.is_empty():
+				continue
+			var total_row_w: float = _calc_row_width(row_melds, group_gap)
+			var local_x: float = -total_row_w * 0.5
+			var local_z: float = (float(r_idx) - float(num_seat_rows - 1) * 0.5) * row_pitch
+
+			for m_info in row_melds:
+				var m_idx: int = m_info["index"]
+				var m_w: float = m_info["width"]
+				var ids: Array = m_info["tile_ids"]
+				var count: int = ids.size()
+
+				var local_group_center := Vector3(local_x + m_w * 0.5, 0.0, local_z)
+				var center_pos: Vector3 = Vector3(area_pos.x, TILE_Y, area_pos.z) + (seat_basis * local_group_center)
+
+				for k in range(count):
+					var tid: int = ids[k]
+					var local_dx: float = (float(k) - float(count - 1) * 0.5) * tile_pitch
+					var t_pos: Vector3 = center_pos + (seat_basis * Vector3(local_dx, 0.0, 0.0))
+					_tile_transforms[tid] = Transform3D(tile_basis, t_pos)
+
+				var summary_text := format_summary(m_info["meld"], okey_context)
+
+				var area := Area3D.new()
+				area.name = "MeldArea_%d" % m_idx
+				area.collision_layer = LAYER_ZONE
+				area.collision_mask = 0
+				area.monitoring = false
+				area.monitorable = true
+				area.set_meta("drop_target", "meld")
+				area.set_meta("meld_index", m_idx)
+				area.position = center_pos
+				area.rotation_degrees = Vector3(0.0, yaw_deg, 0.0)
+
+				var c_shape := CollisionShape3D.new()
+				var box := BoxShape3D.new()
+				box.size = Vector3(m_w + 0.02, 0.03, row_pitch * 0.90)
+				c_shape.shape = box
+				area.add_child(c_shape)
+				add_child(area)
+				_drop_areas.append(area)
+
+				_melds_data[m_idx] = {
+					"meld_id": m_idx,
+					"center_world_pos": center_pos,
+					"summary_text": summary_text,
+					"owner_index": seat,
+					"width": m_w,
+					"tile_ids": ids,
+					"tiles": m_info["tiles"],
+				}
+
+				local_x += m_w + group_gap
+
+
 func _position_melds_subrow(sub_melds: Array, start_x: float, z_pos: float, tile_pitch: float, group_gap: float, row_pitch: float, okey_context) -> void:
-	var cur_x: float = start_x
-	var tile_basis := Basis.from_euler(Vector3(deg_to_rad(-90.0), 0.0, 0.0))
+	var cur_x: float = start_x + zone_offset.x
+	var zone_rot := Basis.from_euler(Vector3(0.0, deg_to_rad(zone_yaw_deg), 0.0))
 
 	for m_info in sub_melds:
 		var m_idx: int = m_info["index"]
 		var m_w: float = m_info["width"]
 		var ids: Array = m_info["tile_ids"]
 		var count: int = ids.size()
+		var owner_seat: int = int(m_info.get("owner", 0))
 
-		var center_x: float = cur_x + (m_w * 0.5)
-		var center_pos := Vector3(center_x, TILE_Y, z_pos)
+		var seat_off: Vector3 = seat_offsets.get(owner_seat, Vector3.ZERO)
+		var auto_seat_yaw: float = 0.0
+		if per_seat_orientation:
+			match owner_seat:
+				0: auto_seat_yaw = 0.0
+				1: auto_seat_yaw = -90.0
+				2: auto_seat_yaw = 180.0
+				3: auto_seat_yaw = 90.0
+		var total_yaw_deg: float = zone_yaw_deg + auto_seat_yaw + float(seat_yaw_deg.get(owner_seat, 0.0))
+		var group_yaw_basis := Basis.from_euler(Vector3(0.0, deg_to_rad(auto_seat_yaw + float(seat_yaw_deg.get(owner_seat, 0.0))), 0.0))
+		var tile_basis := Basis.from_euler(Vector3(0.0, deg_to_rad(total_yaw_deg), 0.0)) * Basis.from_euler(Vector3(deg_to_rad(-90.0), 0.0, 0.0))
 
-		var tile_start_x: float = cur_x + (TILE_W * 0.5)
+		var local_center := Vector3(cur_x + (m_w * 0.5) - zone_offset.x, 0.0, z_pos - zone_offset.z)
+		var rotated_center: Vector3 = zone_rot * local_center
+		var center_pos := Vector3(rotated_center.x + zone_offset.x + seat_off.x, TILE_Y + zone_offset.y + seat_off.y, rotated_center.z + zone_offset.z + seat_off.z)
+
 		for k in range(count):
 			var tid: int = ids[k]
-			var tx: float = tile_start_x + (float(k) * tile_pitch)
-			var t_pos := Vector3(tx, TILE_Y, z_pos)
+			var local_tile_dx: float = (float(k) - float(count - 1) * 0.5) * tile_pitch
+			var offset_vec: Vector3 = (zone_rot * group_yaw_basis) * Vector3(local_tile_dx, 0.0, 0.0)
+			var t_pos := center_pos + offset_vec
 			_tile_transforms[tid] = Transform3D(tile_basis, t_pos)
 
 		var summary_text := format_summary(m_info["meld"], okey_context)
@@ -209,6 +419,7 @@ func _position_melds_subrow(sub_melds: Array, start_x: float, z_pos: float, tile
 		area.set_meta("drop_target", "meld")
 		area.set_meta("meld_index", m_idx)
 		area.position = center_pos
+		area.rotation_degrees = Vector3(0.0, total_yaw_deg, 0.0)
 
 		var c_shape := CollisionShape3D.new()
 		var box := BoxShape3D.new()
@@ -222,13 +433,14 @@ func _position_melds_subrow(sub_melds: Array, start_x: float, z_pos: float, tile
 			"meld_id": m_idx,
 			"center_world_pos": center_pos,
 			"summary_text": summary_text,
-			"owner_index": m_info["owner"],
+			"owner_index": owner_seat,
 			"width": m_w,
 			"tile_ids": ids,
 			"tiles": m_info["tiles"],
 		}
 
 		cur_x += m_w + group_gap
+
 
 
 

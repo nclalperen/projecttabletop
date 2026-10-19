@@ -1,4 +1,4 @@
-extends SceneTree
+extends RefCounted
 ## Unit test for VectorInput3D physics input, drag lift, and HandRig3D Gaussian push-aside.
 
 const VectorInput3D = preload("res://ui/vector_table/input/VectorInput3D.gd")
@@ -7,16 +7,8 @@ const TileRegistry3D = preload("res://ui/vector_table/TileRegistry3D.gd")
 const VectorTile3D = preload("res://ui/vector_table/render/VectorTile3D.gd")
 const TUNING = preload("res://ui/vector_table/VectorTuning3D.gd")
 
-func _init() -> void:
-	var ok := run()
-	if ok:
-		print("  PASS  test_vector3d_input")
-	else:
-		print("  FAIL  test_vector3d_input")
-	quit(0 if ok else 1)
-
-
 func run() -> bool:
+	var root := (Engine.get_main_loop() as SceneTree).root
 	var ok: bool = true
 
 	# 1. Test HandRig3D Gaussian push-aside

@@ -96,18 +96,36 @@ func set_drop_highlight(active: bool) -> void:
 		_seat0_drop_glow.scale = Vector3.ONE
 
 
+func get_pile_position(seat: int) -> Vector3:
+	if _anchors.has(seat) and _anchors[seat] != null:
+		return _anchors[seat].position
+	return TUNING.DISCARD_POS_3D.get(seat, Vector3.ZERO)
+
+
+func get_pile_rotation_deg(seat: int) -> Vector3:
+	if _anchors.has(seat) and _anchors[seat] != null:
+		return _anchors[seat].rotation_degrees
+	return TUNING.DISCARD_ROT_DEG.get(seat, Vector3.ZERO)
+
+
+func set_pile_transform(seat: int, pos: Vector3, rot_deg: Vector3, pile_scale: float = 1.0) -> void:
+	if _anchors.has(seat) and _anchors[seat] != null:
+		_anchors[seat].position = pos
+		_anchors[seat].rotation_degrees = rot_deg
+		_anchors[seat].scale = Vector3.ONE * pile_scale
+
+
 func get_pile_target_transform(seat: int, layer_from_top: int = 0) -> Transform3D:
-	var base_pos: Vector3 = TUNING.DISCARD_POS_3D.get(seat, Vector3.ZERO)
-	var base_rot: Vector3 = TUNING.DISCARD_ROT_DEG.get(seat, Vector3.ZERO)
+	var base_pos: Vector3 = get_pile_position(seat)
+	var base_rot: Vector3 = get_pile_rotation_deg(seat)
 
 	var off_x: float = float(layer_from_top) * FAN_OFFSET_X
 	var off_z: float = float(layer_from_top) * FAN_OFFSET_Z
 	var rot_yaw: float = base_rot.y + float(layer_from_top) * FAN_ROT_DEG
 	# + 0.0055 ensures flat tile (thickness 0.009, half-height 0.0045) rests cleanly on top of the velvet felt mat
-	var y_pos: float = TUNING.TABLE_SURFACE_Y + 0.0055 + float(-layer_from_top) * LAYER_Y_STEP
+	var y_pos: float = base_pos.y + 0.0055 + float(-layer_from_top) * LAYER_Y_STEP
 
 	var target_pos := Vector3(base_pos.x + off_x, y_pos, base_pos.z + off_z)
-	var target_rot := Vector3(-90.0, rot_yaw, 0.0)
 	return Transform3D(Basis.from_euler(Vector3(deg_to_rad(-90.0), deg_to_rad(rot_yaw), 0.0)), target_pos)
 
 

@@ -1,22 +1,10 @@
-extends SceneTree
+extends RefCounted
 ## Unit test for HandRig3D slot coordinates, symmetry, and nearest_slot projection.
 
 const HandRig3D = preload("res://ui/vector_table/hand/HandRig3D.gd")
 
-func _init() -> void:
-	call_deferred("_run")
-
-
-func _run() -> void:
-	var ok := run()
-	if ok:
-		print("  PASS  test_vector3d_hand_rig")
-	else:
-		print("  FAIL  test_vector3d_hand_rig")
-	quit(0 if ok else 1)
-
-
 func run() -> bool:
+	var root := (Engine.get_main_loop() as SceneTree).root
 	var ok: bool = true
 
 	var rig := HandRig3D.new()

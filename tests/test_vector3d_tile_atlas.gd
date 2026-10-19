@@ -1,16 +1,7 @@
-extends SceneTree
+extends RefCounted
 ## Unit test for TileFaceAtlas UV coordinates and texture generation.
 
 const TileFaceAtlas = preload("res://ui/vector_table/render/TileFaceAtlas.gd")
-
-func _init() -> void:
-	var ok := run()
-	if ok:
-		print("  PASS  test_vector3d_tile_atlas")
-	else:
-		print("  FAIL  test_vector3d_tile_atlas")
-	quit(0 if ok else 1)
-
 
 func run() -> bool:
 	var ok: bool = true

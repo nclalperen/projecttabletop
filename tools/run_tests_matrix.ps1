@@ -1,7 +1,7 @@
 param(
     [string]$GodotExe = ".\tools\godot.cmd",
     [string]$ProjectPath = ".",
-    [bool]$IncludeInteractionProbes = $true,
+    [switch]$IncludeSceneSmoke,
     [bool]$IncludeRuntimeLane = $true
 )
 
@@ -48,33 +48,11 @@ function Invoke-OneTest {
     )
 
     $id = [guid]::NewGuid().ToString("N")
-    $tempRel = "tests/_tmp_matrix_$id.gd"
-    $tempAbs = Join-Path $RepoPath $tempRel
-    $tempRes = "res://$tempRel"
-
-    $runner = @"
-extends SceneTree
-func _init() -> void:
-	var s = load("$TestPath")
-	if s == null:
-		print("ONE_RESULT|FAIL_LOAD|$TestPath")
-		quit()
-		return
-	var i = s.new()
-	var ok = i.run()
-	if ok:
-		print("ONE_RESULT|PASS|$TestPath")
-	else:
-		print("ONE_RESULT|FAIL|$TestPath")
-	quit()
-"@
-
-    Set-Content -Path $tempAbs -Value $runner -Encoding ascii
-
-    $outFile = Join-Path $RepoPath ("tests/_tmp_out_{0}.log" -f $id)
-    $errFile = Join-Path $RepoPath ("tests/_tmp_err_{0}.log" -f $id)
-    $args = @("--headless", "--path", $RepoPath, "-s", $tempRes)
-    $proc = Start-Process -FilePath $ExePath -ArgumentList $args -Wait -NoNewWindow -PassThru -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+    $outFile = Join-Path ([System.IO.Path]::GetTempPath()) ("okey_matrix_out_{0}.log" -f $id)
+    $errFile = Join-Path ([System.IO.Path]::GetTempPath()) ("okey_matrix_err_{0}.log" -f $id)
+    $engineArgs = @("--headless", "--path", $RepoPath, "-s", "res://tests/run_single_test.gd", "--", "--test=$TestPath")
+    $quotedArgs = $engineArgs | ForEach-Object { '"' + $_ + '"' }
+    $proc = Start-Process -FilePath $ExePath -ArgumentList $quotedArgs -Wait -WindowStyle Hidden -PassThru -RedirectStandardOutput $outFile -RedirectStandardError $errFile
     $rawText = ""
     if (Test-Path $outFile) { $rawText += (Get-Content -Path $outFile -Raw) }
     if (Test-Path $errFile) { $rawText += "`n" + (Get-Content -Path $errFile -Raw) }
@@ -83,7 +61,6 @@ func _init() -> void:
     # Best effort cleanup with small retry to avoid transient file locks.
     for ($attempt = 0; $attempt -lt 5; $attempt++) {
         try {
-            if (Test-Path $tempAbs) { Remove-Item -Path $tempAbs -Force }
             if (Test-Path $outFile) { Remove-Item -Path $outFile -Force }
             if (Test-Path $errFile) { Remove-Item -Path $errFile -Force }
             break
@@ -99,6 +76,10 @@ func _init() -> void:
         }
     }
 
+    if ($proc.ExitCode -ne 0 -or $matches.Count -ne 1 -or $rawText -match '(?m)^(SCRIPT ERROR:|ERROR:)') {
+        Write-Host $rawText
+        return [PSCustomObject]@{ Test = $TestPath; Status = "FAIL" }
+    }
     $last = $matches[$matches.Count - 1]
     $status = $last.Groups[1].Value
     $path = $last.Groups[2].Value
@@ -115,15 +96,25 @@ function Invoke-Probe {
         [string]$RepoPath
     )
 
-    $args = @("--headless", "--path", $RepoPath, "-s", $ProbePath)
-    $proc = Start-Process -FilePath $ExePath -ArgumentList $args -Wait -NoNewWindow -PassThru
-    $status = "FAIL"
-    if ($proc.ExitCode -eq 0) {
-        $status = "PASS"
-    }
-    return [PSCustomObject]@{
-        Test = $ProbePath
-        Status = $status
+    $id = [guid]::NewGuid().ToString("N")
+    $outFile = Join-Path ([System.IO.Path]::GetTempPath()) ("okey_smoke_out_$id.log")
+    $errFile = Join-Path ([System.IO.Path]::GetTempPath()) ("okey_smoke_err_$id.log")
+    $engineArgs = @("--headless", "--path", $RepoPath, "--scene", $ProbePath, "--quit-after", "120")
+    $quotedArgs = $engineArgs | ForEach-Object { '"' + $_ + '"' }
+    try {
+        $proc = Start-Process -FilePath $ExePath -ArgumentList $quotedArgs -Wait -WindowStyle Hidden -PassThru -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+        $rawText = [System.IO.File]::ReadAllText($outFile) + "`n" + [System.IO.File]::ReadAllText($errFile)
+        $status = "FAIL"
+        if ($proc.ExitCode -eq 0 -and $rawText -notmatch '(?m)^(SCRIPT ERROR:|ERROR:)') {
+            $status = "PASS"
+        } else {
+            Write-Host $rawText
+        }
+        return [PSCustomObject]@{ Test = $ProbePath; Status = $status }
+    } finally {
+        foreach ($logPath in @($outFile, $errFile)) {
+            if (Test-Path -LiteralPath $logPath) { Remove-Item -LiteralPath $logPath -Force }
+        }
     }
 }
 
@@ -202,10 +193,9 @@ foreach ($test in $tests) {
     $results += Invoke-OneTest -TestPath $test -ExePath $resolvedGodotExe -RepoPath $repo
 }
 
-if ($IncludeInteractionProbes) {
+if ($IncludeSceneSmoke) {
     $probeScripts = @(
-        "res://tests/probe_gametable3d_interaction_matrix.gd",
-        "res://tests/probe_gametable2d_interaction_matrix.gd"
+        "res://ui/vector_table/VectorGameTable3D.tscn"
     )
     foreach ($probe in $probeScripts) {
         $results += Invoke-Probe -ProbePath $probe -ExePath $resolvedGodotExe -RepoPath $repo

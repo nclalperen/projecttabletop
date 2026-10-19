@@ -4,7 +4,6 @@ const SETTINGS_SCENE_PATH: String = "res://ui/SettingsMenu.tscn"
 const DISPLAY_SETTINGS_SCRIPT: Script = preload("res://ui/services/DisplaySettingsService.gd")
 const REQUIRED_COMMON_PATHS: PackedStringArray = [
 	"Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/ShadowQuality/Value",
-	"Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/DisplayPresentationMode/Value",
 	"Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/DisplayVSync/Value",
 	"Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/DisplayFpsCap/Value",
 ]
@@ -33,6 +32,11 @@ func run() -> bool:
 		root.call("_ensure_visual_rows")
 	if root.has_method("_ensure_display_rows"):
 		root.call("_ensure_display_rows")
+
+	if root.get_node_or_null("Panel/MarginContainer/VBoxContainer/ScrollContainer/SettingsList/DisplayPresentationMode") != null:
+		push_error("SettingsMenu must not offer retired Okey presentations")
+		root.free()
+		return false
 
 	for path in REQUIRED_COMMON_PATHS:
 		if root.get_node_or_null(path) == null:

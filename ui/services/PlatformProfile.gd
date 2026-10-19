@@ -17,7 +17,7 @@ static func is_desktop() -> bool:
 
 
 static func default_presentation_mode() -> String:
-	return "2d" if is_android() else "3d"
+	return "vector3d"
 
 
 static func supports_desktop_window_controls() -> bool:

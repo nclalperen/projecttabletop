@@ -1,19 +1,17 @@
 class_name OpponentRack3D
 extends Node3D
 ## Procedural 3D Opponent Rack for VectorGameTable3D.
-## Built directly from authentic Turkish coffeehouse Okey istaka CAD geometry (AssetIds.GAMEPLAY_MODEL_AUTHENTIC_STAKA):
-## - Rich golden honey-beech wood with natural grain rings and satin lacquer sheen
-## - Solid tall backboard with center brass maker plaque facing the table
+## Faithfully crafted to match the iconic Hedef Okey wooden istaka:
+## - Natural blonde beech wood with subtle linear grain and satin sheen
+## - Solid flat backboard with centered Hedef maker emblem facing the table
+## - Iconic dark brown triangular end cap brackets with flush mounting rivets
 ## - Concealed opponent tiles sitting on authentic stepped shelves inside the rack
-## - Delicate brass mounting rivets on solid wooden end caps
 
 const TABLE_ART = preload("res://ui/game_table/OkeyTableArt.gd")
 const TUNING = preload("res://ui/vector_table/VectorTuning3D.gd")
+const VectorRackBuilder = preload("res://ui/vector_table/render/VectorRackBuilder.gd")
 
-const TILE_PITCH: float = 0.040
-const ROW_Y: Array[float] = [0.0835, 0.0357]
-const ROW_Z: Array[float] = [-0.0100, 0.0200]
-const ROW_TILT: Array[float] = [-20.0, -33.4]
+const TILE_PITCH: float = TUNING.TILE_PITCH
 
 var seat_index: int = 1
 var tile_count: int = 21
@@ -47,7 +45,7 @@ func set_tile_count(count: int) -> void:
 
 func get_launch_transform() -> Transform3D:
 	# Front/table-facing point of rack in world coordinates for flight animations
-	var local_launch := Vector3(0.0, 0.05, -0.04)
+	var local_launch := Vector3(0.0, 0.06, -0.03)
 	var xf := global_transform if is_inside_tree() else transform
 	return Transform3D(xf.basis.orthonormalized(), xf.origin + xf.basis * local_launch)
 
@@ -62,37 +60,27 @@ func _build_mesh() -> void:
 	add_child(_rack_mesh)
 
 	var beech := TABLE_ART.material("honey_beech")
-	var brass_screw := TABLE_ART.material("bracket_screw")
+	var badge_mat := TABLE_ART.material("hedef_badge")
 	var gold := TABLE_ART.material("rack_badge")
 
-	var width: float = 0.65
+	var width: float = TUNING.HAND_RACK_LENGTH
 
-	# 1. Authentic Turkish Istaka CAD Mesh
-	var staka_mesh: Mesh = AssetRegistry.mesh(AssetIds.GAMEPLAY_MODEL_AUTHENTIC_STAKA)
-	if staka_mesh != null:
-		var staka_inst := MeshInstance3D.new()
-		staka_inst.name = "AuthenticStakaMesh"
-		staka_inst.mesh = staka_mesh
-		staka_inst.set_surface_override_material(0, beech)
-		# Mesh natural length is 0.376362. Scale X to desired width (0.65) while preserving CAD height & profile
-		staka_inst.scale = Vector3(width / 0.376362, 1.0, 1.0)
+	# 1. Pure procedural Vector Rack Mesh
+	var rack_mesh: ArrayMesh = VectorRackBuilder.build_mesh(width, beech)
+	if rack_mesh != null:
+		var rack_inst := MeshInstance3D.new()
+		rack_inst.name = "VectorRackMesh"
+		rack_inst.mesh = rack_mesh
+		rack_inst.set_surface_override_material(0, beech)
 		# Base rests directly on table surface at Y = 0
-		staka_inst.position = Vector3.ZERO
-		_rack_mesh.add_child(staka_inst)
+		rack_inst.position = Vector3.ZERO
+		_rack_mesh.add_child(rack_inst)
 
-	# 2. Solid Furniture-Grade Honey-Beech Backboard facing table (-Z)
-	TABLE_ART.piece(_rack_mesh, "SolidBackboard", Vector3(width - 0.004, 0.086, 0.010), Vector3(0.0, 0.043, -0.033), 0.003, beech)
-
-	# 3. Polished Brass Center Maker Plaque facing table (-Z)
-	TABLE_ART.piece(_rack_mesh, "BackMakerPlaque", Vector3(0.046, 0.012, 0.002), Vector3(0.0, 0.045, -0.0385), 0.0008, gold)
-
-	# 4. Delicate Brass Mounting Rivets on Solid Wooden End Caps
-	for side in [-1.0, 1.0]:
-		var prefix: String = "L" if side < 0.0 else "R"
-		var side_x: float = side * (width * 0.5 - 0.001)
-
-		TABLE_ART.piece(_rack_mesh, "ScrewTop_%s" % prefix, Vector3(0.002, 0.004, 0.004), Vector3(side_x + side * 0.0008, 0.068, -0.015), 0.001, brass_screw)
-		TABLE_ART.piece(_rack_mesh, "ScrewBottom_%s" % prefix, Vector3(0.002, 0.004, 0.004), Vector3(side_x + side * 0.0008, 0.020, 0.022), 0.001, brass_screw)
+	# 2. Iconic Hedef Centered Oval Maker Badge lying flush on sloped back wall (-Z)
+	var plate := TABLE_ART.piece(_rack_mesh, "HedefBadgePlate", Vector3(0.056, 0.018, 0.0015), Vector3(0.0, 0.067, -0.0290), 0.001, badge_mat)
+	plate.rotation_degrees.x = 14.0
+	var ring := TABLE_ART.piece(_rack_mesh, "HedefBadgeGold", Vector3(0.052, 0.014, 0.002), Vector3(0.0, 0.067, -0.0293), 0.0008, gold)
+	ring.rotation_degrees.x = 14.0
 
 	_tiles_container = Node3D.new()
 	_tiles_container.name = "Tiles"
@@ -112,13 +100,20 @@ func _rebuild_tiles() -> void:
 	var row0_count := mini(tile_count, 15)
 	var row1_count := maxi(0, tile_count - 15)
 
+	# Keep bottom face 100% flush on shelf floor while lowering top edge by 9.75mm below crest
+	var u_dir := Vector3(0.0, cos(deg_to_rad(VectorRackBuilder.LEAN_DEG)), -sin(deg_to_rad(VectorRackBuilder.LEAN_DEG)))
+	var sy: float = 0.85
+	var flush_shift: float = (1.0 - sy) * 0.5 * 0.065
+
 	# Row 0 (top/rear shelf)
 	var start_x0 := -(float(row0_count - 1) * 0.5) * TILE_PITCH if row0_count > 0 else 0.0
 	for i in range(row0_count):
 		var tile := TABLE_ART.build_tile(true, false) # standing, face-down
 		tile.name = "OppTile_0_%d" % i
-		tile.position = Vector3(start_x0 + float(i) * TILE_PITCH, ROW_Y[0], ROW_Z[0])
-		tile.rotation_degrees = Vector3(ROW_TILT[0], 0.0, 0.0)
+		var xf := VectorRackBuilder.row_transform(0, start_x0 + float(i) * TILE_PITCH)
+		xf.origin -= u_dir * flush_shift
+		tile.transform = xf
+		tile.scale = Vector3(1.0, sy, 1.0)
 		_tiles_container.add_child(tile)
 		_tile_nodes.append(tile)
 
@@ -127,7 +122,9 @@ func _rebuild_tiles() -> void:
 	for i in range(row1_count):
 		var tile := TABLE_ART.build_tile(true, false) # standing, face-down
 		tile.name = "OppTile_1_%d" % i
-		tile.position = Vector3(start_x1 + float(i) * TILE_PITCH, ROW_Y[1], ROW_Z[1])
-		tile.rotation_degrees = Vector3(ROW_TILT[1], 0.0, 0.0)
+		var xf := VectorRackBuilder.row_transform(1, start_x1 + float(i) * TILE_PITCH)
+		xf.origin -= u_dir * flush_shift
+		tile.transform = xf
+		tile.scale = Vector3(1.0, sy, 1.0)
 		_tiles_container.add_child(tile)
 		_tile_nodes.append(tile)

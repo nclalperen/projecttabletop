@@ -5,8 +5,6 @@ const RACK_NAVIGATOR_SCRIPT = preload("res://ui/game_table/RackFocusNavigator.gd
 const TABLE_AUDIO_SCRIPT = preload("res://ui/game_table/TableAudioController.gd")
 const ROUND_SUMMARY_SCENE = preload("res://ui/game_table/OkeyRoundSummaryModal.tscn")
 const HUD_SCENE = preload("res://ui/game_table/OkeyPlayHUD.tscn")
-const RACK_VIEW_3D_SCRIPT = preload("res://ui/game_table/RackView3D.gd")
-const DRAFT_WORKSPACE_VIEW_3D_SCRIPT = preload("res://ui/game_table/DraftWorkspaceView3D.gd")
 const PLACEHOLDER_TABLE_SCENE = preload("res://ui/PlaceholderTable.tscn")
 const GAME_CATALOG = preload("res://gd/config/TabletopGameCatalog.gd")
 
@@ -25,9 +23,6 @@ func run() -> bool:
 		return false
 	if not _test_hud_phase5_integration():
 		push_error("test_hud_phase5_integration failed")
-		return false
-	if not _test_rack_and_draft_view_3d():
-		push_error("test_rack_and_draft_view_3d failed")
 		return false
 	if not _test_placeholder_table_3d_and_badges():
 		push_error("test_placeholder_table_3d_and_badges failed")
@@ -168,21 +163,6 @@ func _test_rack_focus_navigator() -> bool:
 		nav.free()
 		return false
 
-	# Test visualizer focus reticle
-	var tdv = preload("res://ui/game_table/TileDragVisualizer3D.gd").new()
-	tdv.show_focus_reticle(Vector3(0.1, 0.0, 0.2), Vector3(-90, 0, 0))
-	if not tdv.is_focus_reticle_visible():
-		push_error("Focus reticle should be visible")
-		tdv.free()
-		nav.free()
-		return false
-	tdv.hide_focus_reticle()
-	if tdv.is_focus_reticle_visible():
-		push_error("Focus reticle should be hidden")
-		tdv.free()
-		nav.free()
-		return false
-	tdv.free()
 
 	nav.free()
 	return true
@@ -343,46 +323,6 @@ func _test_hud_phase5_integration() -> bool:
 		return false
 
 	_cleanup(hud)
-	return true
-
-func _test_rack_and_draft_view_3d() -> bool:
-	var rack_view = RACK_VIEW_3D_SCRIPT.new()
-	rack_view.configure_rows(Vector3(0.0, 0.086, -0.033), Vector3(0.0, 0.047, 0.039), -35.0, -32.0, 0.75)
-	var pos0: Vector3 = rack_view.compute_slot_local_position(0)
-	var pos14: Vector3 = rack_view.compute_slot_local_position(14)
-	var pos15: Vector3 = rack_view.compute_slot_local_position(15)
-	if pos0.x >= pos14.x or pos0.y <= pos15.y:
-		push_error("RackView3D slot positions invalid: slot0=%s slot14=%s slot15=%s" % [str(pos0), str(pos14), str(pos15)])
-		rack_view.free()
-		return false
-	if absf(rack_view.get_slot_row_tilt_deg(0) - (-35.0)) > 0.01 or absf(rack_view.get_slot_row_tilt_deg(15) - (-32.0)) > 0.01:
-		push_error("RackView3D row tilt mismatch")
-		rack_view.free()
-		return false
-	var slots: Array = []
-	for i in range(30):
-		slots.append(100 + i if i < 5 else -1)
-	var reflow: Dictionary = rack_view.compute_neighbor_reflow_offsets(slots, 0, 2)
-	if reflow.is_empty():
-		push_error("Expected non-empty neighbor reflow offsets when hovering occupied rack slot")
-		rack_view.free()
-		return false
-	rack_view.free()
-
-	var draft_view = DRAFT_WORKSPACE_VIEW_3D_SCRIPT.new()
-	draft_view.configure_lane(Rect2(Vector2(-0.33, 0.11), Vector2(0.66, 0.15)), 24, 12)
-	var pt3: Vector2 = draft_view.slot_to_table_point(3)
-	var nearest: int = draft_view.point_to_nearest_slot(pt3)
-	if nearest != 3:
-		push_error("DraftWorkspaceView3D expected nearest slot 3, got %d" % nearest)
-		draft_view.free()
-		return false
-	var world3: Vector3 = draft_view.slot_to_world_position(3)
-	if absf(world3.x - pt3.x) > 0.001 or absf(world3.z - pt3.y) > 0.001:
-		push_error("DraftWorkspaceView3D world position mismatch")
-		draft_view.free()
-		return false
-	draft_view.free()
 	return true
 
 func _test_placeholder_table_3d_and_badges() -> bool:

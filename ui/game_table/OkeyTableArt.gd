@@ -131,11 +131,7 @@ static func build_tile(standing: bool = true, face_up: bool = true) -> Node3D:
 	var root := Node3D.new()
 	root.name = "IvoryTile"
 	# Geometry is shared across every tile. Smooth chamfered edges catch the light.
-	_piece(root, "IvoryBody", TILE_SIZE, Vector3.ZERO, 0.0028, _material("tile_ivory", Color("f4efe6"), 0.28))
-	if not face_up:
-		# Luxury engraved tile back facing AWAY (-Z in local coordinates)
-		_piece(root, "BackInset", Vector3(0.034, 0.052, 0.0006), Vector3(0, 0, -0.0042), 0.0010, _material("tile_back_wood", Color("341a0e"), 0.35))
-		_piece(root, "BackDiamond", Vector3(0.020, 0.032, 0.0008), Vector3(0, 0, -0.0044), 0.0010, _material("tile_back_gold", Color("c5a059"), 0.25))
+	_piece(root, "IvoryBody", TILE_SIZE, Vector3.ZERO, 0.0028, _material("tile_ivory", Color("dad3c8"), 0.34))
 	if not standing:
 		root.rotation.x = PI * 0.5
 	return root
@@ -173,13 +169,17 @@ static func material(key: String) -> Material:
 				return _materials["honey_beech"] as Material
 			var mat := ShaderMaterial.new()
 			mat.shader = WOOD_SHADER
-			var base_col := Color("#7e4218").srgb_to_linear()
-			var high_col := Color("#be7c3e").srgb_to_linear()
+			var base_col := Color("#9e6b3b").srgb_to_linear()
+			var high_col := Color("#c48f5a").srgb_to_linear()
 			mat.set_shader_parameter("wood_color", base_col)
 			mat.set_shader_parameter("wood_highlight", high_col)
 			mat.set_shader_parameter("grain_scale", 140.0)
 			_materials["honey_beech"] = mat
 			return mat
+		"hedef_cap":
+			return _material("hedef_cap", Color("#331c12"), 0.42)
+		"hedef_badge":
+			return _material("hedef_badge", Color("#1c110a"), 0.25, 0.10)
 		"honey_beech_edge":
 			return _material("honey_beech_edge", Color("#723812"), 0.38)
 		"honey_beech_dark":

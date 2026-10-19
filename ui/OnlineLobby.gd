@@ -1,9 +1,7 @@
 extends Control
 
-const GAME_TABLE_2D_SCENE_PATH: String = "res://ui/GameTable.tscn"
-const GAME_TABLE_3D_SCENE_PATH: String = "res://ui/GameTable3D.tscn"
-const GAME_TABLE_VECTOR3D_SCENE_PATH: String = "res://ui/vector_table/VectorGameTable3D.tscn"
 const GAME_CATALOG: Script = preload("res://gd/config/TabletopGameCatalog.gd")
+const UI_SETTINGS_SCRIPT: Script = preload("res://ui/services/UISettings.gd")
 const ONLINE_SERVICE_SCRIPT: Script = preload("res://net/OnlineServiceEOS.gd")
 const LOBBY_SERVICE_SCRIPT: Script = preload("res://net/LobbyServiceEOS.gd")
 const P2P_TRANSPORT_SCRIPT: Script = preload("res://net/P2PTransportEOS.gd")
@@ -110,7 +108,7 @@ var _lobby_service = null
 var _rule_config = null
 var _game_seed: int = -1
 var _player_count: int = 4
-var _presentation_mode: String = "3d"
+var _presentation_mode: String = "vector3d"
 var _selected_game_id: StringName = GAME_CATALOG.default_game_id()
 
 var _local_seat_plan: Array = []
@@ -138,7 +136,7 @@ func set_start_config(rule_config, game_seed: int, player_count: int, presentati
 	_game_seed = game_seed
 	_selected_game_id = selected_game_id if GAME_CATALOG.has_game(selected_game_id) else GAME_CATALOG.default_game_id()
 	_player_count = GAME_CATALOG.clamp_player_count(_selected_game_id, player_count)
-	_presentation_mode = presentation_mode
+	_presentation_mode = UI_SETTINGS_SCRIPT.sanitize_presentation_mode(presentation_mode)
 	_local_seat_plan = _build_default_editable_seat_plan(_player_count)
 
 
@@ -1054,23 +1052,16 @@ func _maybe_launch_match_from_lobby(lobby: Dictionary) -> void:
 	var match_id: String = String(attrs.get("match_id", ""))
 	var launched_game_id: StringName = _lobby_game_id(lobby)
 	if GAME_CATALOG.uses_okey_table(launched_game_id):
-		var scene_path: String = GAME_TABLE_2D_SCENE_PATH
-		if _presentation_mode == "vector3d":
-			scene_path = GAME_TABLE_VECTOR3D_SCENE_PATH
-		elif _presentation_mode == "3d":
-			scene_path = GAME_TABLE_3D_SCENE_PATH
+		var scene_path: String = GAME_CATALOG.launch_scene_path(launched_game_id, _presentation_mode)
 		var scene: PackedScene = load(scene_path)
-		if scene == null and (_presentation_mode == "3d" or _presentation_mode == "vector3d"):
-			scene_path = GAME_TABLE_2D_SCENE_PATH
-			scene = load(scene_path)
 		if scene == null:
-			_set_status(&"operation_failed", {"reason": "Failed to load the legacy Okey table scene."})
+			_set_status(&"operation_failed", {"reason": "Failed to load the Okey table scene."})
 			return
 		var game_table: Node = scene.instantiate()
 		var host_controller_script: Script = load(HOST_MATCH_CONTROLLER_SCRIPT_PATH)
 		var client_controller_script: Script = load(CLIENT_MATCH_CONTROLLER_SCRIPT_PATH)
 		if host_controller_script == null or client_controller_script == null:
-			_set_status(&"operation_failed", {"reason": "Failed to load the legacy Okey network controllers."})
+			_set_status(&"operation_failed", {"reason": "Failed to load the Okey network controllers."})
 			return
 		var transport = P2P_TRANSPORT_SCRIPT.new()
 		if transport.has_method("set_backend_mode"):
@@ -1340,26 +1331,19 @@ func _launch_local_bot_match(plan: Array) -> void:
 		Time.get_unix_time_from_system(),
 	])))
 	if GAME_CATALOG.uses_okey_table(_selected_game_id):
-		var scene_path: String = GAME_TABLE_2D_SCENE_PATH
-		if _presentation_mode == "vector3d":
-			scene_path = GAME_TABLE_VECTOR3D_SCENE_PATH
-		elif _presentation_mode == "3d":
-			scene_path = GAME_TABLE_3D_SCENE_PATH
+		var scene_path: String = GAME_CATALOG.launch_scene_path(_selected_game_id, _presentation_mode)
 		var local_scene: PackedScene = load(scene_path)
-		if local_scene == null and (_presentation_mode == "3d" or _presentation_mode == "vector3d"):
-			scene_path = GAME_TABLE_2D_SCENE_PATH
-			local_scene = load(scene_path)
 		if local_scene == null:
 			if _menu_audio != null:
 				_menu_audio.play_error()
-			_set_status(&"operation_failed", {"reason": "Failed to load the local legacy Okey table scene."})
+			_set_status(&"operation_failed", {"reason": "Failed to load the local Okey table scene."})
 			return
-		var legacy_table: Node = local_scene.instantiate()
-		if legacy_table.has_method("configure_game"):
-			legacy_table.call("configure_game", _rule_config, match_seed, _player_count, _bot_difficulties_for_plan(plan))
+		var game_table: Node = local_scene.instantiate()
+		if game_table.has_method("configure_game"):
+			game_table.call("configure_game", _rule_config, match_seed, _player_count, _bot_difficulties_for_plan(plan))
 		_active_host_controller = null
 		_launch_started = true
-		_replace_self_in_shell(legacy_table)
+		_replace_self_in_shell(game_table)
 		return
 	var seat_by_puid: Dictionary = {local_puid: 0}
 	var synthetic_lobby: Dictionary = _build_offline_lobby_model(plan, local_puid, seat_by_puid, match_id, match_seed)

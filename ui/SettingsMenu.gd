@@ -48,7 +48,6 @@ var _shadow_quality_option: OptionButton = null
 var _ssr_enabled_check: CheckBox = null
 var _resolution_scale_spin: SpinBox = null
 var _postfx_strength_spin: SpinBox = null
-var _presentation_mode_option: OptionButton = null
 var _display_monitor_option: OptionButton = null
 var _display_mode_option: OptionButton = null
 var _display_resolution_option: OptionButton = null
@@ -309,7 +308,6 @@ func _bind_audio_feedback() -> void:
 		_aa_mode_option,
 		_ssao_quality_option,
 		_shadow_quality_option,
-		_presentation_mode_option,
 		_display_resolution_option,
 		_display_refresh_option,
 		_display_vsync_option,
@@ -628,15 +626,6 @@ func _ensure_display_rows() -> void:
 		monitor_row.get("row").name = "DisplayMonitor"
 		settings_list.add_child(monitor_row.get("row"))
 		_display_monitor_option = monitor_row.get("option") as OptionButton
-	if _presentation_mode_option == null:
-		var presentation_row := _build_option_row("Presentation Mode", [
-			{"label": "3D Vector Table (Tournament)", "id": "vector3d"},
-			{"label": "3D Classic Table (Legacy)", "id": "3d"},
-			{"label": "2D Table", "id": "2d"},
-		])
-		presentation_row.get("row").name = "DisplayPresentationMode"
-		settings_list.add_child(presentation_row.get("row"))
-		_presentation_mode_option = presentation_row.get("option") as OptionButton
 	if _display_mode_option == null:
 		var mode_row := _build_option_row("Display Mode", [
 			{"label": "Windowed", "id": DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED},
@@ -733,10 +722,6 @@ func _sync_display_controls_from_settings() -> void:
 	if _ui_settings == null:
 		_ui_settings = UI_SETTINGS_SCRIPT.load_from_disk()
 	var display: Dictionary = UI_SETTINGS_SCRIPT.sanitize_display_settings(_ui_settings)
-	_select_option_by_id(
-		_presentation_mode_option,
-		UI_SETTINGS_SCRIPT.sanitize_presentation_mode(str(_ui_settings.get("presentation_mode", UI_SETTINGS_SCRIPT.default_presentation_mode())))
-	)
 	_select_option_by_id(_display_monitor_option, int(display.get("monitor_index", 0)))
 	_rebuild_resolution_and_refresh_options_for_selected_monitor()
 	_select_option_by_id(_display_mode_option, str(display.get("display_mode", DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED)))
@@ -785,9 +770,7 @@ func _collect_display_settings_from_controls() -> Dictionary:
 
 
 func _collect_presentation_mode_from_controls() -> String:
-	return UI_SETTINGS_SCRIPT.sanitize_presentation_mode(
-		str(_selected_option_id(_presentation_mode_option, UI_SETTINGS_SCRIPT.default_presentation_mode()))
-	)
+	return UI_SETTINGS_SCRIPT.default_presentation_mode()
 
 
 func _update_display_mode_hints() -> void:
@@ -795,7 +778,7 @@ func _update_display_mode_hints() -> void:
 	if _preview_active:
 		return
 	if not DISPLAY_SETTINGS_SCRIPT.supports_desktop_window_controls():
-		_set_status_text("This platform manages window size automatically. Use presentation mode and visual quality options.")
+		_set_status_text("This platform manages window size automatically. Use visual quality options.")
 		return
 	var mode: String = str(_selected_option_id(_display_mode_option, DISPLAY_SETTINGS_SCRIPT.MODE_WINDOWED))
 	match mode:

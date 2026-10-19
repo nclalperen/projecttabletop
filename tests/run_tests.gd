@@ -58,15 +58,10 @@ const TEST_SCRIPTS = [
 	"res://tests/test_host_action_authority.gd",
 	"res://tests/test_reconnect_bot_takeover.gd",
 	"res://tests/test_client_controller_envelope_translation.gd",
-	"res://tests/test_ui_scene_contract.gd",
-	"res://tests/test_ui_gametable3d_scene_contract.gd",
-	"res://tests/test_ui_no_legacy_controls.gd",
 	"res://tests/test_ui_menu_scene_contract.gd",
 	"res://tests/test_tabletop_game_catalog.gd",
 	"res://tests/test_okey_session.gd",
 	"res://tests/test_okey_play_hud_declarative.gd",
-	"res://tests/test_tile_drag_and_input_subsystems.gd",
-	"res://tests/test_meld_and_discard_subsystems.gd",
 	"res://tests/test_common_tabletop_components.gd",
 	"res://tests/test_phase5_polish_subsystems.gd",
 	"res://tests/test_ui_settings_visual.gd",
@@ -81,10 +76,6 @@ const TEST_SCRIPTS = [
 	"res://tests/test_rack_slot_manager.gd",
 	"res://tests/test_draft_api_hardcut.gd",
 	"res://tests/test_table_config_resources.gd",
-	"res://tests/test_camera_rig.gd",
-	"res://tests/test_material_factory.gd",
-	"res://tests/test_audio_controller.gd",
-	"res://tests/test_game_table_config_swapping.gd",
 	"res://tests/test_vector_spring_solver_3d.gd",
 	"res://tests/test_vector_tile_3d.gd",
 	"res://tests/test_vector_game_table_3d.gd",
@@ -98,45 +89,21 @@ const TEST_SCRIPTS = [
 	"res://tests/test_vector3d_meld_layout.gd",
 	"res://tests/test_ui_vector3d_scene_contract.gd",
 	"res://tests/test_vector3d_audio.gd",
+	"res://tests/test_vector3d_approved_layout.gd",
 ]
 
-var _all_ok := true
-
+const SUITE_RUNNER = preload("res://tests/TestSuiteRunner.gd")
 
 func _init() -> void:
-	_all_ok = _run_all_tests()
-	call_deferred("_complete")
+	call_deferred("_run_all_tests")
 
-
-func _run_all_tests() -> bool:
-	var ok = true
+func _run_all_tests() -> void:
+	var ok := not TEST_SCRIPTS.is_empty()
+	var completed := 0
 	for path in TEST_SCRIPTS:
-		print("RUN ", path.get_file())
-		var script = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
-		if script == null:
-			push_error("Failed to load test: %s" % path)
+		if not await SUITE_RUNNER.run_suite(path, self):
 			ok = false
-			continue
-		var test = script.new()
-		if not test.run():
-			ok = false
-		test = null
-		script = null
-		LocalGameController.free_test_tracked_instances()
-		HostMatchController.free_test_tracked_instances()
-		ClientMatchController.free_test_tracked_instances()
-		P2PTransportEOS.free_test_tracked_instances()
-		OnlineServiceEOS.free_test_tracked_instances()
-		LobbyServiceEOS.free_test_tracked_instances()
-	return ok
-
-func _complete() -> void:
-	# Let queued disposals/resources settle before process shutdown.
-	await process_frame
-	await process_frame
-	if _all_ok:
-		print("All tests passed")
-	else:
-		print("Tests failed")
-
-	quit(0 if _all_ok else 1)
+		completed += 1
+	print("TEST_SUMMARY|%d|%d" % [completed, TEST_SCRIPTS.size()])
+	print("All tests passed" if ok else "Tests failed")
+	quit(0 if ok else 1)

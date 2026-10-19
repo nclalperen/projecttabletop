@@ -602,18 +602,8 @@ func _on_lobby_game_started(pc: int, seed_val: int, bot_difficulties: Array = []
 	player_count = pc
 	var actual_seed: int = seed_val if seed_val >= 0 else randi()
 
-	var scene_path: String = "res://ui/GameTable.tscn"
-	if presentation_mode == "vector3d":
-		scene_path = "res://ui/vector_table/VectorGameTable3D.tscn"
-	elif presentation_mode == "3d":
-		scene_path = "res://ui/GameTable3D.tscn"
-
-	var launched_mode: String = presentation_mode
+	var scene_path: String = GAME_CATALOG.launch_scene_path(selected_game_id, presentation_mode)
 	var game_table_scene: PackedScene = load(scene_path)
-	if game_table_scene == null and (presentation_mode == "3d" or presentation_mode == "vector3d"):
-		scene_path = "res://ui/GameTable.tscn"
-		launched_mode = "2d"
-		game_table_scene = load(scene_path)
 	if game_table_scene == null:
 		if _banner != null and _banner.has_method("set_text"):
 			_banner.call("set_text", "Failed to load game scene")
@@ -623,7 +613,7 @@ func _on_lobby_game_started(pc: int, seed_val: int, bot_difficulties: Array = []
 	if game_table.has_method("configure_game"):
 		game_table.configure_game(rule_config, actual_seed, player_count, bot_difficulties)
 	if _banner != null and _banner.has_method("set_text"):
-		_banner.call("set_text", "Starting %s mode (%s players, %s seed)" % [_presentation_label_from(launched_mode), player_count, "random" if game_seed < 0 else str(game_seed)])
+		_banner.call("set_text", "Starting Okey (%s players, %s seed)" % [player_count, "random" if game_seed < 0 else str(game_seed)])
 
 	if _animations_enabled:
 		var tween = create_tween()
@@ -790,10 +780,6 @@ func _sync_meta_chips() -> void:
 	if _online_chip != null:
 		_online_chip.text = "Multiplayer: %s" % ("Ready" if _online_available else "Offline")
 	_update_online_chip_icon()
-
-
-func _presentation_label_from(mode: String) -> String:
-	return "3D" if mode == "3d" else "2D"
 
 
 func _notification(what: int) -> void:

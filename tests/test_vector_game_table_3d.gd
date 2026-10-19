@@ -1,18 +1,10 @@
-extends SceneTree
+extends RefCounted
 ## Unit test for VectorGameTable3D scene hierarchy, 3D fluid rack, and session binding.
 
 const VectorGameTable3D = preload("res://ui/vector_table/VectorGameTable3D.gd")
 
-func _init() -> void:
-	var ok: bool = run()
-	if ok:
-		print("  PASS  test_vector_game_table_3d")
-	else:
-		print("  FAIL  test_vector_game_table_3d")
-	quit(0 if ok else 1)
-
-
 func run() -> bool:
+	var root := (Engine.get_main_loop() as SceneTree).root
 	var ok: bool = true
 
 	var table := VectorGameTable3D.new()

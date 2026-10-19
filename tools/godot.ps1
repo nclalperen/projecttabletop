@@ -1,7 +1,5 @@
-param(
-    [Parameter(ValueFromRemainingArguments = $true)]
-    [string[]]$CliArgs
-)
+# Capture native engine flags without PowerShell parameter binding (-s, --headless).
+$CliArgs = @($args)
 
 $ErrorActionPreference = "Stop"
 
@@ -138,5 +136,17 @@ $hardFallbacks = if ($mode -eq "dotnet") {
 
 $exePath = Resolve-GodotExe $mode $envVar $keyName $hardFallbacks
 
-& $exePath @CliArgs
-exit $LASTEXITCODE
+# Windows PowerShell's native argument forwarding splits values such as
+# --qa-dir=C:\folder with spaces. Build Windows argv quoting explicitly.
+$quotedArgs = foreach ($argument in $CliArgs) {
+    $escaped = [regex]::Replace([string]$argument, '(\\*)"', '$1$1\"')
+    $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')
+    '"' + $escaped + '"'
+}
+$startInfo = New-Object System.Diagnostics.ProcessStartInfo
+$startInfo.FileName = $exePath
+$startInfo.Arguments = $quotedArgs -join ' '
+$startInfo.UseShellExecute = $false
+$process = [System.Diagnostics.Process]::Start($startInfo)
+$process.WaitForExit()
+exit $process.ExitCode

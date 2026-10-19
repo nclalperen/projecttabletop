@@ -109,11 +109,9 @@ static func _draw_atlas(drawer: Control, font: Font) -> void:
 			var center_x: float = cell_x + 128.0
 			var center_y: float = cell_y + 130.0 # 35% height
 
-			# 1. Solid warm ivory resin background
+			# 1. Solid warm ivory resin background matching IvoryBody (#f4efe6)
 			var cell_rect := Rect2(cell_x, cell_y, CELL_WIDTH, CELL_HEIGHT)
-			drawer.draw_rect(cell_rect, Color("#f5eee3"))
-			# Subtle perimeter bevel shade
-			drawer.draw_rect(cell_rect, Color(0.0, 0.0, 0.0, 0.06), false, 4.0)
+			drawer.draw_rect(cell_rect, Color("#f4efe6"))
 
 			# 2. Bold engraved numeral
 			var font_size: int = 158
@@ -144,8 +142,7 @@ static func _draw_atlas(drawer: Control, font: Font) -> void:
 		var star_center_y: float = cell_y + 155.0
 
 		var cell_rect := Rect2(cell_x, cell_y, CELL_WIDTH, CELL_HEIGHT)
-		drawer.draw_rect(cell_rect, Color("#f5eee3"))
-		drawer.draw_rect(cell_rect, Color(0.0, 0.0, 0.0, 0.06), false, 4.0)
+		drawer.draw_rect(cell_rect, Color("#f4efe6"))
 
 		var points := PackedVector2Array()
 		var outer_r: float = 58.0

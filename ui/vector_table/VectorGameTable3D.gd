@@ -20,6 +20,7 @@ const VectorInput3D = preload("res://ui/vector_table/input/VectorInput3D.gd")
 const MeldLayout3D = preload("res://ui/vector_table/melds/MeldLayout3D.gd")
 const MeldInspectionOverlay = preload("res://ui/game_table/MeldInspectionOverlay.gd")
 const TableAudioController = preload("res://ui/game_table/TableAudioController.gd")
+const BoardLayoutTuner3D = preload("res://ui/vector_table/debug/BoardLayoutTuner3D.gd")
 
 # Scene references
 var _world: Node3D = self
@@ -40,6 +41,7 @@ var _animator: TileAnimator3D
 var _input_handler: VectorInput3D
 var _audio_controller: TableAudioController = null
 var _vignette_layer: CanvasLayer
+var _layout_tuner: BoardLayoutTuner3D = null
 
 # Hand state mapping: slot_index -> unique_id
 var _hand_slots_map: Dictionary = {} # slot -> tile_id
@@ -105,6 +107,15 @@ func _ready() -> void:
 		_init_session()
 	elif _session.has_method("_maybe_auto_bot_turn"):
 		_session.call_deferred("_maybe_auto_bot_turn")
+
+	if _layout_tuner == null:
+		_layout_tuner = BoardLayoutTuner3D.new()
+		add_child(_layout_tuner)
+		_layout_tuner.setup(self)
+		var args := OS.get_cmdline_args() + OS.get_cmdline_user_args()
+		if args.has("--layout-studio"):
+			_layout_tuner.open_tuner()
+			_layout_tuner._apply_test_scenario("midgame")
 
 
 func show_feedback(message: String) -> void:
@@ -236,6 +247,7 @@ func _build_3d_environment() -> void:
 	# 12. Center Table Melds Layout (D5, P6)
 	_meld_layout = MeldLayout3D.new()
 	_meld_layout.name = "MeldLayout"
+	_meld_layout.independent_seat_areas = true
 	add_child(_meld_layout)
 	_melds_container = _meld_layout
 
@@ -407,21 +419,24 @@ func _process(_delta: float) -> void:
 			var euler_deg := world_xf.basis.get_euler() * (180.0 / PI)
 			tile.set_target_rotation_3d(euler_deg, false)
 
-	# Dynamic projection for opponent seat badges to 3D rack positions clamped to screen edges (P7)
+	# Dynamic projection for opponent seat badges to live 3D rack positions clamped to screen edges (P7)
 	if _camera != null and _hud != null and _hud.seat_badges.size() >= 4:
 		var vp_size := get_viewport().get_visible_rect().size if get_viewport() != null else Vector2(1920, 1080)
 		# East (Seat 1)
-		var p1 := _camera.unproject_position(TUNING.OPPONENT_RACK_POS_3D[1])
+		var r1_pos: Vector3 = _opponent_racks[1].position if _opponent_racks.has(1) else TUNING.OPPONENT_RACK_POS_3D[1]
+		var p1 := _camera.unproject_position(r1_pos)
 		var b1: Control = _hud.seat_badges[1] as Control
 		if b1 != null:
 			b1.global_position.y = clampf(p1.y - 26.0, 60.0, vp_size.y - 120.0)
 		# North (Seat 2)
-		var p2 := _camera.unproject_position(TUNING.OPPONENT_RACK_POS_3D[2])
+		var r2_pos: Vector3 = _opponent_racks[2].position if _opponent_racks.has(2) else TUNING.OPPONENT_RACK_POS_3D[2]
+		var p2 := _camera.unproject_position(r2_pos)
 		var b2: Control = _hud.seat_badges[2] as Control
 		if b2 != null:
 			b2.global_position.x = clampf(p2.x - 90.0, 260.0, vp_size.x - 350.0)
 		# West (Seat 3)
-		var p3 := _camera.unproject_position(TUNING.OPPONENT_RACK_POS_3D[3])
+		var r3_pos: Vector3 = _opponent_racks[3].position if _opponent_racks.has(3) else TUNING.OPPONENT_RACK_POS_3D[3]
+		var p3 := _camera.unproject_position(r3_pos)
 		var b3: Control = _hud.seat_badges[3] as Control
 		if b3 != null:
 			b3.global_position.y = clampf(p3.y - 26.0, 60.0, vp_size.y - 120.0)
@@ -439,8 +454,10 @@ func _on_session_state_updated(snapshot: Dictionary) -> void:
 	var ind_tile = snapshot.get("indicator_tile")
 	if ind_tile != null:
 		var tile_node: VectorTile3D = _registry.ensure(ind_tile.unique_id, ind_tile.number, ind_tile.color, ind_tile.kind != 0, false, true)
-		tile_node.set_target_position_3d(TUNING.INDICATOR_POS_3D, true)
-		tile_node.set_target_rotation_3d(Vector3(-90.0, TUNING.INDICATOR_ROT_DEG.y, 0.0), true)
+		var ind_pos: Vector3 = _layout_tuner._ind_pos if _layout_tuner != null else TUNING.INDICATOR_POS_3D
+		var ind_yaw: float = _layout_tuner._ind_yaw if _layout_tuner != null else TUNING.INDICATOR_ROT_DEG.y
+		tile_node.set_target_position_3d(ind_pos, true)
+		tile_node.set_target_rotation_3d(Vector3(-90.0, ind_yaw, 0.0), true)
 		_registry.set_zone(ind_tile.unique_id, &"indicator")
 
 	# 3. Update Opponent Racks tile counts
@@ -514,8 +531,8 @@ func _on_rack_and_draft_changed(rack_slots: Array, _draft_slots: Array, validati
 		elif prev_zone.begins_with("discard_"):
 			# Drawn from discard
 			var seat_idx := int(prev_zone.trim_prefix("discard_"))
-			var pile_pos: Vector3 = TUNING.DISCARD_POS_3D.get(seat_idx, TUNING.DISCARD_POS_3D[3])
-			var pile_rot: Vector3 = TUNING.DISCARD_ROT_DEG.get(seat_idx, TUNING.DISCARD_ROT_DEG[3])
+			var pile_pos: Vector3 = _discard_piles_view.get_pile_position(seat_idx) if _discard_piles_view != null else TUNING.DISCARD_POS_3D.get(seat_idx, TUNING.DISCARD_POS_3D[3])
+			var pile_rot: Vector3 = _discard_piles_view.get_pile_rotation_deg(seat_idx) if _discard_piles_view != null else TUNING.DISCARD_ROT_DEG.get(seat_idx, TUNING.DISCARD_ROT_DEG[3])
 			var from_xf := Transform3D(Basis.from_euler(Vector3(deg_to_rad(-90.0), deg_to_rad(pile_rot.y), 0.0)), pile_pos)
 			_animator.fly_draw(v_tile, from_xf, world_xf)
 		else:
@@ -580,6 +597,7 @@ func _on_melds_updated(melds: Array) -> void:
 			var prev_zone := _registry.zone_of(tid)
 			var v_tile: VectorTile3D = _registry.ensure(tid, num, col, is_fake, false, true)
 			var target_xf: Transform3D = _meld_layout.get_tile_transform(tid)
+			var target_euler_deg: Vector3 = target_xf.basis.get_euler() * (180.0 / PI)
 
 			if prev_zone == &"hand":
 				# Staggered Bezier flight from hand to meld (D8: 0.05s per tile, 0.32s each)
@@ -588,13 +606,14 @@ func _on_melds_updated(melds: Array) -> void:
 				tile_delay_sec += 0.05
 			elif prev_zone == &"none":
 				v_tile.position = target_xf.origin
-				v_tile.rotation_degrees = target_xf.basis.get_euler() * (180.0 / PI)
+				v_tile.rotation_degrees = target_euler_deg
 				v_tile.set_target_position_3d(target_xf.origin, true)
-				v_tile.set_target_rotation_3d(Vector3(-90.0, 0.0, 0.0), true)
+				v_tile.set_target_rotation_3d(target_euler_deg, true)
 			else:
 				if not v_tile.is_flying and not v_tile.is_dragging:
 					v_tile.set_target_position_3d(target_xf.origin, false)
-					v_tile.set_target_rotation_3d(Vector3(-90.0, 0.0, 0.0), false)
+					v_tile.set_target_rotation_3d(target_euler_deg, false)
 
 			_registry.set_zone(tid, &"meld_%d" % m_idx)
+
 
