@@ -51,6 +51,17 @@ const _COLORS := {
 	&"online_status_idle": Color(0.30, 0.50, 0.85, 1.0),
 	&"online_status_online": Color(0.30, 0.78, 0.35, 1.0),
 	&"welcome_text": Color(0.88, 0.82, 0.68, 0.90),
+	&"party_amber": Color(1.0, 0.62, 0.12, 1.0),
+	&"party_amber_deep": Color(0.68, 0.33, 0.03, 1.0),
+	&"party_teal": Color(0.0, 0.82, 0.78, 1.0),
+	&"party_lime": Color(0.62, 0.92, 0.2, 1.0),
+	&"party_cream": Color(1.0, 0.96, 0.86, 1.0),
+	&"party_glass": Color(0.08, 0.1, 0.14, 0.45),
+	&"party_glass_hover": Color(0.12, 0.15, 0.2, 0.55),
+	&"party_glass_selected": Color(0.0, 0.42, 0.42, 0.42),
+	&"party_ink": Color(0.12, 0.08, 0.04, 1.0),
+	&"party_scrim": Color(0.03, 0.04, 0.06, 0.72),
+	&"party_danger": Color(0.92, 0.3, 0.24, 1.0),
 }
 
 const _SCALARS := {
@@ -67,6 +78,23 @@ const _SCALARS := {
 	&"button_font_size": 22.0,
 	&"prompt_font_size": 16.0,
 	&"prompt_shadow_offset": 1.0,
+	&"party_border_width": 4.0,
+	&"party_bevel_width": 8.0,
+	&"party_corner_radius": 24.0,
+	&"party_pill_radius": 32.0,
+	&"party_button_depth": 6.0,
+	&"party_cta_depth": 9.0,
+	&"party_hover_tilt_deg": 1.0,
+	&"party_hover_scale": 1.06,
+	&"party_card_hover_scale": 1.08,
+	&"party_hover_duration": 0.16,
+	&"party_press_duration": 0.28,
+	&"party_glow_period": 1.3,
+	&"party_blur_lod": 3.2,
+	&"party_logo_rotation_deg": -2.0,
+	&"party_emote_interval": 3.4,
+	&"party_emote_bob": 7.0,
+	&"party_backdrop_h_offset": -0.55,
 }
 
 const _VECTORS := {
@@ -78,6 +106,13 @@ const _VECTORS := {
 	&"online_card_max": Vector2(1480.0, 900.0),
 	&"settings_panel_min": Vector2(460.0, 500.0),
 	&"settings_panel_max": Vector2(980.0, 760.0),
+	&"party_hud_margin": Vector2(36.0, 28.0),
+	&"party_card_min": Vector2(156.0, 184.0),
+	&"party_card_min_compact": Vector2(150.0, 120.0),
+	&"party_cta_min": Vector2(0.0, 112.0),
+	&"party_pill_min": Vector2(0.0, 64.0),
+	&"party_tray_button": Vector2(58.0, 58.0),
+	&"party_avatar": Vector2(64.0, 64.0),
 }
 
 

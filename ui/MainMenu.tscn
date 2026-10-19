@@ -1,203 +1,320 @@
-[gd_scene format=3 uid="uid://mivm8hug1hpm"]
+[gd_scene load_steps=8 format=3 uid="uid://mivm8hug1hpm"]
 
 [ext_resource type="PackedScene" path="res://ui/widgets/StatusBanner.tscn" id="1"]
 [ext_resource type="Script" uid="uid://2lyp1r7xli6q" path="res://ui/MainMenu.gd" id="2"]
 [ext_resource type="Theme" uid="uid://bjnxaxc45emnm" path="res://ui/themes/okey_theme_kenney.tres" id="3"]
-[ext_resource type="PackedScene" path="res://ui/widgets/IconTextButton.tscn" id="4"]
 
 [sub_resource type="Gradient" id="1"]
-offsets = PackedFloat32Array(0, 0, 1)
-colors = PackedColorArray(0.09, 0.11, 0.08, 1, 0.15, 0.17, 0.11, 1, 0.21, 0.2, 0.13, 1)
+offsets = PackedFloat32Array(0, 0.55, 1)
+colors = PackedColorArray(0.05, 0.07, 0.1, 1, 0.08, 0.12, 0.14, 1, 0.16, 0.1, 0.06, 1)
 
 [sub_resource type="GradientTexture2D" id="2"]
 gradient = SubResource("1")
-width = 4
-height = 4
+fill_from = Vector2(0, 0)
+fill_to = Vector2(1, 1)
 
-[node name="MainMenu" type="Control" unique_id=517934236]
+[sub_resource type="Gradient" id="3"]
+offsets = PackedFloat32Array(0, 0.38, 0.62)
+colors = PackedColorArray(0.03, 0.04, 0.06, 0.78, 0.03, 0.04, 0.06, 0.42, 0.03, 0.04, 0.06, 0)
+
+[sub_resource type="GradientTexture2D" id="4"]
+gradient = SubResource("3")
+fill_from = Vector2(0, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[node name="MainMenu" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme = ExtResource("3")
 script = ExtResource("2")
 
-[node name="Background" type="TextureRect" parent="." unique_id=663981983]
-layout_mode = 0
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
 texture = SubResource("2")
 expand_mode = 1
-stretch_mode = 5
 
-[node name="BackdropTint" type="ColorRect" parent="." unique_id=1358222646]
-layout_mode = 0
-anchor_right = 1.0
-anchor_bottom = 1.0
-mouse_filter = 2
-color = Color(0.07, 0.06, 0.04, 0.68)
-
-[node name="StatusBanner" parent="." unique_id=2059126916 instance=ExtResource("1")]
-layout_mode = 0
-anchors_preset = 0
-anchor_right = 0.0
-
-[node name="LayoutSplit" type="Control" parent="." unique_id=1521971604]
-layout_mode = 0
-anchor_right = 1.0
-anchor_bottom = 1.0
-
-[node name="BrandingArea" type="Control" parent="LayoutSplit" unique_id=856038983]
+[node name="BackdropViewportContainer" type="SubViewportContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-mouse_filter = 2
-
-[node name="BrandTitle" type="Label" parent="LayoutSplit/BrandingArea" unique_id=2013924831]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -124.00006
-offset_top = -95.0
-offset_right = 484.0
-offset_bottom = 56.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_colors/font_color = Color(0.96, 0.9, 0.78, 0.15)
-theme_override_font_sizes/font_size = 72
-text = "Project Tabletop"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="CardArea" type="Control" parent="LayoutSplit" unique_id=1418051203]
-custom_minimum_size = Vector2(560, 900)
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 1.0
-anchor_top = 0.5
-anchor_right = 1.0
-anchor_bottom = 0.5
-offset_left = -640.0
-offset_top = -450.0
-offset_right = -80.0
-offset_bottom = 450.0
 mouse_filter = 2
+stretch = true
 
-[node name="MenuCard" type="PanelContainer" parent="LayoutSplit/CardArea" unique_id=1175053708]
+[node name="SubViewport" type="SubViewport" parent="BackdropViewportContainer"]
+own_world_3d = true
+handle_input_locally = false
+size = Vector2i(1920, 1080)
+render_target_update_mode = 4
+
+[node name="LeftScrim" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = SubResource("4")
+expand_mode = 1
 
-[node name="MarginContainer" type="MarginContainer" parent="LayoutSplit/CardArea/MenuCard" unique_id=1010021676]
-layout_mode = 2
-theme_override_constants/margin_left = 34
-theme_override_constants/margin_top = 26
-theme_override_constants/margin_right = 34
-theme_override_constants/margin_bottom = 24
+[node name="EmoteLayer" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="LayoutSplit/CardArea/MenuCard/MarginContainer" unique_id=1664188455]
+[node name="HUD" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 36
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 36
+theme_override_constants/margin_bottom = 28
+
+[node name="HUDColumn" type="VBoxContainer" parent="HUD"]
 layout_mode = 2
-theme_override_constants/separation = 12
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="TopBar" type="HBoxContainer" parent="HUD/HUDColumn"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="ProfilePill" type="PanelContainer" parent="HUD/HUDColumn/TopBar"]
+layout_mode = 2
+
+[node name="ProfileRow" type="HBoxContainer" parent="HUD/HUDColumn/TopBar/ProfilePill"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="AvatarFrame" type="PanelContainer" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow"]
+clip_children = 1
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="Avatar" type="TextureRect" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/AvatarFrame"]
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="ProfileText" type="VBoxContainer" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
 alignment = 1
 
-[node name="Title" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1507955233]
-custom_minimum_size = Vector2(0, 82)
+[node name="Nickname" type="Label" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.96, 0.9, 0.78, 1)
-theme_override_font_sizes/font_size = 48
-text = "Project Tabletop"
-horizontal_alignment = 1
+text = "Player"
 
-[node name="Subtitle" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1458299081]
-custom_minimum_size = Vector2(0, 30)
+[node name="BadgeRow" type="HBoxContainer" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.9, 0.85, 0.75, 0.95)
-theme_override_font_sizes/font_size = 20
-text = "Multiplayer tabletop hub"
-horizontal_alignment = 1
+mouse_filter = 2
+theme_override_constants/separation = 8
 
-[node name="Version" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1322442475]
-modulate = Color(0.86, 0.93, 0.95, 0.82)
-custom_minimum_size = Vector2(0, 20)
+[node name="LeaderBadge" type="PanelContainer" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/BadgeRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = "v0.1.0"
-horizontal_alignment = 1
+mouse_filter = 2
 
-[node name="SettingsSummary" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1074498550]
-custom_minimum_size = Vector2(0, 26)
+[node name="LeaderRow" type="HBoxContainer" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/BadgeRow/LeaderBadge"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "Select a game"
-horizontal_alignment = 1
-autowrap_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
 
-[node name="MetaChips" type="HBoxContainer" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1350599277]
-custom_minimum_size = Vector2(0, 28)
+[node name="CrownIcon" type="TextureRect" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/BadgeRow/LeaderBadge/LeaderRow"]
+custom_minimum_size = Vector2(18, 18)
 layout_mode = 2
-size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="LeaderLabel" type="Label" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/BadgeRow/LeaderBadge/LeaderRow"]
+layout_mode = 2
+text = "PARTY LEADER"
+
+[node name="StatusDot" type="Panel" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/BadgeRow"]
+custom_minimum_size = Vector2(12, 12)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="StatusLabel" type="Label" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/BadgeRow"]
+layout_mode = 2
+text = "Offline"
+
+[node name="LoginButton" type="Button" parent="HUD/HUDColumn/TopBar/ProfilePill/ProfileRow"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 4
+text = "Login"
+
+[node name="TopSpacer" type="Control" parent="HUD/HUDColumn/TopBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="PartyTray" type="PanelContainer" parent="HUD/HUDColumn/TopBar"]
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="TrayRow" type="HBoxContainer" parent="HUD/HUDColumn/TopBar/PartyTray"]
+layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 10
+
+[node name="InviteButton" type="Button" parent="HUD/HUDColumn/TopBar/PartyTray/TrayRow"]
+custom_minimum_size = Vector2(58, 58)
+layout_mode = 2
+tooltip_text = "Invite friends"
+text = "+"
+
+[node name="MicToggle" type="Button" parent="HUD/HUDColumn/TopBar/PartyTray/TrayRow"]
+custom_minimum_size = Vector2(58, 58)
+layout_mode = 2
+tooltip_text = "Toggle audio"
+toggle_mode = true
+text = "MIC"
+
+[node name="SettingsButton" type="Button" parent="HUD/HUDColumn/TopBar/PartyTray/TrayRow"]
+custom_minimum_size = Vector2(58, 58)
+layout_mode = 2
+tooltip_text = "Settings"
+expand_icon = true
+
+[node name="QuitButton" type="Button" parent="HUD/HUDColumn/TopBar/PartyTray/TrayRow"]
+custom_minimum_size = Vector2(58, 58)
+layout_mode = 2
+tooltip_text = "Quit"
+expand_icon = true
+
+[node name="BodySplit" type="HBoxContainer" parent="HUD/HUDColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 0
+
+[node name="ActionZone" type="VBoxContainer" parent="HUD/HUDColumn/BodySplit"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+mouse_filter = 2
+theme_override_constants/separation = 14
+alignment = 2
+
+[node name="GameLogo" type="VBoxContainer" parent="HUD/HUDColumn/BodySplit/ActionZone"]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+theme_override_constants/separation = -8
+
+[node name="LogoTop" type="Label" parent="HUD/HUDColumn/BodySplit/ActionZone/GameLogo"]
+layout_mode = 2
+text = "TABLETOP PARTY"
+
+[node name="LogoBottom" type="Label" parent="HUD/HUDColumn/BodySplit/ActionZone/GameLogo"]
+layout_mode = 2
+text = "101 OKEY"
+
+[node name="ModesHeader" type="Label" parent="HUD/HUDColumn/BodySplit/ActionZone"]
+layout_mode = 2
+text = "PICK A GAME"
+
+[node name="ModeCards" type="GridContainer" parent="HUD/HUDColumn/BodySplit/ActionZone"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 14
+columns = 4
+
+[node name="SettingsSummary" type="Label" parent="HUD/HUDColumn/BodySplit/ActionZone"]
+layout_mode = 2
+text = "Selected: Okey 101"
+clip_text = true
+
+[node name="StartButton" type="Button" parent="HUD/HUDColumn/BodySplit/ActionZone"]
+custom_minimum_size = Vector2(0, 112)
+layout_mode = 2
+tooltip_text = "Play now"
+
+[node name="CTAContent" type="VBoxContainer" parent="HUD/HUDColumn/BodySplit/ActionZone/StartButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = -4
 alignment = 1
 
-[node name="PlayersChipIcon" type="TextureRect" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=1169313948]
-custom_minimum_size = Vector2(22, 22)
+[node name="CTATitle" type="Label" parent="HUD/HUDColumn/BodySplit/ActionZone/StartButton/CTAContent"]
 layout_mode = 2
-expand_mode = 1
-stretch_mode = 5
+text = "MASAYA OTUR"
+horizontal_alignment = 1
 
-[node name="PlayersChip" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=912237505]
+[node name="CTASub" type="Label" parent="HUD/HUDColumn/BodySplit/ActionZone/StartButton/CTAContent"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = "4 Players"
+text = "PLAY NOW"
+horizontal_alignment = 1
 
-[node name="TimerChipIcon" type="TextureRect" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=694248675]
-custom_minimum_size = Vector2(22, 22)
+[node name="SecondaryRow" type="HBoxContainer" parent="HUD/HUDColumn/BodySplit/ActionZone"]
 layout_mode = 2
-expand_mode = 1
-stretch_mode = 5
+mouse_filter = 2
+theme_override_constants/separation = 14
 
-[node name="TimerChip" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=211025412]
+[node name="CustomizeButton" type="Button" parent="HUD/HUDColumn/BodySplit/ActionZone/SecondaryRow"]
+custom_minimum_size = Vector2(0, 64)
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = "45s Turn"
+size_flags_horizontal = 3
+tooltip_text = "Customize your character"
 
-[node name="OnlineChipIcon" type="TextureRect" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=2089669140]
-custom_minimum_size = Vector2(22, 22)
+[node name="RulesButton" type="Button" parent="HUD/HUDColumn/BodySplit/ActionZone/SecondaryRow"]
+custom_minimum_size = Vector2(0, 64)
 layout_mode = 2
-expand_mode = 1
-stretch_mode = 5
+size_flags_horizontal = 3
+tooltip_text = "Table rules and settings"
 
-[node name="OnlineChip" type="Label" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips" unique_id=1007595325]
+[node name="OpenViewport" type="Control" parent="HUD/HUDColumn/BodySplit"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = "Online: Checking"
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 3.0
+mouse_filter = 2
 
-[node name="Spacer1" type="Control" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=1487578678]
-custom_minimum_size = Vector2(0, 14)
-layout_mode = 2
-
-[node name="Buttons" type="VBoxContainer" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer" unique_id=140870896]
-layout_mode = 2
-
-[node name="StartButton" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons" unique_id=2027999593 instance=ExtResource("4")]
-layout_mode = 2
-text = "Play with Bots"
-button_label = "Play with Bots"
-
-[node name="SettingsButton" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons" unique_id=80249520 instance=ExtResource("4")]
-layout_mode = 2
-text = "Settings"
-button_label = "Settings"
-
-[node name="QuitButton" parent="LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons" unique_id=1510276772 instance=ExtResource("4")]
-layout_mode = 2
-text = "Quit"
-button_label = "Quit"
+[node name="StatusBanner" parent="." instance=ExtResource("1")]
+layout_mode = 0
+anchor_right = 0.0
+anchor_bottom = 0.0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 0.0
+grow_horizontal = 1
+grow_vertical = 1

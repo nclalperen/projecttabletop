@@ -1,82 +1,107 @@
 extends Control
 
-@onready var _banner: Node = $StatusBanner
-@onready var _background: TextureRect = $Background
-@onready var _menu_vbox: VBoxContainer = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer
-@onready var _title_label: Label = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Title
-@onready var _subtitle_label: Label = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Subtitle
-@onready var _start_button: Button = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons/StartButton
-@onready var _buttons_box: VBoxContainer = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons
-@onready var _settings_button: Button = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons/SettingsButton
-@onready var _quit_button: Button = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/Buttons/QuitButton
-@onready var _menu_card: PanelContainer = $LayoutSplit/CardArea/MenuCard
-@onready var _card_area: Control = $LayoutSplit/CardArea
-@onready var _settings_summary: Label = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/SettingsSummary
-@onready var _players_chip_icon: TextureRect = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/PlayersChipIcon
-@onready var _players_chip: Label = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/PlayersChip
-@onready var _timer_chip_icon: TextureRect = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/TimerChipIcon
-@onready var _timer_chip: Label = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/TimerChip
-@onready var _online_chip_icon: TextureRect = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/OnlineChipIcon
-@onready var _online_chip: Label = $LayoutSplit/CardArea/MenuCard/MarginContainer/VBoxContainer/MetaChips/OnlineChip
-@onready var _branding_area: Control = $LayoutSplit/BrandingArea
+## Party-game main menu: a 2D HUD floating over a live 3D table backdrop.
+## The HUD owns the left 40% action zone; the right 60% stays open for the scene.
+
+signal cta_hovered
+signal cta_pressed
 
 const SETTINGS_MENU_SCENE_PATH: String = "res://ui/SettingsMenu.tscn"
 const ONLINE_LOBBY_SCENE_PATH: String = "res://ui/OnlineLobby.tscn"
+const BACKDROP_SCENE_PATH: String = "res://ui/menu_backdrop/MenuBackdrop3D.tscn"
+const GLASS_SHADER_PATH: String = "res://ui/shaders/glass_blur.gdshader"
 const ONLINE_SERVICE_SCRIPT: Script = preload("res://net/OnlineServiceEOS.gd")
 const RULE_CONFIG_SCRIPT_PATH: String = "res://core/rules/RuleConfig.gd"
 const MENU_AUDIO_SERVICE_SCRIPT: Script = preload("res://ui/services/MenuAudioService.gd")
 const UI_SETTINGS_SCRIPT: Script = preload("res://ui/services/UISettings.gd")
 const DISPLAY_SETTINGS_SCRIPT: Script = preload("res://ui/services/DisplaySettingsService.gd")
 const PLATFORM_PROFILE_SCRIPT: Script = preload("res://ui/services/PlatformProfile.gd")
+const VISUAL_QUALITY: Script = preload("res://ui/services/VisualQualityService.gd")
 const MENU_STYLE: Script = preload("res://ui/services/MenuStyleRegistry.gd")
-const ICON_BUTTON_SCENE: PackedScene = preload("res://ui/widgets/IconTextButton.tscn")
 const ASSET_REGISTRY: Script = preload("res://gd/assets/AssetRegistry.gd")
 const ASSET_IDS: Script = preload("res://gd/assets/AssetIds.gd")
 const PLAYER_PROFILE: Script = preload("res://ui/services/PlayerProfile.gd")
 const GAME_CATALOG: Script = preload("res://gd/config/TabletopGameCatalog.gd")
+const INPUT_PROMPT_SCENE: PackedScene = preload("res://ui/widgets/InputPromptBadge.tscn")
 
-const PANEL_BORDER_ID: StringName = ASSET_IDS.UI_PANEL_BORDER_GREY_DETAIL
-const PANEL_FILL_ID: StringName = ASSET_IDS.UI_PANEL_GREY_DARK
-const PANEL_GRID_ID: StringName = ASSET_IDS.UI_PANEL_PATTERN_DIAGONAL_TRANSPARENT_SMALL
-const ICON_START_ID: StringName = ASSET_IDS.UI_ICON_CARD_ADD
-const ICON_ONLINE_ID: StringName = ASSET_IDS.UI_ICON_PAWNS
-const ICON_SETTINGS_ID: StringName = ASSET_IDS.UI_ICON_GEAR
-const ICON_QUIT_ID: StringName = ASSET_IDS.UI_ICON_CROSS
-const ICON_TIMER_ID: StringName = ASSET_IDS.UI_ICON_TIMER_100
-const ICON_ONLINE_LOCKED_ID: StringName = ASSET_IDS.UI_ICON_LOCK_CLOSED
-const ICON_ONLINE_UNLOCKED_ID: StringName = ASSET_IDS.UI_ICON_LOCK_OPEN
-
-const WELCOME_MESSAGES: Array[String] = [
-	"Welcome %s. Pick a table and bring the room together.",
-	"Welcome %s. Poker, blackjack, backgammon, and chess are on deck.",
-	"Welcome %s. The project is a tabletop hub now, not a single-game menu.",
-	"Welcome %s. Multiplayer first, more rulesets next.",
-	"Welcome %s. Choose a board, choose a seat, start a session.",
-	"Welcome %s. Okey 101 is ready. Build a run and join the fun.",
+const AVATAR_IDS: Array[StringName] = [
+	ASSET_IDS.UI_AVATAR_FACE_1,
+	ASSET_IDS.UI_AVATAR_FACE_2,
+	ASSET_IDS.UI_AVATAR_FACE_3,
+	ASSET_IDS.UI_AVATAR_FACE_4,
 ]
+
+## Featured party modes, in display order. Titles use the table's local name.
+const MODE_CARDS: Array[Dictionary] = [
+	{"id": &"okey101", "title": "Okey 101", "chaos": "Joker Rain", "icon": ASSET_IDS.UI_ICON_CARDS_STACK},
+	{"id": &"backgammon", "title": "Tavla", "chaos": "Double Dice", "icon": ASSET_IDS.UI_ICON_PAWNS},
+	{"id": &"poker", "title": "Poker", "chaos": "All-In Frenzy", "icon": ASSET_IDS.UI_ICON_CARD_ADD},
+	{"id": &"chess", "title": "Satranç", "chaos": "Blitz Clock", "icon": ASSET_IDS.UI_ICON_CROWN_A},
+]
+
+const EMOTE_LINES: Array[String] = ["Hadi, masaya!", "101!", "GG!", "Okey var mı?", "Let's party!", "Bir el daha?"]
+const REACTION_LINES: Array[String] = ["+1", "WOW", "Hahaha", "Ooo!"]
+
+@onready var _banner: Node = $StatusBanner
+@onready var _background: TextureRect = $Background
+@onready var _viewport_container: SubViewportContainer = $BackdropViewportContainer
+@onready var _sub_viewport: SubViewport = $BackdropViewportContainer/SubViewport
+@onready var _left_scrim: TextureRect = $LeftScrim
+@onready var _emote_layer: Control = $EmoteLayer
+@onready var _hud: MarginContainer = $HUD
+@onready var _profile_pill: PanelContainer = $HUD/HUDColumn/TopBar/ProfilePill
+@onready var _avatar_frame: PanelContainer = $HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/AvatarFrame
+@onready var _avatar: TextureRect = $HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/AvatarFrame/Avatar
+@onready var _nickname: Label = $HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/Nickname
+@onready var _leader_badge: PanelContainer = $HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/BadgeRow/LeaderBadge
+@onready var _crown_icon: TextureRect = $HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/BadgeRow/LeaderBadge/LeaderRow/CrownIcon
+@onready var _leader_label: Label = $HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/BadgeRow/LeaderBadge/LeaderRow/LeaderLabel
+@onready var _status_dot: Panel = $HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/BadgeRow/StatusDot
+@onready var _status_label: Label = $HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/ProfileText/BadgeRow/StatusLabel
+@onready var _login_btn: Button = $HUD/HUDColumn/TopBar/ProfilePill/ProfileRow/LoginButton
+@onready var _party_tray: PanelContainer = $HUD/HUDColumn/TopBar/PartyTray
+@onready var _invite_button: Button = $HUD/HUDColumn/TopBar/PartyTray/TrayRow/InviteButton
+@onready var _mic_toggle: Button = $HUD/HUDColumn/TopBar/PartyTray/TrayRow/MicToggle
+@onready var _settings_button: Button = $HUD/HUDColumn/TopBar/PartyTray/TrayRow/SettingsButton
+@onready var _quit_button: Button = $HUD/HUDColumn/TopBar/PartyTray/TrayRow/QuitButton
+@onready var _game_logo: VBoxContainer = $HUD/HUDColumn/BodySplit/ActionZone/GameLogo
+@onready var _logo_top: Label = $HUD/HUDColumn/BodySplit/ActionZone/GameLogo/LogoTop
+@onready var _logo_bottom: Label = $HUD/HUDColumn/BodySplit/ActionZone/GameLogo/LogoBottom
+@onready var _modes_header: Label = $HUD/HUDColumn/BodySplit/ActionZone/ModesHeader
+@onready var _mode_grid: GridContainer = $HUD/HUDColumn/BodySplit/ActionZone/ModeCards
+@onready var _settings_summary: Label = $HUD/HUDColumn/BodySplit/ActionZone/SettingsSummary
+@onready var _start_button: Button = $HUD/HUDColumn/BodySplit/ActionZone/StartButton
+@onready var _cta_title: Label = $HUD/HUDColumn/BodySplit/ActionZone/StartButton/CTAContent/CTATitle
+@onready var _cta_sub: Label = $HUD/HUDColumn/BodySplit/ActionZone/StartButton/CTAContent/CTASub
+@onready var _customize_button: Button = $HUD/HUDColumn/BodySplit/ActionZone/SecondaryRow/CustomizeButton
+@onready var _rules_button: Button = $HUD/HUDColumn/BodySplit/ActionZone/SecondaryRow/RulesButton
 
 # Game configuration
 var selected_game_id: StringName = GAME_CATALOG.default_game_id()
 var player_count: int = GAME_CATALOG.default_player_count(GAME_CATALOG.default_game_id())
 var game_seed: int = -1  # -1 means random
 var rule_config = null
-var _animations_enabled: bool = true
 var presentation_mode: String = PLATFORM_PROFILE_SCRIPT.default_presentation_mode()
-var _online_button: Button = null
-var _customize_button: Button = null
+
+var _animations_enabled: bool = true
+var _reduced_motion: bool = false
+var _blur_enabled: bool = false
+var _visual_settings: Dictionary = {}
 var _menu_audio = null
 var _online_available: bool = false
 var _logged_in: bool = false
-var _game_buttons: Dictionary = {}
-var _player_count_buttons: Array[Button] = []
-var _game_description_label: Label = null
-var _player_count_row: HBoxContainer = null
-
-# Online status UI
-var _status_dot: ColorRect = null
-var _login_btn: Button = null
-var _welcome_label: Label = null
-var _quit_x_btn: Button = null
+var _display_font: Font = null
+var _body_font: Font = null
+var _glass_material: ShaderMaterial = null
+var _backdrop: Node3D = null
+var _mode_buttons: Dictionary = {}
+var _mode_chaos_labels: Array[Label] = []
+var _juice_tweens: Dictionary = {}
+var _cta_glow: Panel = null
+var _emote_bubbles: Array[Control] = []
+var _emote_timer: float = 0.0
+var _emote_index: int = 0
+var _time: float = 0.0
 
 
 func _make_rule_config():
@@ -91,482 +116,728 @@ func _ready() -> void:
 		_menu_audio = MENU_AUDIO_SERVICE_SCRIPT.new()
 		_menu_audio.name = "MenuAudioService"
 		add_child(_menu_audio)
-	_start_button.pressed.connect(_on_start_pressed)
-	_settings_button.pressed.connect(_on_settings_pressed)
-	_quit_button.pressed.connect(_on_quit_pressed)
-
+	PLAYER_PROFILE.ensure_loaded()
 	rule_config = _make_rule_config()
+
 	var ui_settings: Dictionary = UI_SETTINGS_SCRIPT.load_from_disk()
 	_sync_presentation_mode_from_settings(ui_settings)
 	_apply_runtime_display_settings(ui_settings)
-	_apply_background_pattern()
-	_apply_panel_shell()
-	_ensure_online_button()
-	_ensure_customize_button()
-	_build_game_selector()
-	_apply_kenney_fonts()
-	_apply_meta_chip_icons()
-	_apply_main_button_icons()
-	_build_top_right_status()
-	_build_branding_welcome()
-	_apply_responsive_layout()
+	_visual_settings = VISUAL_QUALITY.sanitize(ui_settings)
+	_reduced_motion = bool(ui_settings.get("reduced_motion", false))
+	_blur_enabled = _should_enable_blur()
+
+	_load_fonts()
+	_setup_backdrop()
+	_style_hud()
+	_build_mode_cards()
+	_build_cta_extras()
+	_build_emote_bubbles()
+	_connect_signals()
+	_wire_focus()
+	_probe_online()
+	_refresh_profile()
 	_apply_selected_game_state()
+	_apply_responsive_layout()
 
 	if _banner != null and _banner.has_method("set_text"):
 		_banner.call("set_text", "")
-
-	_refresh_settings_summary()
-	_sync_meta_chips()
-	_bind_button_feedback()
 	_animate_menu_in()
+	if not Input.get_connected_joypads().is_empty():
+		_start_button.grab_focus()
+
+
+func _process(delta: float) -> void:
+	_time += delta
+	_update_emote_bubbles(delta)
+
+
+# ═══════════════════════════════════════════
+# 3D BACKDROP
+# ═══════════════════════════════════════════
+
+func _setup_backdrop() -> void:
+	var headless: bool = DisplayServer.get_name() == "headless"
+	if headless:
+		_viewport_container.visible = false
+		_sub_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		return
+	var scene: PackedScene = load(BACKDROP_SCENE_PATH)
+	if scene == null:
+		_viewport_container.visible = false
+		return
+	VISUAL_QUALITY.apply_to_viewport(_sub_viewport, _visual_settings)
+	_backdrop = scene.instantiate() as Node3D
+	if _backdrop == null:
+		_viewport_container.visible = false
+		return
+	_backdrop.set("visual_settings", _visual_settings)
+	_backdrop.set("camera_h_offset", _style_scalar(&"party_backdrop_h_offset"))
+	if _reduced_motion:
+		_backdrop.set("orbit_degrees", 0.0)
+	_sub_viewport.add_child(_backdrop)
+	if _backdrop.has_method("play_wave"):
+		cta_hovered.connect(Callable(_backdrop, "play_wave"))
+	if _backdrop.has_method("play_cheer"):
+		cta_pressed.connect(Callable(_backdrop, "play_cheer"))
+
+
+func _pause_backdrop() -> void:
+	if _backdrop != null and _backdrop.has_method("set_paused"):
+		_backdrop.call("set_paused", true)
+	if _sub_viewport != null:
+		_sub_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
+
+func _should_enable_blur() -> bool:
+	if DisplayServer.get_name() == "headless":
+		return false
+	if OS.has_feature("web") or OS.has_feature("mobile"):
+		return false
+	var profile: String = str(_visual_settings.get("graphics_profile", "medium"))
+	return profile == VISUAL_QUALITY.PROFILE_HIGH or profile == VISUAL_QUALITY.PROFILE_ULTRA
+
+
+# ═══════════════════════════════════════════
+# STYLING
+# ═══════════════════════════════════════════
+
+func _load_fonts() -> void:
+	_display_font = ASSET_REGISTRY.font(ASSET_IDS.UI_FONT_KENNEY_FUTURE)
+	_body_font = ASSET_REGISTRY.font(ASSET_IDS.UI_FONT_BARLOW_CONDENSED_BOLD)
+	if _body_font == null:
+		_body_font = _display_font
+
+
+func _font_for(text: String, prefer_display: bool) -> Font:
+	if prefer_display and _display_font != null and _font_covers(_display_font, text):
+		return _display_font
+	return _body_font
+
+
+func _font_covers(font: Font, text: String) -> bool:
+	for i in range(text.length()):
+		var code: int = text.unicode_at(i)
+		if code == 32:
+			continue
+		if not font.has_char(code):
+			return false
+	return true
+
+
+func _style_label(label: Label, text: String, size: int, color: Color, display: bool = false, outline: int = 0) -> void:
+	if label == null:
+		return
+	label.text = text
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var font: Font = _font_for(text, display)
+	if font != null:
+		label.add_theme_font_override("font", font)
+	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_color_override("font_color", color)
+	if outline > 0:
+		label.add_theme_constant_override("outline_size", outline)
+		label.add_theme_color_override("font_outline_color", _style_color(&"party_ink"))
+
+
+func _flat(fill: Color, border: Color, border_width: int, radius: int, depth: int = 0, depth_color: Color = Color(0, 0, 0, 0)) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = fill
+	sb.border_color = border
+	sb.set_border_width_all(border_width)
+	sb.set_corner_radius_all(radius)
+	sb.corner_detail = 10
+	sb.anti_aliasing = true
+	if depth > 0:
+		sb.shadow_color = depth_color
+		sb.shadow_size = 1
+		sb.shadow_offset = Vector2(0, depth)
+	return sb
+
+
+func _glass_style(fill: Color, border: Color, border_width: int, radius: int) -> StyleBoxFlat:
+	var sb := _flat(fill, border, border_width, radius)
+	sb.border_width_bottom = int(_style_scalar(&"party_bevel_width"))
+	if not _blur_enabled:
+		# Without the blur shader, deepen the fill so text stays legible over the 3D scene.
+		sb.bg_color = Color(fill.r, fill.g, fill.b, minf(fill.a + 0.3, 0.9))
+	return sb
+
+
+func _apply_glass(item: CanvasItem) -> void:
+	if not _blur_enabled or item == null:
+		return
+	if _glass_material == null:
+		var shader: Shader = load(GLASS_SHADER_PATH)
+		if shader == null:
+			_blur_enabled = false
+			return
+		_glass_material = ShaderMaterial.new()
+		_glass_material.shader = shader
+		_glass_material.set_shader_parameter("blur_lod", _style_scalar(&"party_blur_lod"))
+	item.material = _glass_material
+
+
+func _set_button_styles(button: Button, fill: Color, border: Color, radius: int, depth: int, depth_color: Color, font_color: Color) -> void:
+	var border_width: int = int(_style_scalar(&"party_border_width"))
+	var normal := _flat(fill, border, border_width, radius, depth, depth_color)
+	var hover := _flat(fill.lightened(0.1), border, border_width, radius, depth, depth_color)
+	var pressed := _flat(fill.darkened(0.1), border, border_width, radius, maxi(1, depth / 3), depth_color)
+	pressed.content_margin_top = float(depth - maxi(1, depth / 3))
+	var disabled := _flat(fill.darkened(0.4), border.darkened(0.4), border_width, radius)
+	var focus := _focus_ring(radius)
+	for pair in [["normal", normal], ["hover", hover], ["pressed", pressed], ["hover_pressed", pressed], ["disabled", disabled], ["focus", focus]]:
+		button.add_theme_stylebox_override(pair[0], pair[1])
+	for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+		button.add_theme_color_override(key, font_color)
+	button.add_theme_color_override("icon_normal_color", font_color)
+	button.add_theme_color_override("icon_hover_color", font_color)
+	button.add_theme_color_override("icon_pressed_color", font_color)
+	button.add_theme_color_override("icon_focus_color", font_color)
+	if _body_font != null:
+		button.add_theme_font_override("font", _body_font)
+
+
+func _focus_ring(radius: int) -> StyleBoxFlat:
+	var ring := _flat(Color(0, 0, 0, 0), _style_color(&"party_teal"), 4, radius + 6)
+	ring.draw_center = false
+	ring.set_expand_margin_all(6.0)
+	return ring
+
+
+func _style_hud() -> void:
+	var hud_margin: Vector2 = _style_vector(&"party_hud_margin")
+	for side in ["left", "right"]:
+		_hud.add_theme_constant_override("margin_" + side, int(hud_margin.x))
+	for side in ["top", "bottom"]:
+		_hud.add_theme_constant_override("margin_" + side, int(hud_margin.y))
+
+	if _background != null:
+		_background.visible = _backdrop == null
+	if _left_scrim != null:
+		_left_scrim.modulate = Color(1, 1, 1, 1.0 if _backdrop != null else 0.6)
+
+	var cream: Color = _style_color(&"party_cream")
+	var ink: Color = _style_color(&"party_ink")
+	var amber: Color = _style_color(&"party_amber")
+	var teal: Color = _style_color(&"party_teal")
+	var border_width: int = int(_style_scalar(&"party_border_width"))
+	var pill_radius: int = int(_style_scalar(&"party_pill_radius"))
+
+	# Profile pill
+	var profile_style := _glass_style(_style_color(&"party_glass"), cream, border_width, pill_radius)
+	profile_style.content_margin_left = 8
+	profile_style.content_margin_right = 22
+	profile_style.content_margin_top = 8
+	profile_style.content_margin_bottom = 8
+	_profile_pill.add_theme_stylebox_override("panel", profile_style)
+	_apply_glass(_profile_pill)
+	var avatar_size: Vector2 = _style_vector(&"party_avatar")
+	_avatar_frame.custom_minimum_size = avatar_size
+	_avatar_frame.add_theme_stylebox_override("panel", _flat(teal, teal, 0, int(avatar_size.x * 0.5)))
+	_style_label(_nickname, PLAYER_PROFILE.display_name, 26, cream)
+	var leader_style := _flat(amber, amber, 0, 12)
+	leader_style.content_margin_left = 8
+	leader_style.content_margin_right = 10
+	leader_style.content_margin_top = 1
+	leader_style.content_margin_bottom = 1
+	_leader_badge.add_theme_stylebox_override("panel", leader_style)
+	_crown_icon.texture = _texture(ASSET_IDS.UI_ICON_CROWN_A)
+	_crown_icon.modulate = ink
+	_style_label(_leader_label, "PARTY LEADER", 14, ink)
+	_style_label(_status_label, "Offline", 16, cream.darkened(0.15))
+
+	# Party tray
+	var tray_style := _glass_style(_style_color(&"party_glass"), cream, border_width, pill_radius)
+	tray_style.set_content_margin_all(8)
+	tray_style.content_margin_bottom = 12
+	_party_tray.add_theme_stylebox_override("panel", tray_style)
+	_apply_glass(_party_tray)
+	var tray_size: Vector2 = _style_vector(&"party_tray_button")
+	var tray_depth: int = int(_style_scalar(&"party_button_depth")) - 2
+	for button in [_invite_button, _mic_toggle, _settings_button, _quit_button]:
+		button.custom_minimum_size = tray_size
+		button.pivot_offset = tray_size * 0.5
+		_set_button_styles(button, cream, cream, int(tray_size.x * 0.5), tray_depth, cream.darkened(0.45), ink)
+		button.add_theme_font_size_override("font_size", 18)
+	_invite_button.add_theme_font_size_override("font_size", 34)
+	_set_button_styles(_quit_button, _style_color(&"party_danger"), cream, int(tray_size.x * 0.5), tray_depth, _style_color(&"party_danger").darkened(0.45), cream)
+	_settings_button.icon = _texture(ASSET_IDS.UI_ICON_GEAR)
+	_quit_button.icon = _texture(ASSET_IDS.UI_ICON_CROSS)
+	for button in [_settings_button, _quit_button]:
+		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.expand_icon = true
+		for key in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+			var sb: StyleBox = button.get_theme_stylebox(key)
+			if sb != null:
+				sb.set_content_margin_all(14)
+
+	# Login pill
+	_set_button_styles(_login_btn, teal, cream, 18, 4, teal.darkened(0.45), ink)
+	_login_btn.add_theme_font_size_override("font_size", 18)
+	_login_btn.custom_minimum_size = Vector2(96, 40)
+
+	# Logo
+	var logo_rotation: float = deg_to_rad(_style_scalar(&"party_logo_rotation_deg"))
+	_game_logo.rotation = 0.0 if _reduced_motion else logo_rotation
+	_style_label(_logo_top, "TABLETOP PARTY", 30, cream, true, 8)
+	_style_label(_logo_bottom, "101 OKEY", 96, amber, true, 14)
+	_logo_bottom.add_theme_color_override("font_shadow_color", _style_color(&"party_amber_deep"))
+	_logo_bottom.add_theme_constant_override("shadow_offset_x", 0)
+	_logo_bottom.add_theme_constant_override("shadow_offset_y", 8)
+	_logo_bottom.add_theme_constant_override("shadow_outline_size", 14)
+
+	_style_label(_modes_header, "OYUN SEÇ  ·  PICK A GAME", 20, cream.darkened(0.1))
+	_style_label(_settings_summary, "", 19, cream.darkened(0.2))
+
+	# Big CTA
+	var cta_min: Vector2 = _style_vector(&"party_cta_min")
+	_start_button.custom_minimum_size = cta_min
+	var cta_depth: int = int(_style_scalar(&"party_cta_depth"))
+	_set_button_styles(_start_button, amber, cream, 30, cta_depth, _style_color(&"party_amber_deep"), ink)
+	_start_button.text = ""
+	_style_label(_cta_title, "MASAYA OTUR", 46, ink, true)
+	_style_label(_cta_sub, "PLAY NOW", 18, ink.lightened(0.15), true)
+
+	# Secondary pills
+	var pill_min: Vector2 = _style_vector(&"party_pill_min")
+	for pair in [[_customize_button, "Karakter Stüdyosu", "CUSTOMIZE"], [_rules_button, "Masa Ayarları", "TABLE RULES"]]:
+		var button: Button = pair[0]
+		button.custom_minimum_size = pill_min
+		button.text = ""
+		var glass_fill: Color = _style_color(&"party_glass")
+		var style := _glass_style(glass_fill, cream, border_width, pill_radius)
+		var hover := _glass_style(_style_color(&"party_glass_hover"), cream, border_width, pill_radius)
+		var pressed := _glass_style(_style_color(&"party_glass_selected"), teal, border_width, pill_radius)
+		for key_style in [["normal", style], ["hover", hover], ["pressed", pressed], ["hover_pressed", pressed], ["disabled", style], ["focus", _focus_ring(pill_radius)]]:
+			button.add_theme_stylebox_override(key_style[0], key_style[1])
+		_apply_glass(button)
+		_stack_button_labels(button, pair[1], pair[2], 24, 13)
+
+
+func _stack_button_labels(button: Button, title: String, subtitle: String, title_size: int, subtitle_size: int) -> void:
+	var box := VBoxContainer.new()
+	box.name = "Content"
+	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", -2)
+	button.add_child(box)
+	var title_label := Label.new()
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_style_label(title_label, title, title_size, _style_color(&"party_cream"))
+	box.add_child(title_label)
+	var sub_label := Label.new()
+	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_style_label(sub_label, subtitle, subtitle_size, _style_color(&"party_teal"))
+	box.add_child(sub_label)
+	button.tooltip_text = "%s (%s)" % [title, subtitle.capitalize()]
+
+
+# ═══════════════════════════════════════════
+# MODE CARDS
+# ═══════════════════════════════════════════
+
+func _build_mode_cards() -> void:
+	for child in _mode_grid.get_children():
+		child.queue_free()
+	_mode_buttons.clear()
+	_mode_chaos_labels.clear()
+	var group := ButtonGroup.new()
+	var cream: Color = _style_color(&"party_cream")
+	var teal: Color = _style_color(&"party_teal")
+	var ink: Color = _style_color(&"party_ink")
+	var radius: int = int(_style_scalar(&"party_corner_radius"))
+	var border_width: int = int(_style_scalar(&"party_border_width"))
+	var card_min: Vector2 = _style_vector(&"party_card_min")
+	var available: Array = GAME_CATALOG.all_game_ids()
+
+	for entry in MODE_CARDS:
+		var game_id: StringName = entry["id"]
+		if not available.has(game_id):
+			continue
+		var card := Button.new()
+		card.name = "ModeCard_%s" % String(game_id)
+		card.toggle_mode = true
+		card.button_group = group
+		card.custom_minimum_size = card_min
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		card.tooltip_text = GAME_CATALOG.description(game_id)
+		card.pivot_offset = card_min * 0.5
+		var normal := _glass_style(_style_color(&"party_glass"), cream, border_width, radius)
+		var hover := _glass_style(_style_color(&"party_glass_hover"), cream, border_width, radius)
+		var selected := _glass_style(_style_color(&"party_glass_selected"), teal, border_width + 1, radius)
+		for key_style in [["normal", normal], ["hover", hover], ["pressed", selected], ["hover_pressed", selected], ["disabled", normal], ["focus", _focus_ring(radius)]]:
+			card.add_theme_stylebox_override(key_style[0], key_style[1])
+		_apply_glass(card)
+
+		var margin := MarginContainer.new()
+		margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+		margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for side in ["left", "right", "top"]:
+			margin.add_theme_constant_override("margin_" + side, 14)
+		margin.add_theme_constant_override("margin_bottom", 18)
+		card.add_child(margin)
+		var col := VBoxContainer.new()
+		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_theme_constant_override("separation", 6)
+		margin.add_child(col)
+
+		var icon := TextureRect.new()
+		icon.texture = _texture(entry["icon"])
+		icon.custom_minimum_size = Vector2(44, 44)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		icon.modulate = cream
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_child(icon)
+
+		var title := Label.new()
+		_style_label(title, String(entry["title"]), 28, cream)
+		col.add_child(title)
+
+		var badge := PanelContainer.new()
+		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		badge.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		var badge_style := _flat(_style_color(&"party_lime"), _style_color(&"party_lime"), 0, 10)
+		badge_style.content_margin_left = 8
+		badge_style.content_margin_right = 8
+		badge.add_theme_stylebox_override("panel", badge_style)
+		var badge_label := Label.new()
+		_style_label(badge_label, GAME_CATALOG.player_count_summary(game_id).to_upper(), 14, ink)
+		badge.add_child(badge_label)
+		col.add_child(badge)
+
+		var chaos := Label.new()
+		_style_label(chaos, "★ " + String(entry["chaos"]) if _body_font != null and _body_font.has_char(9733) else String(entry["chaos"]), 16, teal)
+		chaos.clip_text = true
+		col.add_child(chaos)
+		_mode_chaos_labels.append(chaos)
+
+		card.pressed.connect(_on_game_selected.bind(game_id))
+		_attach_juice(card, _style_scalar(&"party_card_hover_scale"))
+		_mode_grid.add_child(card)
+		_mode_buttons[String(game_id)] = card
+
+
+# ═══════════════════════════════════════════
+# CTA + JUICE
+# ═══════════════════════════════════════════
+
+func _build_cta_extras() -> void:
+	_cta_glow = Panel.new()
+	_cta_glow.name = "CTAGlow"
+	_cta_glow.show_behind_parent = true
+	_cta_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cta_glow.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var glow := _flat(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0, 34)
+	glow.shadow_color = Color(_style_color(&"party_amber"), 0.55)
+	glow.shadow_size = 26
+	_cta_glow.add_theme_stylebox_override("panel", glow)
+	_start_button.add_child(_cta_glow)
+
+	var prompt := INPUT_PROMPT_SCENE.instantiate()
+	prompt.name = "CTAPrompt"
+	_start_button.add_child(prompt)
+	if prompt.has_method("configure"):
+		prompt.call("configure", _texture(ASSET_IDS.UI_PROMPT_ENTER), "")
+	if prompt is Control:
+		var prompt_control := prompt as Control
+		prompt_control.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+		prompt_control.offset_left = -78
+		prompt_control.offset_right = -22
+		prompt_control.offset_top = -24
+		prompt_control.offset_bottom = 24
+		_ignore_mouse_recursive(prompt_control)
+
+	_attach_juice(_start_button, _style_scalar(&"party_hover_scale"))
+	if not _reduced_motion:
+		var period: float = _style_scalar(&"party_glow_period")
+		var pulse := create_tween().set_loops()
+		pulse.tween_property(_cta_glow, "modulate:a", 0.35, period * 0.5).set_trans(Tween.TRANS_SINE)
+		pulse.tween_property(_cta_glow, "modulate:a", 1.0, period * 0.5).set_trans(Tween.TRANS_SINE)
+
+
+func _ignore_mouse_recursive(node: Node) -> void:
+	if node is Control:
+		(node as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in node.get_children():
+		_ignore_mouse_recursive(child)
+
+
+func _attach_juice(control: Control, hover_scale: float) -> void:
+	control.mouse_entered.connect(_juice_hover.bind(control, hover_scale, true))
+	control.mouse_exited.connect(_juice_hover.bind(control, hover_scale, false))
+	control.focus_entered.connect(_juice_hover.bind(control, hover_scale, true))
+	control.focus_exited.connect(_juice_hover.bind(control, hover_scale, false))
+	control.resized.connect(func(): control.pivot_offset = control.size * 0.5)
+	if control is BaseButton:
+		(control as BaseButton).button_down.connect(_juice_press.bind(control))
+
+
+func _juice_tween(control: Control) -> Tween:
+	var key: int = control.get_instance_id()
+	var existing: Tween = _juice_tweens.get(key)
+	if existing != null and existing.is_valid():
+		existing.kill()
+	var tween := create_tween()
+	_juice_tweens[key] = tween
+	return tween
+
+
+func _juice_hover(control: Control, hover_scale: float, entering: bool) -> void:
+	if _reduced_motion or control == null:
+		return
+	var tween := _juice_tween(control)
+	var duration: float = _style_scalar(&"party_hover_duration")
+	tween.set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var target_scale: float = hover_scale if entering else 1.0
+	tween.tween_property(control, "scale", Vector2(target_scale, target_scale), duration)
+	var tilt: float = deg_to_rad(_style_scalar(&"party_hover_tilt_deg")) if entering else 0.0
+	tween.tween_property(control, "rotation", tilt, duration)
+
+
+func _juice_press(control: Control) -> void:
+	if _reduced_motion or control == null:
+		return
+	var tween := _juice_tween(control)
+	var duration: float = _style_scalar(&"party_press_duration")
+	control.scale = Vector2(0.92, 0.92)
+	tween.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(control, "scale", Vector2.ONE, duration)
 
 
 func _animate_menu_in() -> void:
-	if _menu_card == null:
+	if _reduced_motion or not _animations_enabled:
 		return
-	_menu_card.modulate = Color(1, 1, 1, 1)
-	for button in _button_list():
-		if button != null:
-			button.modulate = Color(1, 1, 1, 1)
+	_hud.modulate = Color(1, 1, 1, 0)
+	var fade := create_tween()
+	fade.tween_property(_hud, "modulate:a", 1.0, 0.3)
+	var delay: float = 0.08
+	for card in _mode_buttons.values():
+		var control: Control = card
+		control.scale = Vector2(0.85, 0.85)
+		var pop := create_tween()
+		pop.tween_interval(delay)
+		pop.tween_property(control, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		delay += 0.06
 
 
-func _bind_button_feedback() -> void:
-	for item in _button_list():
-		var b: Button = item
-		if b == null:
+# ═══════════════════════════════════════════
+# EMOTE BUBBLES (projected from 3D anchors)
+# ═══════════════════════════════════════════
+
+func _build_emote_bubbles() -> void:
+	if _backdrop == null or not _backdrop.has_method("get_emote_anchors"):
+		return
+	var anchors: Array = _backdrop.call("get_emote_anchors")
+	for i in range(anchors.size()):
+		var bubble := _make_bubble(EMOTE_LINES[0] if i == 0 else REACTION_LINES[0], i == 0)
+		bubble.set_meta("anchor", anchors[i])
+		bubble.set_meta("phase", float(i) * 1.7)
+		_emote_layer.add_child(bubble)
+		_emote_bubbles.append(bubble)
+
+
+func _make_bubble(text: String, large: bool) -> Control:
+	var root := Control.new()
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var body := PanelContainer.new()
+	body.name = "Body"
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var fill: Color = _style_color(&"party_cream") if large else _style_color(&"party_teal")
+	var style := _flat(fill, _style_color(&"party_ink"), 3, 22, 5, _style_color(&"party_ink"))
+	style.content_margin_left = 18
+	style.content_margin_right = 18
+	style.content_margin_top = 6
+	style.content_margin_bottom = 8
+	body.add_theme_stylebox_override("panel", style)
+	var label := Label.new()
+	label.name = "Text"
+	_style_label(label, text, 30 if large else 22, _style_color(&"party_ink"), false)
+	body.add_child(label)
+	var tail := Panel.new()
+	tail.name = "Tail"
+	tail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tail.size = Vector2(18, 18)
+	tail.pivot_offset = Vector2(9, 9)
+	tail.rotation = PI * 0.25
+	tail.show_behind_parent = false
+	var tail_style := _flat(fill, _style_color(&"party_ink"), 3, 3)
+	tail.add_theme_stylebox_override("panel", tail_style)
+	root.add_child(tail)
+	root.add_child(body)
+	_layout_bubble(root)
+	return root
+
+
+func _layout_bubble(root: Control) -> void:
+	var body := root.get_node("Body") as PanelContainer
+	var tail := root.get_node("Tail") as Panel
+	body.reset_size()
+	body.size = body.get_combined_minimum_size()
+	root.size = body.size
+	tail.position = Vector2(body.size.x * 0.5 - 9.0, body.size.y - 14.0)
+
+
+func _set_bubble_text(root: Control, text: String) -> void:
+	var label := root.get_node("Body/Text") as Label
+	label.text = text
+	var font: Font = _font_for(text, false)
+	if font != null:
+		label.add_theme_font_override("font", font)
+	_layout_bubble(root)
+	root.pivot_offset = Vector2(root.size.x * 0.5, root.size.y)
+	if not _reduced_motion:
+		root.scale = Vector2(0.4, 0.4)
+		var pop := create_tween()
+		pop.tween_property(root, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
+
+func _update_emote_bubbles(delta: float) -> void:
+	if _emote_bubbles.is_empty() or _backdrop == null:
+		return
+	var camera: Camera3D = _backdrop.call("get_camera") if _backdrop.has_method("get_camera") else null
+	if camera == null:
+		return
+	_emote_timer += delta
+	if _emote_timer >= _style_scalar(&"party_emote_interval"):
+		_emote_timer = 0.0
+		_emote_index += 1
+		_set_bubble_text(_emote_bubbles[0], EMOTE_LINES[_emote_index % EMOTE_LINES.size()])
+		if _emote_bubbles.size() > 1 and _emote_index % 2 == 0:
+			_set_bubble_text(_emote_bubbles[1], REACTION_LINES[(_emote_index / 2) % REACTION_LINES.size()])
+
+	var viewport_size := Vector2(_sub_viewport.size)
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return
+	var ratio: Vector2 = _viewport_container.size / viewport_size
+	var bob_amount: float = 0.0 if _reduced_motion else _style_scalar(&"party_emote_bob")
+	for bubble in _emote_bubbles:
+		var anchor := bubble.get_meta("anchor") as Node3D
+		if anchor == null or not is_instance_valid(anchor):
+			bubble.visible = false
 			continue
-		b.mouse_entered.connect(_on_menu_button_hover.bind(b))
-		b.button_down.connect(_on_menu_button_down.bind(b))
-		b.button_up.connect(_on_menu_button_up.bind(b))
+		var world_pos: Vector3 = anchor.global_position
+		if camera.is_position_behind(world_pos):
+			bubble.visible = false
+			continue
+		bubble.visible = true
+		var screen: Vector2 = camera.unproject_position(world_pos) * ratio
+		var bob: float = sin(_time * 2.4 + float(bubble.get_meta("phase"))) * bob_amount
+		bubble.position = screen - Vector2(bubble.size.x * 0.5, bubble.size.y + 12.0 + bob)
 
 
-func _on_menu_button_hover(_button: Button) -> void:
+# ═══════════════════════════════════════════
+# SIGNALS + FOCUS
+# ═══════════════════════════════════════════
+
+func _connect_signals() -> void:
+	_start_button.pressed.connect(_on_start_pressed)
+	_start_button.mouse_entered.connect(_on_cta_hovered)
+	_start_button.focus_entered.connect(_on_cta_hovered)
+	_settings_button.pressed.connect(_on_settings_pressed)
+	_rules_button.pressed.connect(_on_settings_pressed)
+	_quit_button.pressed.connect(_on_quit_pressed)
+	_invite_button.pressed.connect(_on_invite_pressed)
+	_mic_toggle.toggled.connect(_on_mic_toggled)
+	_customize_button.pressed.connect(_on_customize_pressed)
+	_login_btn.pressed.connect(_on_login_pressed)
+	if _menu_audio != null:
+		for button in [_invite_button, _settings_button, _customize_button, _rules_button, _login_btn]:
+			_menu_audio.bind_button(button)
+		_menu_audio.bind_button(_mic_toggle, true)
+		for card in _mode_buttons.values():
+			_menu_audio.bind_button(card, true)
+		_quit_button.mouse_entered.connect(_menu_audio.play_hover)
+	for button in [_invite_button, _mic_toggle, _settings_button, _quit_button, _customize_button, _rules_button]:
+		_attach_juice(button, _style_scalar(&"party_hover_scale"))
+
+
+func _wire_focus() -> void:
+	var tray: Array[Control] = [_invite_button, _mic_toggle, _settings_button, _quit_button]
+	var cards: Array[Control] = []
+	for card in _mode_buttons.values():
+		cards.append(card)
+	var first_card: Control = cards[0] if not cards.is_empty() else _start_button
+	for button in tray:
+		button.focus_neighbor_bottom = button.get_path_to(first_card)
+	for card in cards:
+		card.focus_neighbor_top = card.get_path_to(_settings_button)
+		card.focus_neighbor_bottom = card.get_path_to(_start_button)
+	_start_button.focus_neighbor_top = _start_button.get_path_to(first_card)
+	_start_button.focus_neighbor_bottom = _start_button.get_path_to(_customize_button)
+	for button in [_customize_button, _rules_button]:
+		button.focus_neighbor_top = button.get_path_to(_start_button)
+
+
+func _on_cta_hovered() -> void:
 	if _menu_audio != null:
 		_menu_audio.play_hover()
-
-
-func _on_menu_button_down(button: Button) -> void:
-	if button != null:
-		var scale_amount: float = _style_scalar(&"press_scale")
-		button.scale = Vector2(scale_amount, scale_amount)
-
-
-func _on_menu_button_up(button: Button) -> void:
-	if button != null:
-		button.scale = Vector2.ONE
-
-
-func _button_list() -> Array:
-	var buttons: Array = []
-	for button in [_start_button, _online_button, _customize_button, _settings_button, _quit_button]:
-		if button == null or not button.visible:
-			continue
-		buttons.append(button)
-	return buttons
-
-
-func _apply_main_button_icons() -> void:
-	_set_icon_text_button(_start_button, _texture(ICON_START_ID), "Open Multiplayer Lobby", 0)
-	_set_icon_text_button(_settings_button, _texture(ICON_SETTINGS_ID), "Settings", 1)
-	_set_icon_text_button(_quit_button, _texture(ICON_QUIT_ID), "Quit", 1)
-	if _online_button != null:
-		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_ID), "Play Online", 0)
-	if _customize_button != null:
-		_set_icon_text_button(_customize_button, _texture(ICON_SETTINGS_ID), "Roadmap", 1)
-
-
-func _set_icon_text_button(button: Button, icon_texture: Texture2D, label_text: String, variant: int = 0) -> void:
-	if button == null:
-		return
-	button.text = label_text
-	button.icon = icon_texture
-	if _has_property(button, "button_label"):
-		button.set("button_label", label_text)
-	if _has_property(button, "icon_texture"):
-		button.set("icon_texture", icon_texture)
-	if _has_property(button, "style_variant"):
-		button.set("style_variant", variant)
-
-
-func _has_property(target: Object, property_name: String) -> bool:
-	for entry in target.get_property_list():
-		if String(entry.get("name", "")) == property_name:
-			return true
-	return false
-
-
-func _texture(id: StringName) -> Texture2D:
-	return ASSET_REGISTRY.texture(id)
-
-
-func _apply_background_pattern() -> void:
-	if _background != null:
-		_background.texture = _texture(PANEL_GRID_ID)
-		_background.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-		_background.stretch_mode = TextureRect.STRETCH_TILE
-		_background.modulate = _style_color(&"bg_pattern")
-
-
-func _apply_panel_shell() -> void:
-	if _menu_card == null:
-		return
-	var panel_margin: float = _style_scalar(&"panel_margin")
-	var panel_content_x: float = _style_scalar(&"panel_content_x")
-	var panel_content_y: float = _style_scalar(&"panel_content_y")
-	var panel_tex: Texture2D = _texture(PANEL_FILL_ID)
-	if panel_tex != null:
-		var panel_style := StyleBoxTexture.new()
-		panel_style.texture = panel_tex
-		panel_style.modulate_color = _style_color(&"panel_shell")
-		panel_style.texture_margin_left = panel_margin
-		panel_style.texture_margin_top = panel_margin
-		panel_style.texture_margin_right = panel_margin
-		panel_style.texture_margin_bottom = panel_margin
-		panel_style.content_margin_left = panel_content_x
-		panel_style.content_margin_top = panel_content_y
-		panel_style.content_margin_right = panel_content_x
-		panel_style.content_margin_bottom = panel_content_y
-		_menu_card.add_theme_stylebox_override("panel", panel_style)
-	else:
-		var flat := StyleBoxFlat.new()
-		flat.bg_color = _style_color(&"panel_shell")
-		flat.corner_radius_top_left = 12
-		flat.corner_radius_top_right = 12
-		flat.corner_radius_bottom_left = 12
-		flat.corner_radius_bottom_right = 12
-		flat.border_width_left = 1
-		flat.border_width_top = 1
-		flat.border_width_right = 1
-		flat.border_width_bottom = 1
-		flat.border_color = _style_color(&"panel_border")
-		flat.content_margin_left = panel_content_x
-		flat.content_margin_top = panel_content_y
-		flat.content_margin_right = panel_content_x
-		flat.content_margin_bottom = panel_content_y
-		_menu_card.add_theme_stylebox_override("panel", flat)
-
-	var border_tex: Texture2D = _texture(PANEL_BORDER_ID)
-	if border_tex == null:
-		return
-	var border := _menu_card.get_node_or_null("KenneyBorder") as NinePatchRect
-	if border == null:
-		border = NinePatchRect.new()
-		border.name = "KenneyBorder"
-		border.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		border.draw_center = false
-		border.anchor_right = 1.0
-		border.anchor_bottom = 1.0
-		var border_margin: int = int(round(_style_scalar(&"panel_border_margin")))
-		border.patch_margin_left = border_margin
-		border.patch_margin_top = border_margin
-		border.patch_margin_right = border_margin
-		border.patch_margin_bottom = border_margin
-		_menu_card.add_child(border)
-	border.texture = border_tex
-	border.modulate = _style_color(&"panel_border")
-
-
-func _apply_meta_chip_icons() -> void:
-	if _players_chip_icon != null:
-		_players_chip_icon.texture = _texture(ICON_ONLINE_ID)
-		_players_chip_icon.modulate = _style_color(&"chip_icon")
-	if _timer_chip_icon != null:
-		_timer_chip_icon.texture = _texture(ICON_SETTINGS_ID)
-		_timer_chip_icon.modulate = _style_color(&"chip_icon")
-	_update_online_chip_icon()
-
-
-func _update_online_chip_icon() -> void:
-	if _online_chip_icon == null:
-		return
-	var locked: bool = not _online_available
-	_online_chip_icon.texture = _texture(ICON_ONLINE_LOCKED_ID if locked else ICON_ONLINE_UNLOCKED_ID)
-
-
-func _apply_kenney_fonts() -> void:
-	var title: Label = _title_label
-	var subtitle: Label = _subtitle_label
-	var version: Label = _menu_card.get_node("MarginContainer/VBoxContainer/Version")
-	var summary: Label = _menu_card.get_node("MarginContainer/VBoxContainer/SettingsSummary")
-	title.add_theme_font_size_override("font_size", 48)
-	title.add_theme_color_override("font_color", _style_color(&"title_text"))
-	subtitle.add_theme_font_size_override("font_size", 20)
-	subtitle.add_theme_color_override("font_color", _style_color(&"subtitle_text"))
-	version.add_theme_font_size_override("font_size", 15)
-	version.add_theme_color_override("font_color", _style_color(&"muted_text"))
-	summary.add_theme_font_size_override("font_size", 17)
-	summary.add_theme_color_override("font_color", _style_color(&"body_text"))
-	for chip in [_players_chip, _timer_chip, _online_chip]:
-		if chip != null:
-			chip.add_theme_font_size_override("font_size", 16)
-			chip.add_theme_color_override("font_color", _style_color(&"chip_text"))
-
-
-func _build_game_selector() -> void:
-	if _menu_vbox == null:
-		return
-	if _menu_vbox.get_node_or_null("GameHubSection") != null:
-		return
-
-	var section := VBoxContainer.new()
-	section.name = "GameHubSection"
-	section.add_theme_constant_override("separation", 10)
-
-	var header := Label.new()
-	header.text = "Now On The Table"
-	header.add_theme_font_size_override("font_size", 18)
-	header.add_theme_color_override("font_color", _style_color(&"subtitle_text"))
-	section.add_child(header)
-
-	var buttons_flow := FlowContainer.new()
-	buttons_flow.name = "GameButtonsFlow"
-	buttons_flow.add_theme_constant_override("h_separation", 8)
-	buttons_flow.add_theme_constant_override("v_separation", 8)
-	section.add_child(buttons_flow)
-
-	_game_buttons.clear()
-	for game_id in GAME_CATALOG.all_game_ids():
-		var button := Button.new()
-		button.toggle_mode = true
-		button.custom_minimum_size = Vector2(132, 38)
-		button.text = GAME_CATALOG.display_name(game_id)
-		button.pressed.connect(_on_game_selected.bind(game_id))
-		buttons_flow.add_child(button)
-		_game_buttons[String(game_id)] = button
-
-	var seats_label := Label.new()
-	seats_label.text = "Seat Count"
-	seats_label.add_theme_font_size_override("font_size", 16)
-	seats_label.add_theme_color_override("font_color", _style_color(&"subtitle_text"))
-	section.add_child(seats_label)
-
-	_player_count_row = HBoxContainer.new()
-	_player_count_row.name = "PlayerCountRow"
-	_player_count_row.add_theme_constant_override("separation", 8)
-	section.add_child(_player_count_row)
-
-	_game_description_label = Label.new()
-	_game_description_label.name = "GameDescription"
-	_game_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_game_description_label.add_theme_font_size_override("font_size", 15)
-	_game_description_label.add_theme_color_override("font_color", _style_color(&"body_text"))
-	section.add_child(_game_description_label)
-
-	_menu_vbox.add_child(section)
-	_menu_vbox.move_child(section, 2)
-	_rebuild_player_count_buttons()
-
-
-func _rebuild_player_count_buttons() -> void:
-	if _player_count_row == null:
-		return
-	for child in _player_count_row.get_children():
-		child.queue_free()
-	_player_count_buttons.clear()
-
-	for count in GAME_CATALOG.player_counts(selected_game_id):
-		var button := Button.new()
-		button.toggle_mode = true
-		button.custom_minimum_size = Vector2(54, 34)
-		button.text = str(count)
-		button.button_pressed = count == player_count
-		button.pressed.connect(_on_player_count_selected.bind(count))
-		_player_count_row.add_child(button)
-		_player_count_buttons.append(button)
-
-
-func _on_game_selected(game_id: StringName) -> void:
-	selected_game_id = game_id
-	player_count = GAME_CATALOG.clamp_player_count(selected_game_id, player_count)
-	_rebuild_player_count_buttons()
-	_apply_selected_game_state()
-
-
-func _on_player_count_selected(count: int) -> void:
-	player_count = count
-	for button in _player_count_buttons:
-		button.button_pressed = int(button.text) == count
-	_apply_selected_game_state()
-
-
-func _apply_selected_game_state() -> void:
-	if _title_label != null:
-		_title_label.text = "Project Tabletop"
-	if _subtitle_label != null:
-		_subtitle_label.text = "Multiplayer card, board, and strategy tables"
-	if _game_description_label != null:
-		_game_description_label.text = GAME_CATALOG.description(selected_game_id)
-	for key in _game_buttons.keys():
-		var button: Button = _game_buttons[key]
-		if button == null:
-			continue
-		button.button_pressed = key == String(selected_game_id)
-	_settings_button.visible = GAME_CATALOG.uses_okey_table(selected_game_id) and rule_config != null
-	if _customize_button != null:
-		_customize_button.visible = true
-	_refresh_settings_summary()
-	_sync_meta_chips()
-	_update_online_status_display()
+	cta_hovered.emit()
 
 
 # ═══════════════════════════════════════════
-# TOP-RIGHT STATUS AREA
+# PROFILE + ONLINE STATUS
 # ═══════════════════════════════════════════
 
-func _build_top_right_status() -> void:
-	var container := VBoxContainer.new()
-	container.name = "TopRightStatus"
-	container.anchor_left = 1.0
-	container.anchor_top = 0.0
-	container.anchor_right = 1.0
-	container.anchor_bottom = 0.0
-	container.offset_left = -180
-	container.offset_top = 16
-	container.offset_right = -16
-	container.offset_bottom = 120
-	container.add_theme_constant_override("separation", 8)
-	add_child(container)
+func _probe_online() -> void:
+	var online_service = ONLINE_SERVICE_SCRIPT.new()
+	var init_res: Dictionary = online_service.initialize()
+	online_service.free()
+	_online_available = bool(init_res.get("ok", false))
+	if not _online_available:
+		_invite_button.tooltip_text = "Invite friends (%s)" % String(init_res.get("reason", "online unavailable"))
 
-	# Quit X button row
-	var quit_row := HBoxContainer.new()
-	quit_row.alignment = BoxContainer.ALIGNMENT_END
-	container.add_child(quit_row)
-	_quit_x_btn = Button.new()
-	_quit_x_btn.text = "X"
-	_quit_x_btn.custom_minimum_size = Vector2(32, 32)
-	_quit_x_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	_quit_x_btn.add_theme_color_override("font_color", Color(0.9, 0.3, 0.25))
-	_quit_x_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.4, 0.3))
-	_quit_x_btn.pressed.connect(_on_quit_pressed)
-	quit_row.add_child(_quit_x_btn)
 
-	# Status dot + label row
-	var status_row := HBoxContainer.new()
-	status_row.alignment = BoxContainer.ALIGNMENT_END
-	status_row.add_theme_constant_override("separation", 6)
-	container.add_child(status_row)
-
-	_status_dot = ColorRect.new()
-	_status_dot.custom_minimum_size = Vector2(12, 12)
-	_status_dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	status_row.add_child(_status_dot)
-
-	var status_label := Label.new()
-	status_label.name = "StatusLabel"
-	status_label.add_theme_font_size_override("font_size", 14)
-	status_label.add_theme_color_override("font_color", _style_color(&"muted_text"))
-	status_row.add_child(status_label)
-
-	# Login button
-	_login_btn = Button.new()
-	_login_btn.name = "LoginButton"
-	_login_btn.text = "Login"
-	_login_btn.custom_minimum_size = Vector2(100, 32)
-	_login_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	_login_btn.pressed.connect(_on_login_pressed)
-	container.add_child(_login_btn)
-
-	# Welcome message
-	_welcome_label = Label.new()
-	_welcome_label.name = "WelcomeLabel"
-	_welcome_label.add_theme_font_size_override("font_size", 13)
-	_welcome_label.add_theme_color_override("font_color", _style_color(&"welcome_text"))
-	_welcome_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_welcome_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_welcome_label.visible = false
-	container.add_child(_welcome_label)
-
+func _refresh_profile() -> void:
+	var avatar_id: StringName = AVATAR_IDS[posmod(PLAYER_PROFILE.avatar_index, AVATAR_IDS.size())]
+	_avatar.texture = _texture(avatar_id)
+	_nickname.text = PLAYER_PROFILE.display_name
 	_update_online_status_display()
 
 
 func _update_online_status_display() -> void:
 	if _status_dot == null:
 		return
-	var status_label: Label = _status_dot.get_parent().get_node_or_null("StatusLabel")
+	var dot_color: Color
 	if not _online_available:
-		_status_dot.color = _style_color(&"online_status_offline")
-		if status_label != null:
-			status_label.text = "Offline"
+		dot_color = _style_color(&"party_danger")
+		_status_label.text = "Offline"
 		_login_btn.visible = false
-		_welcome_label.visible = false
 	elif not _logged_in:
-		_status_dot.color = _style_color(&"online_status_idle")
-		if status_label != null:
-			status_label.text = "Not logged in"
+		dot_color = _style_color(&"party_amber")
+		_status_label.text = "Not logged in"
 		_login_btn.visible = true
-		_welcome_label.visible = false
 	else:
-		_status_dot.color = _style_color(&"online_status_online")
-		if status_label != null:
-			status_label.text = "Online"
+		dot_color = _style_color(&"party_lime")
+		_status_label.text = "Online"
 		_login_btn.visible = false
-		_welcome_label.visible = true
-		var msg: String = WELCOME_MESSAGES[randi() % WELCOME_MESSAGES.size()]
-		_welcome_label.text = msg % PLAYER_PROFILE.display_name
+	_status_dot.add_theme_stylebox_override("panel", _flat(dot_color, dot_color, 0, 6))
 
 
 func _on_login_pressed() -> void:
-	if _menu_audio != null:
-		_menu_audio.play_confirm()
-	# Open online lobby which handles EOS login flow
-	_on_online_pressed()
+	# The online lobby owns the EOS login flow.
+	_open_selected_game_lobby()
 
 
 # ═══════════════════════════════════════════
-# BRANDING AREA (LEFT SIDE)
+# GAME SELECTION
 # ═══════════════════════════════════════════
 
-func _build_branding_welcome() -> void:
-	if _branding_area == null:
-		return
-	var brand_title: Label = _branding_area.get_node_or_null("BrandTitle") as Label
-	if brand_title != null:
-		brand_title.text = "Project Tabletop"
-		brand_title.offset_left = -260
-		brand_title.offset_top = -110
-		brand_title.offset_right = 260
-		brand_title.offset_bottom = 42
-		brand_title.add_theme_font_size_override("font_size", 64)
-		brand_title.add_theme_color_override("font_color", Color(0.96, 0.9, 0.78, 0.16))
+func _on_game_selected(game_id: StringName) -> void:
+	selected_game_id = game_id
+	player_count = GAME_CATALOG.default_player_count(selected_game_id)
+	_apply_selected_game_state()
 
-	var focus := _branding_area.get_node_or_null("BrandFocus") as Label
-	if focus == null:
-		focus = Label.new()
-		focus.name = "BrandFocus"
-		focus.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		focus.anchor_left = 0.5
-		focus.anchor_top = 0.5
-		focus.anchor_right = 0.5
-		focus.anchor_bottom = 0.5
-		focus.offset_left = -220
-		focus.offset_top = 32
-		focus.offset_right = 220
-		focus.offset_bottom = 78
-		focus.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		focus.add_theme_font_size_override("font_size", 24)
-		focus.add_theme_color_override("font_color", _style_color(&"title_text"))
-		_branding_area.add_child(focus)
-	focus.text = "Poker, Blackjack, Backgammon, Chess"
 
-	var roadmap := _branding_area.get_node_or_null("BrandRoadmap") as Label
-	if roadmap == null:
-		roadmap = Label.new()
-		roadmap.name = "BrandRoadmap"
-		roadmap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		roadmap.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		roadmap.anchor_left = 0.5
-		roadmap.anchor_top = 0.5
-		roadmap.anchor_right = 0.5
-		roadmap.anchor_bottom = 0.5
-		roadmap.offset_left = -240
-		roadmap.offset_top = 88
-		roadmap.offset_right = 240
-		roadmap.offset_bottom = 156
-		roadmap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		roadmap.add_theme_font_size_override("font_size", 18)
-		roadmap.add_theme_color_override("font_color", _style_color(&"subtitle_text").darkened(0.2))
-		_branding_area.add_child(roadmap)
-	roadmap.text = "Multiplayer-first hub now. Tabletop RPGs later."
+func _apply_selected_game_state() -> void:
+	for key in _mode_buttons.keys():
+		var card: Button = _mode_buttons[key]
+		if card != null:
+			card.set_pressed_no_signal(key == String(selected_game_id))
+	_refresh_settings_summary()
+	_update_online_status_display()
 
 
 # ═══════════════════════════════════════════
@@ -576,58 +847,72 @@ func _build_branding_welcome() -> void:
 func _on_start_pressed() -> void:
 	if _menu_audio != null:
 		_menu_audio.play_confirm()
+	cta_pressed.emit()
 	_open_selected_game_lobby()
+
+
+func _on_invite_pressed() -> void:
+	_open_selected_game_lobby()
+
+
+func _on_mic_toggled(muted: bool) -> void:
+	var master_bus: int = AudioServer.get_bus_index("Master")
+	if master_bus >= 0:
+		AudioServer.set_bus_mute(master_bus, muted)
+	_mic_toggle.text = "OFF" if muted else "MIC"
+	var fill: Color = _style_color(&"party_danger") if muted else _style_color(&"party_cream")
+	var font_color: Color = _style_color(&"party_cream") if muted else _style_color(&"party_ink")
+	var size: Vector2 = _style_vector(&"party_tray_button")
+	var depth: int = int(_style_scalar(&"party_button_depth")) - 2
+	_set_button_styles(_mic_toggle, fill, _style_color(&"party_cream"), int(size.x * 0.5), depth, fill.darkened(0.45), font_color)
+
+
+func _on_customize_pressed() -> void:
+	cta_hovered.emit()
+	_show_banner("Karakter Stüdyosu is coming soon. Your player is already waiting at the table.")
 
 
 func _open_selected_game_lobby() -> void:
 	var online_lobby_scene: PackedScene = load(ONLINE_LOBBY_SCENE_PATH)
 	if online_lobby_scene == null:
-		if _banner != null and _banner.has_method("set_text"):
-			_banner.call("set_text", "Failed to load the multiplayer lobby scene.")
+		_show_banner("Failed to load the multiplayer lobby scene.")
 		return
 	var online_lobby: Node = online_lobby_scene.instantiate()
 	if online_lobby.has_method("set_start_config"):
 		online_lobby.call("set_start_config", rule_config, game_seed, player_count, presentation_mode, selected_game_id)
-	if _animations_enabled:
-		var tween = create_tween()
-		tween.tween_property(self, "modulate", Color(1, 1, 1, 0), _style_scalar(&"motion_fade_out"))
-		tween.tween_callback(func():
-			_replace_self_in_shell(online_lobby)
-		)
-	else:
-		_replace_self_in_shell(online_lobby)
+	_transition_to(online_lobby)
 
 
 func _on_lobby_game_started(pc: int, seed_val: int, bot_difficulties: Array = [], _practice_mode: bool = false) -> void:
 	player_count = pc
 	var actual_seed: int = seed_val if seed_val >= 0 else randi()
-
 	var scene_path: String = GAME_CATALOG.launch_scene_path(selected_game_id, presentation_mode)
 	var game_table_scene: PackedScene = load(scene_path)
 	if game_table_scene == null:
-		if _banner != null and _banner.has_method("set_text"):
-			_banner.call("set_text", "Failed to load game scene")
+		_show_banner("Failed to load game scene")
 		return
 	var game_table: Node = game_table_scene.instantiate()
-
 	if game_table.has_method("configure_game"):
 		game_table.configure_game(rule_config, actual_seed, player_count, bot_difficulties)
-	if _banner != null and _banner.has_method("set_text"):
-		_banner.call("set_text", "Starting Okey (%s players, %s seed)" % [player_count, "random" if game_seed < 0 else str(game_seed)])
+	_show_banner("Starting %s (%s players, %s seed)" % [GAME_CATALOG.display_name(selected_game_id), player_count, "random" if game_seed < 0 else str(game_seed)])
+	_transition_to(game_table)
 
+
+func _transition_to(next_node: Node) -> void:
 	if _animations_enabled:
-		var tween = create_tween()
+		var delay: float = 0.0 if _reduced_motion else 0.25
+		var tween := create_tween()
+		tween.tween_interval(delay)
 		tween.tween_property(self, "modulate", Color(1, 1, 1, 0), _style_scalar(&"motion_fade_out"))
-		tween.tween_callback(func():
-			_replace_self_in_shell(game_table)
-		)
+		tween.tween_callback(_replace_self_in_shell.bind(next_node))
 	else:
-		_replace_self_in_shell(game_table)
+		_replace_self_in_shell(next_node)
 
 
 func _replace_self_in_shell(next_node: Node) -> void:
 	if next_node == null:
 		return
+	_pause_backdrop()
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var parent_node: Node = get_parent()
@@ -641,20 +926,15 @@ func _replace_self_in_shell(next_node: Node) -> void:
 
 
 func _on_settings_pressed() -> void:
-	if _menu_audio != null:
-		_menu_audio.play_confirm()
 	if not GAME_CATALOG.uses_okey_table(selected_game_id):
-		if _banner != null and _banner.has_method("set_text"):
-			_banner.call("set_text", "Advanced rules settings are available for Okey 101.")
+		_show_banner("Advanced table rules are available for Okey 101.")
 		return
 	if rule_config == null:
-		if _banner != null and _banner.has_method("set_text"):
-			_banner.call("set_text", "Okey settings are unavailable. Please check the game installation.")
+		_show_banner("Okey settings are unavailable. Please check the game installation.")
 		return
 	var settings_scene: PackedScene = load(SETTINGS_MENU_SCENE_PATH)
 	if settings_scene == null:
-		if _banner != null and _banner.has_method("set_text"):
-			_banner.call("set_text", "Failed to load Okey settings.")
+		_show_banner("Failed to load Okey settings.")
 		return
 	var settings_menu = settings_scene.instantiate()
 	add_child(settings_menu)
@@ -662,26 +942,11 @@ func _on_settings_pressed() -> void:
 	settings_menu.settings_changed.connect(_on_settings_changed)
 
 
-func _on_online_pressed() -> void:
-	if _menu_audio != null:
-		_menu_audio.play_confirm()
-	_open_selected_game_lobby()
-
-
-func _on_customize_pressed() -> void:
-	if _menu_audio != null:
-		_menu_audio.play_confirm()
-	if _banner != null and _banner.has_method("set_text"):
-		_banner.call("set_text", "Current roadmap: poker, blackjack, backgammon, chess now; tabletop RPG support later.")
-
-
 func _on_settings_changed(new_config) -> void:
 	rule_config = new_config
 	_sync_presentation_mode_from_settings()
 	_refresh_settings_summary()
-	_sync_meta_chips()
-	if _banner != null and _banner.has_method("set_text"):
-		_banner.call("set_text", "Settings updated!")
+	_show_banner("Settings updated!")
 
 
 func _on_quit_pressed() -> void:
@@ -691,154 +956,51 @@ func _on_quit_pressed() -> void:
 
 
 # ═══════════════════════════════════════════
-# ONLINE + CUSTOMIZE BUTTONS
-# ═══════════════════════════════════════════
-
-func _ensure_online_button() -> void:
-	if _buttons_box == null:
-		return
-	if _online_button == null:
-		var button_node: Node = ICON_BUTTON_SCENE.instantiate()
-		_online_button = button_node as Button
-		if _online_button == null:
-			_online_button = Button.new()
-		_online_button.name = "OnlineButton"
-		_online_button.custom_minimum_size = _style_vector(&"icon_button_min")
-		_buttons_box.add_child(_online_button)
-		_buttons_box.move_child(_online_button, 1)
-		_online_button.pressed.connect(_on_online_pressed)
-	_online_button.visible = false
-	_set_icon_text_button(_online_button, _texture(ICON_ONLINE_ID), "Play Online", 0)
-
-	var online_service = ONLINE_SERVICE_SCRIPT.new()
-	var init_res: Dictionary = online_service.initialize()
-	online_service.free()
-	_online_available = bool(init_res.get("ok", false))
-	var policy: String = String(init_res.get("backend_policy", ""))
-	_online_button.disabled = not _online_available
-	if not _online_available:
-		_online_button.tooltip_text = String(init_res.get("reason", "Online unavailable"))
-		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_LOCKED_ID), "Play Online", 0)
-	else:
-		_online_button.tooltip_text = "Backend: %s | Policy: %s" % [
-			String(init_res.get("backend_mode", "mock")),
-			policy,
-		]
-		_set_icon_text_button(_online_button, _texture(ICON_ONLINE_UNLOCKED_ID), "Play Online", 0)
-	_sync_meta_chips()
-
-
-func _ensure_customize_button() -> void:
-	if _buttons_box == null:
-		return
-	if _customize_button == null:
-		var button_node: Node = ICON_BUTTON_SCENE.instantiate()
-		_customize_button = button_node as Button
-		if _customize_button == null:
-			_customize_button = Button.new()
-		_customize_button.name = "CustomizeButton"
-		_customize_button.custom_minimum_size = _style_vector(&"icon_button_min")
-		_buttons_box.add_child(_customize_button)
-		_buttons_box.move_child(_customize_button, 1)
-		_customize_button.pressed.connect(_on_customize_pressed)
-	_set_icon_text_button(_customize_button, _texture(ICON_SETTINGS_ID), "Roadmap", 1)
-
-
-# ═══════════════════════════════════════════
 # STATE HELPERS
 # ═══════════════════════════════════════════
+
+func _show_banner(text: String) -> void:
+	if _banner != null and _banner.has_method("set_text"):
+		_banner.call("set_text", text)
+
 
 func _refresh_settings_summary() -> void:
 	if _settings_summary == null:
 		return
-	var seed_text = "Random" if game_seed < 0 else str(game_seed)
+	var parts: PackedStringArray = [GAME_CATALOG.display_name(selected_game_id)]
 	if GAME_CATALOG.uses_okey_table(selected_game_id) and rule_config != null:
-		_settings_summary.text = "Selected: %s  |  Preset: %s  |  Seats: %d  |  Seed: %s" % [
-			GAME_CATALOG.display_name(selected_game_id),
-			rule_config.preset_name,
-			player_count,
-			seed_text,
-		]
-		return
-	_settings_summary.text = "Selected: %s  |  %s  |  Seats: %d  |  Seed: %s" % [
-		GAME_CATALOG.display_name(selected_game_id),
-		GAME_CATALOG.chip_copy(selected_game_id),
-		player_count,
-		seed_text,
-	]
-
-
-func _sync_meta_chips() -> void:
-	if _players_chip != null:
-		_players_chip.text = "%d Seats" % player_count
-	if _timer_chip != null:
-		if GAME_CATALOG.uses_okey_table(selected_game_id):
-			var timer_val: int = int(rule_config.timer_seconds) if rule_config != null else 45
-			_timer_chip.text = "%ds Turn" % timer_val
-		else:
-			_timer_chip.text = GAME_CATALOG.chip_copy(selected_game_id)
-	if _online_chip != null:
-		_online_chip.text = "Multiplayer: %s" % ("Ready" if _online_available else "Offline")
-	_update_online_chip_icon()
+		parts.append("Preset: %s" % String(rule_config.preset_name))
+		parts.append("%ds turns" % int(rule_config.timer_seconds))
+	else:
+		parts.append(GAME_CATALOG.chip_copy(selected_game_id))
+	parts.append("%d seats" % player_count)
+	parts.append("Online" if _online_available else "Local + bots")
+	_settings_summary.text = "  ·  ".join(parts)
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED:
+	if what == NOTIFICATION_RESIZED and is_node_ready():
 		_apply_responsive_layout()
 
 
 func _apply_responsive_layout() -> void:
-	if _menu_card == null or _card_area == null:
-		return
 	var viewport_size: Vector2 = get_viewport_rect().size
-	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0 or _mode_grid == null:
 		return
-	if _branding_area != null:
-		_branding_area.set_anchors_preset(Control.PRESET_FULL_RECT)
-		_branding_area.offset_left = 0.0
-		_branding_area.offset_top = 0.0
-		_branding_area.offset_right = 0.0
-		_branding_area.offset_bottom = 0.0
+	var narrow: bool = viewport_size.x < 1280.0 or viewport_size.x / viewport_size.y < 1.5
+	var compact: bool = viewport_size.y < 900.0
+	_mode_grid.columns = 2 if narrow else 4
+	var card_min: Vector2 = _style_vector(&"party_card_min_compact" if compact else &"party_card_min")
+	for card in _mode_buttons.values():
+		(card as Control).custom_minimum_size = card_min
+	for label in _mode_chaos_labels:
+		label.visible = not compact
+	if _logo_bottom != null:
+		_logo_bottom.add_theme_font_size_override("font_size", 72 if compact else 96)
 
-	var content_min: Vector2 = _menu_vbox.get_combined_minimum_size() + Vector2(72.0, 72.0)
-	var max_width: float = maxf(520.0, viewport_size.x - 96.0)
-	var max_height: float = maxf(860.0, viewport_size.y - 96.0)
-	var target_width: float = clampf(maxf(560.0, content_min.x), 560.0, minf(680.0, max_width))
-	var target_height: float = clampf(maxf(900.0, content_min.y), 900.0, minf(980.0, max_height))
-	var show_branding: bool = viewport_size.x >= target_width + 720.0
-	if _branding_area != null:
-		_branding_area.visible = show_branding
 
-	if show_branding:
-		_card_area.anchor_left = 1.0
-		_card_area.anchor_top = 0.5
-		_card_area.anchor_right = 1.0
-		_card_area.anchor_bottom = 0.5
-		_card_area.offset_left = -target_width - 72.0
-		_card_area.offset_right = -72.0
-	else:
-		_card_area.anchor_left = 0.5
-		_card_area.anchor_top = 0.5
-		_card_area.anchor_right = 0.5
-		_card_area.anchor_bottom = 0.5
-		_card_area.offset_left = -target_width * 0.5
-		_card_area.offset_right = target_width * 0.5
-	_card_area.offset_top = -target_height * 0.5
-	_card_area.offset_bottom = target_height * 0.5
-	_card_area.custom_minimum_size = Vector2(target_width, target_height)
-
-	_menu_card.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_menu_card.offset_left = 0.0
-	_menu_card.offset_top = 0.0
-	_menu_card.offset_right = 0.0
-	_menu_card.offset_bottom = 0.0
-
-	var top_right := get_node_or_null("TopRightStatus") as VBoxContainer
-	if top_right != null:
-		top_right.offset_left = -220
-		top_right.offset_top = 16
-		top_right.offset_right = -16
-		top_right.offset_bottom = 180
+func _texture(id: StringName) -> Texture2D:
+	return ASSET_REGISTRY.texture(id)
 
 
 func _style_color(id: StringName) -> Color:
@@ -869,5 +1031,4 @@ func _apply_runtime_display_settings(settings: Dictionary = {}) -> void:
 	var display_settings: Dictionary = UI_SETTINGS_SCRIPT.sanitize_display_settings(loaded)
 	var result: Dictionary = DISPLAY_SETTINGS_SCRIPT.apply_safe(display_settings)
 	if not bool(result.get("ok", false)):
-		if _banner != null and _banner.has_method("set_text"):
-			_banner.call("set_text", "Display settings failed: %s" % String(result.get("reason", "unknown")))
+		_show_banner("Display settings failed: %s" % String(result.get("reason", "unknown")))
